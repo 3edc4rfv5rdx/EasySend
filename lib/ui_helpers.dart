@@ -1,12 +1,17 @@
 import 'dart:async';
+import 'dart:io';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:path/path.dart' as p;
 
 import 'globals.dart';
 
 // Shared look for dialog action buttons, so every dialog stays identical.
 ButtonStyle get dialogButtonStyle => TextButton.styleFrom(
-  backgroundColor: clUpBar,
+  // Same reason as the frame: appBar sits too close to the dialog surface on
+  // a dark theme.
+  backgroundColor: xvDarkNow ? clFrame : clUpBar,
   foregroundColor: clText,
   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
@@ -15,7 +20,9 @@ ButtonStyle get dialogButtonStyle => TextButton.styleFrom(
 );
 
 RoundedRectangleBorder get dialogShape => RoundedRectangleBorder(
-  side: BorderSide(color: clUpBar, width: 3.0),
+  // On a dark theme the appBar colour is too close to the dialog surface, so
+  // the lighter frame colour is used instead.
+  side: BorderSide(color: xvDarkNow ? clFrame : clUpBar, width: 3.0),
   borderRadius: BorderRadius.circular(8.0),
 );
 
@@ -31,7 +38,7 @@ Future<bool> okConfirm({
       return AlertDialog(
         title: Text(title, style: tsLarge),
         content: Text(message, style: tsNormal),
-        backgroundColor: clFon,
+        backgroundColor: clFill,
         shape: dialogShape,
         actions: [
           TextButton(
@@ -61,7 +68,7 @@ void showCustomDialog({
     context: navigatorKey.currentContext!,
     builder: (context) {
       return AlertDialog(
-        backgroundColor: clFon,
+        backgroundColor: clFill,
         shape: dialogShape,
         title: Row(
           children: [
@@ -107,7 +114,7 @@ Future<(bool, bool)> showAcceptDialog({
       return StatefulBuilder(
         builder: (context, setState) {
           return AlertDialog(
-            backgroundColor: clFon,
+            backgroundColor: clFill,
             shape: dialogShape,
             title: Row(
               children: [
@@ -169,7 +176,7 @@ Future<String?> showInputDialog({
     context: navigatorKey.currentContext!,
     builder: (BuildContext context) {
       return AlertDialog(
-        backgroundColor: clFon,
+        backgroundColor: clFill,
         shape: dialogShape,
         title: Text(title, style: tsLarge),
         content: TextField(
@@ -245,3 +252,111 @@ void okInfoBarPurple(String message) => okInfoBar(
     onPressed: () => scaffoldMessengerKey.currentState?.hideCurrentSnackBar(),
   ),
 );
+
+// Folder chooser. On desktop the system dialog is fine, but on Android
+// file_picker goes through SAF: it asks to grant access to the tree, including
+// future content, on every single pick, and hands back a content:// URI that
+// Directory.list() cannot walk. We already hold all-files access, so a plain
+// list of directories is both simpler and less intrusive.
+Future<String?> pickFolder({String? initialPath}) async {
+  if (!Platform.isAndroid) {
+    return FilePicker.platform.getDirectoryPath();
+  }
+
+  // Grab the context before any await, so it cannot go stale meanwhile.
+  final BuildContext? context = navigatorKey.currentContext;
+  if (context == null) return null;
+
+  const String root = '/storage/emulated/0';
+  String current = initialPath ?? root;
+  // Checked synchronously: one stat() is cheap, and an await here would leave
+  // the context behind an async gap.
+  if (!Directory(current).existsSync()) current = root;
+
+  return showDialog<String>(
+    context: context,
+    builder: (BuildContext dialogContext) {
+      return StatefulBuilder(
+        builder: (context, setState) {
+          return AlertDialog(
+            backgroundColor: clFill,
+            shape: dialogShape,
+            title: Text(lw('Select folder'), style: tsLarge),
+            content: SizedBox(
+              width: double.maxFinite,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(current, style: tsSmall),
+                  const Divider(),
+                  Flexible(
+                    child: FutureBuilder<List<Directory>>(
+                      future: _subDirectories(current),
+                      builder: (context, snapshot) {
+                        final List<Directory> dirs = snapshot.data ?? [];
+                        final bool atRoot = current == root;
+                        return ListView.builder(
+                          shrinkWrap: true,
+                          itemCount: dirs.length + (atRoot ? 0 : 1),
+                          itemBuilder: (context, index) {
+                            if (!atRoot && index == 0) {
+                              return ListTile(
+                                dense: true,
+                                leading: Icon(Icons.arrow_upward, color: clText),
+                                title: Text('..', style: tsNormal),
+                                onTap: () => setState(
+                                  () => current = p.dirname(current),
+                                ),
+                              );
+                            }
+                            final Directory dir = dirs[index - (atRoot ? 0 : 1)];
+                            return ListTile(
+                              dense: true,
+                              leading: Icon(Icons.folder, color: clUpBar),
+                              title: Text(p.basename(dir.path), style: tsNormal),
+                              onTap: () => setState(() => current = dir.path),
+                            );
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                style: dialogButtonStyle,
+                child: Text(lw('Cancel')),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, current),
+                style: dialogButtonStyle,
+                child: Text(lw('Select')),
+              ),
+            ],
+          );
+        },
+      );
+    },
+  );
+}
+
+// Readable subdirectories, dot-folders left out: they are never what someone
+// means to send.
+Future<List<Directory>> _subDirectories(String path) async {
+  try {
+    final List<Directory> dirs = await Directory(path)
+        .list(followLinks: false)
+        .where((e) => e is Directory && !p.basename(e.path).startsWith('.'))
+        .cast<Directory>()
+        .toList();
+    dirs.sort((a, b) => p.basename(a.path).toLowerCase().compareTo(p.basename(b.path).toLowerCase()));
+    return dirs;
+  } catch (e) {
+    myPrint('cannot list $path: $e');
+    return [];
+  }
+}

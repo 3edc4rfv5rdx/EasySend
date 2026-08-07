@@ -1,6 +1,5 @@
 import 'dart:io';
 
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -40,7 +39,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: clFon,
+        backgroundColor: clFill,
         shape: dialogShape,
         title: Text(lw('My IP'), style: tsLarge),
         content: Column(
@@ -89,7 +88,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _editRecvFolder() async {
-    final String? dir = await FilePicker.platform.getDirectoryPath();
+    final String? dir = await pickFolder(initialPath: xvRecvDir);
     if (dir == null) return;
     await _apply(() {
       xdef['Receive folder'] = dir;
@@ -123,7 +122,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final String? picked = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: clFon,
+        backgroundColor: clFill,
         shape: dialogShape,
         title: Text(title, style: tsLarge),
         content: RadioGroup<String>(
@@ -134,7 +133,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             children: options
                 .map((o) => RadioListTile<String>(
                       value: o,
-                      activeColor: clUpBar,
+                      fillColor: WidgetStatePropertyAll<Color>(clText),
                       title: Text(labelOf?.call(o) ?? lw(o), style: tsNormal),
                     ))
                 .toList(),
@@ -150,7 +149,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final List<Device> trusted = xvDevices.where((d) => d.trusted).toList();
     return Scaffold(
       backgroundColor: clFon,
-      appBar: AppBar(title: Text(lw('Settings'), style: const TextStyle(fontSize: fsLarge))),
+      appBar: AppBar(
+        title: Text(lw('Settings'), style: const TextStyle(fontSize: fsLarge)),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.info_outline),
+            tooltip: lw('About'),
+            onPressed: () => okInfo('EasySend $progVersion+$buildNumber\n$progAuthor'),
+          ),
+        ],
+      ),
       body: ListView(
         children: [
           _tile(
@@ -163,9 +171,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             icon: Icons.folder_outlined,
             title: lw('Receive folder'),
             value: xdef['Receive folder'],
-            // Android hands out folder access through the system picker only,
-            // and the default Download/EasySend is what people expect anyway.
-            onTap: Platform.isAndroid ? null : _editRecvFolder,
+            onTap: _editRecvFolder,
           ),
           _tile(
             icon: Icons.lan_outlined,
@@ -253,13 +259,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   },
                 ),
               )),
-          const Divider(),
-          _tile(
-            icon: Icons.info_outline,
-            title: lw('About'),
-            value: 'EasySend $progVersion+$buildNumber',
-            onTap: () => okInfo('EasySend $progVersion+$buildNumber\n$progAuthor'),
-          ),
         ],
       ),
     );

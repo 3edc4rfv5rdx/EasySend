@@ -60,6 +60,7 @@ class FileItem {
   final String relativePath; // path inside the transfer, keeps folder structure
   final String? sourcePath;  // local path, sender side only
   final int size;
+  final DateTime? modified;  // shown next to the size in the picked list
   int? crc32;                // computed on the fly, known once the file ends
   bool done = false;
   bool failed = false;
@@ -69,6 +70,7 @@ class FileItem {
     required this.relativePath,
     required this.size,
     this.sourcePath,
+    this.modified,
   });
 
   String get name {

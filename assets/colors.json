@@ -1,22 +1,46 @@
 {
   "Light": {
-    "background": "#FFF8E1",
-    "menu": "#B3E5FC",
-    "selected": "#4DFFA500",
-    "appBar": "#DAA520",
     "text": "#000000",
-    "fill": "#FFFFFF",
+    "background": "#F5EFD5",
+    "appBar": "#E6C94C",
+    "fill": "#F9F3E3",
+    "selected": "#FFCC80",
+    "menu": "#ADD8E6",
     "frame": "#9E9E9E",
-    "progress": "#FF9800"
+    "progress": "#FF9800",
+    "online": "#43A047"
   },
   "Dark": {
-    "background": "#121212",
-    "menu": "#5C5C5C",
-    "selected": "#4D6C6C6C",
-    "appBar": "#404040",
-    "text": "#E0E0E0",
-    "fill": "#4D4D4D",
-    "frame": "#808080",
-    "progress": "#FFA726"
+    "text": "#FFFFFF",
+    "background": "#212121",
+    "appBar": "#424242",
+    "fill": "#303030",
+    "selected": "#616161",
+    "menu": "#263238",
+    "frame": "#757575",
+    "progress": "#FFA726",
+    "online": "#66BB6A"
+  },
+  "Blue": {
+    "text": "#000000",
+    "background": "#E3F2FD",
+    "appBar": "#2196F3",
+    "fill": "#BBDEFB",
+    "selected": "#90CAF9",
+    "menu": "#CFD8DC",
+    "frame": "#90A4AE",
+    "progress": "#FF9800",
+    "online": "#43A047"
+  },
+  "Green": {
+    "text": "#121E0A",
+    "background": "#F3F7ED",
+    "appBar": "#97BA60",
+    "fill": "#FFFFFF",
+    "selected": "#4D4C6B3D",
+    "menu": "#D4E2C6",
+    "frame": "#A5B79A",
+    "progress": "#E65100",
+    "online": "#2E7D32"
   }
 }

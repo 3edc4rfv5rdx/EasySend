@@ -23,11 +23,13 @@ Future<List<FileItem>> collectFiles(List<String> paths) async {
     final FileSystemEntityType type = await FileSystemEntity.type(path);
     if (type == FileSystemEntityType.file) {
       final File f = File(path);
+      final FileStat stat = await f.stat();
       items.add(FileItem(
         id: _uuid.v4(),
         relativePath: p.basename(path),
-        size: await f.length(),
+        size: stat.size,
         sourcePath: path,
+        modified: stat.modified,
       ));
     } else if (type == FileSystemEntityType.directory) {
       final String parent = p.dirname(path);
@@ -35,12 +37,14 @@ Future<List<FileItem>> collectFiles(List<String> paths) async {
           in Directory(path).list(recursive: true, followLinks: false)) {
         if (entity is! File) continue;
         try {
+          final FileStat stat = await entity.stat();
           items.add(FileItem(
             id: _uuid.v4(),
             // Relative to the folder's parent, so the folder itself is included.
             relativePath: p.relative(entity.path, from: parent).replaceAll(r'\', '/'),
-            size: await entity.length(),
+            size: stat.size,
             sourcePath: entity.path,
+            modified: stat.modified,
           ));
         } catch (e) {
           myPrint('skipping unreadable ${entity.path}: $e');

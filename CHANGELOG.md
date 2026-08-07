@@ -2,6 +2,12 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+- N: Own folder picker on Android instead of SAF, which asked to grant access to the whole tree on every pick and returned an unusable content URI
+- N: Receive folder can be changed on Android too, now that the picker returns a real path
+- N: Four palettes taken from the archived projects: Light, Dark, Blue, Green
+- F: Show the file date next to its size, and spell out offline devices instead of relying on icon colour alone
+- F: Reachable devices get an inverted badge; dialogs sit on the fill colour so they no longer dissolve into a dark background
+- F: Tidy the layout: matching section strips, rounder and narrower Send, filled File/Folder buttons, About moved into the settings app bar
 - E: Stop really stops mid-file; the upload stream is broken instead of letting the current file finish and the bar run to the end
 - E: Ask before removing a manual device or revoking trust, instead of doing it on a single tap
 - N: Stop an incoming transfer from the receiving side, which had no way to cancel at all

@@ -18,7 +18,7 @@ final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 const String prgName = 'easysend';
 const String progVersion = '0.1.260807';
-const int buildNumber = 16;
+const int buildNumber = 23;
 const String progAuthor = 'Eugen';
 
 const String langFile = 'assets/locales.json';
@@ -78,7 +78,8 @@ Color clFrame = const Color(0xFF9E9E9E);
 Color clProgress = const Color(0xFFFF9800);
 
 Color clRed = Colors.red;
-Color clGreen = Colors.green;
+// Reachable devices; read from the palette like everything else.
+Color clGreen = const Color(0xFF43A047);
 
 const double fsSmall = 13;  // Small font size
 const double fsNormal = 15; // Main font size
@@ -198,6 +199,7 @@ void applyTheme(String themeName) {
   clFill = hexToColor(theme['fill'] ?? '#FFFFFF');
   clFrame = hexToColor(theme['frame'] ?? '#9E9E9E');
   clProgress = hexToColor(theme['progress'] ?? '#FF9800');
+  clGreen = hexToColor(theme['online'] ?? '#43A047');
   xvDarkNow = themeName == themeDark;
 }
 
@@ -252,6 +254,12 @@ String formatBytes(int bytes) {
   final String text = value >= 100 ? value.toStringAsFixed(0) : value.toStringAsFixed(1);
   return '$text ${units[unit]}';
 }
+
+String _two(int v) => v.toString().padLeft(2, '0');
+
+// 2026-08-07 14:30
+String formatDateTime(DateTime t) =>
+    '${t.year}-${_two(t.month)}-${_two(t.day)} ${_two(t.hour)}:${_two(t.minute)}';
 
 String formatSpeed(double bytesPerSec) => '${formatBytes(bytesPerSec.round())}/s';
 

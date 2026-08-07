@@ -99,7 +99,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _pickFolder() async {
-    final String? dir = await FilePicker.platform.getDirectoryPath();
+    final String? dir = await pickFolder();
     if (dir == null) return;
     await _addPaths([dir]);
   }
@@ -114,7 +114,11 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  void _clear() => setState(_selected.clear);
+  // Clear resets the whole choice, files and target alike.
+  void _clear() => setState(() {
+        _selected.clear();
+        _target = null;
+      });
 
   void _remove(FileItem item) => setState(() => _selected.remove(item));
 
@@ -282,8 +286,9 @@ class _HomeScreenState extends State<HomeScreen> {
       label: Text(label),
       style: OutlinedButton.styleFrom(
         foregroundColor: clText,
+        backgroundColor: clFill,
         side: BorderSide(color: clFrame),
-        padding: const EdgeInsets.symmetric(vertical: 14),
+        padding: const EdgeInsets.symmetric(vertical: 6),
       ),
     );
   }
@@ -307,7 +312,17 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           TextButton(
             onPressed: _clear,
-            style: TextButton.styleFrom(foregroundColor: clText),
+            style: TextButton.styleFrom(
+              foregroundColor: clText,
+              backgroundColor: clFill,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              minimumSize: Size.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: BorderSide(color: clFrame),
+              ),
+            ),
             child: Text(lw('Clear'), style: tsSmall),
           ),
         ],
@@ -324,7 +339,12 @@ class _HomeScreenState extends State<HomeScreen> {
           dense: true,
           visualDensity: VisualDensity.compact,
           title: Text(item.relativePath, style: tsNormal, overflow: TextOverflow.ellipsis),
-          subtitle: Text(formatBytes(item.size), style: tsSmall),
+          subtitle: Text(
+            item.modified == null
+                ? formatBytes(item.size)
+                : '${formatBytes(item.size)}   ${formatDateTime(item.modified!)}',
+            style: tsSmall,
+          ),
           trailing: IconButton(
             icon: Icon(Icons.close, color: clFrame, size: 20),
             onPressed: () => _remove(item),
@@ -334,11 +354,13 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  // Same strip for every section: a trailing button must not make one of them
+  // taller than the rest.
   Widget _sectionTitle(String text, {Widget? trailing}) {
     return Container(
       width: double.infinity,
       color: clMenu,
-      padding: EdgeInsets.fromLTRB(12, trailing == null ? 6 : 0, 4, trailing == null ? 6 : 0),
+      padding: const EdgeInsets.fromLTRB(12, 4, 24, 4),
       child: Row(
         children: [
           Expanded(
@@ -353,10 +375,17 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildDevicesHeader() {
     return _sectionTitle(
       lw('Devices'),
-      trailing: IconButton(
-        icon: Icon(Icons.add, color: clText),
-        tooltip: lw('Add device'),
-        onPressed: _addManualDevice,
+      trailing: Tooltip(
+        message: lw('Add device'),
+        child: InkWell(
+          onTap: _addManualDevice,
+          customBorder: const CircleBorder(),
+          child: CircleAvatar(
+            radius: 12,
+            backgroundColor: clText,
+            child: Icon(Icons.add, color: clFill, size: 18),
+          ),
+        ),
       ),
     );
   }
@@ -381,18 +410,27 @@ class _HomeScreenState extends State<HomeScreen> {
       itemCount: devices.length,
       itemBuilder: (context, index) {
         final Device device = devices[index];
+        final bool isTarget = _target?.id == device.id;
         return ListTile(
           dense: true,
-          selected: _target?.id == device.id,
+          selected: isTarget,
           selectedTileColor: clSel,
-          leading: Icon(
-            device.platform == 'android' ? Icons.smartphone : Icons.computer,
-            color: device.online ? clGreen : clFrame,
-          ),
+          // Reachable devices get an inverted badge: a filled circle with the
+          // icon punched out in the background colour. Two shades of the same
+          // icon were impossible to tell apart at a glance.
+          leading: _deviceIcon(device),
           title: Text(device.name, style: tsNormal),
+          // Spelled out as well as coloured: an unreachable device cannot be
+          // picked, and that should not look like an unexplained dead row.
           subtitle: Text(
-            device.address.isEmpty ? lw('No devices found') : '${device.address}:${device.port}',
-            style: tsSmall,
+            [
+              if (device.address.isNotEmpty) '${device.address}:${device.port}',
+              if (!device.online) lw('offline'),
+            ].join('   '),
+            style: TextStyle(
+              fontSize: fsSmall,
+              color: device.online ? clText : clFrame,
+            ),
           ),
           trailing: device.manual
               ? IconButton(
@@ -422,6 +460,19 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  Widget _deviceIcon(Device device) {
+    final IconData icon =
+        device.platform == 'android' ? Icons.smartphone : Icons.computer;
+    if (!device.online) {
+      return Icon(icon, color: clFrame);
+    }
+    return CircleAvatar(
+      radius: 16,
+      backgroundColor: clGreen,
+      child: Icon(icon, color: clFon, size: 18),
+    );
+  }
+
   Widget _buildTransferList() {
     // Newest on top.
     final List<TransferSession> list = xvTransfers.reversed.toList();
@@ -446,15 +497,6 @@ class _HomeScreenState extends State<HomeScreen> {
               Icon(t.incoming ? Icons.download : Icons.upload, size: 18, color: clText),
               const SizedBox(width: 6),
               Expanded(child: Text(t.peerName, style: tsNormal, overflow: TextOverflow.ellipsis)),
-              if (!t.isRunning)
-                IconButton(
-                  icon: Icon(Icons.close, color: clFrame, size: 20),
-                  tooltip: lw('Remove'),
-                  onPressed: () {
-                    xvTransfers.remove(t);
-                    transfersChanged();
-                  },
-                ),
               // Only the files that did not make it are sent again.
               if (t.canRetry)
                 TextButton.icon(
@@ -469,14 +511,38 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
             ],
           ),
-          // One bar for the whole transfer, counted in bytes (SPEC 3.3). Thick
-          // and bright on purpose: it has to be readable across the room.
-          LinearProgressIndicator(
-            value: t.progress,
-            minHeight: 12,
-            borderRadius: BorderRadius.circular(6),
-            backgroundColor: clFrame.withValues(alpha: 0.3),
-            color: _progressColor(t),
+          Row(
+            children: [
+              // One bar for the whole transfer, counted in bytes (SPEC 3.3).
+              // Thick and bright on purpose: readable across the room.
+              Expanded(
+                child: LinearProgressIndicator(
+                  value: t.progress,
+                  minHeight: 12,
+                  borderRadius: BorderRadius.circular(6),
+                  backgroundColor: clFrame.withValues(alpha: 0.3),
+                  color: _progressColor(t),
+                ),
+              ),
+              // The slot is always there, empty while the transfer runs, so the
+              // bar keeps its width and nothing jumps when it finishes.
+              SizedBox(
+                width: 32,
+                height: 24,
+                child: t.isRunning
+                    ? null
+                    : IconButton(
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints.tightFor(width: 32, height: 24),
+                        icon: Icon(Icons.close, color: clFrame, size: 20),
+                        tooltip: lw('Remove'),
+                        onPressed: () {
+                          xvTransfers.remove(t);
+                          transfersChanged();
+                        },
+                      ),
+              ),
+            ],
           ),
           const SizedBox(height: 4),
           Text(_transferSubtitle(t, currentFile, eta), style: tsSmall),
@@ -551,7 +617,7 @@ class _HomeScreenState extends State<HomeScreen> {
             : '${lw('Send')}  ${_selected.length} — ${formatBytes(_totalBytes)}';
     return SafeArea(
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 6, 12, 10),
+        padding: const EdgeInsets.fromLTRB(48, 6, 48, 10),
         child: SizedBox(
           width: double.infinity,
           child: ElevatedButton(
@@ -564,8 +630,8 @@ class _HomeScreenState extends State<HomeScreen> {
               backgroundColor: stopping ? clRed : clUpBar,
               foregroundColor: clText,
               disabledBackgroundColor: clFrame.withValues(alpha: 0.3),
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
             ),
             child: Text(
               label,
