@@ -18,7 +18,7 @@ fi
 TAG="v$FULL_VER"
 
 if ! git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
-    echo "ERROR: Tag $TAG not found. Run 01-PushTag.sh first."
+    echo "ERROR: Tag $TAG not found. Run 21-PushTag.sh first."
     exit 1
 fi
 
