@@ -34,8 +34,10 @@ dependencies:
   wakelock_plus: ^1.2.10
   # Accept/decline prompt and finish notice when the app is not on screen
   flutter_local_notifications: ^19.4.2
-  # "Share with EasySend" from any Android app
-  receive_sharing_intent: ^1.9.0
+  # "Share with EasySend" from any Android app.
+  # Pinned: 1.9.0 uses a kotlin {} block without applying the Kotlin plugin and
+  # fails to evaluate ("Could not find method kotlin()"). Same API here.
+  receive_sharing_intent: 1.8.1
   desktop_drop: ^0.7.1
 
 dev_dependencies:
