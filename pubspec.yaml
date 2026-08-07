@@ -1,0 +1,52 @@
+name: easysend
+description: "Simple file transfer between devices over a local network"
+publish_to: 'none'
+
+# The build number lives in two places that must stay in sync: `version:` here
+# and progVersion / buildNumber in lib/globals.dart.
+version: 0.1.260807+2
+
+environment:
+  sdk: ^3.11.5
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Paths and platform directories
+  path: ^1.9.0
+  path_provider: ^2.1.5
+  # Device model / host name for the default device name
+  device_info_plus: ^11.5.0
+  # Stable device id derived per platform
+  uuid: ^4.5.1
+  # ANDROID_ID: survives reinstall, unlike the app's private storage
+  android_id: ^0.4.0
+  # Desktop window sizing (portrait layout everywhere)
+  window_manager: ^0.4.3
+  # Picking files and folders to send
+  file_picker: ^8.3.7
+  # Used for its incremental CRC32 only
+  archive: ^4.0.7
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.4
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/locales.json
+    # Shipped in the bundle so the Linux runner can set the window icon from it
+    - assets/icon2.png
+
+flutter_launcher_icons:
+  android: true
+  ios: false
+  min_sdk_android: 21
+  image_path: "assets/icon.png"
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: "assets/icon.png"
