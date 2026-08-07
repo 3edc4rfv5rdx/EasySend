@@ -4,7 +4,7 @@ publish_to: 'none'
 
 # The build number lives in two places that must stay in sync: `version:` here
 # and progVersion / buildNumber in lib/globals.dart.
-version: 0.1.260807+11
+version: 0.1.260807+12
 
 environment:
   sdk: ^3.11.5
@@ -51,6 +51,7 @@ flutter:
 
   assets:
     - assets/locales.json
+    - assets/colors.json
     # Shipped in the bundle so the Linux runner can set the window icon from it
     - assets/icon2.png
 

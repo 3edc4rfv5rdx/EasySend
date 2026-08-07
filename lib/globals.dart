@@ -18,7 +18,7 @@ final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 const String prgName = 'easysend';
 const String progVersion = '0.1.260807';
-const int buildNumber = 11;
+const int buildNumber = 12;
 const String progAuthor = 'Eugen';
 
 const String langFile = 'assets/locales.json';
@@ -46,44 +46,34 @@ const int speedWindowSec = 5;
 // Subdirectory created inside the system downloads folder.
 const String recvDirName = 'EasySend';
 
-// All program languages. English is the key language of locales.json itself.
-const List<String> appLANGUAGES = ['EN', 'RU', 'UA'];
+// Languages and themes are both data, not code: add a locale to
+// locales.json or a palette to colors.json and it shows up in settings.
+const String colorsFile = 'assets/colors.json';
 
-// Theme names as shown in settings. 'System' follows the platform brightness.
-const List<String> appTHEMES = ['System', 'Light', 'Dark'];
+// Code -> name, read from the '_language_name' section of locales.json.
+// A language name is written in its own language and never translated.
+Map<String, String> langNames = {'en': 'English'};
 
-// Theme colors, ARGB. Order: fon, menu, select, upBar, text, fill, frame.
-const List<List<Color>> curTHEME = [
-  // Light theme
-  [
-    Color(0xFFFFF8E1), // fon - screen background
-    Color(0xFFB3E5FC), // menu
-    Color(0x4DFFA500), // select - 30% orange
-    Color(0xFFDAA520), // upBar - mustard
-    Colors.black,      // text
-    Colors.white,      // fill
-    Colors.grey,       // frame
-  ],
-  // Dark theme
-  [
-    Color(0xFF121212), // fon - almost black
-    Color(0xFF5C5C5C), // menu - medium-dark grey
-    Color(0x4D6C6C6C), // select - grey with transparency
-    Color(0xFF404040), // upBar - dark grey
-    Color(0xFFE0E0E0), // text - light grey
-    Color(0xFF4D4D4D), // fill
-    Color(0xFF808080), // frame
-  ],
-];
+List<String> get appLANGUAGES => langNames.keys.toList();
 
-// Define colors with names
-Color clFon = curTHEME[0][0];
-Color clMenu = curTHEME[0][1];
-Color clSel = curTHEME[0][2];
-Color clUpBar = curTHEME[0][3];
-Color clText = curTHEME[0][4];
-Color clFill = curTHEME[0][5];
-Color clFrame = curTHEME[0][6];
+// Palettes read from colors.json, keyed by theme name.
+Map<String, Map<String, String>> loadedThemes = {};
+
+// 'System' is not a palette but a choice between the light and dark ones.
+const String themeSystem = 'System';
+const String themeLight = 'Light';
+const String themeDark = 'Dark';
+
+List<String> get appTHEMES => [themeSystem, ...loadedThemes.keys];
+
+// Current theme colors, replaced wholesale by applyTheme().
+Color clFon = const Color(0xFFFFF8E1);
+Color clMenu = const Color(0xFFB3E5FC);
+Color clSel = const Color(0x4DFFA500);
+Color clUpBar = const Color(0xFFDAA520);
+Color clText = const Color(0xFF000000);
+Color clFill = const Color(0xFFFFFFFF);
+Color clFrame = const Color(0xFF9E9E9E);
 
 Color clRed = Colors.red;
 Color clGreen = Colors.green;
@@ -103,7 +93,7 @@ TextStyle get tsLarge => TextStyle(fontSize: fsLarge, fontWeight: fwNormal, colo
 // Global Map for settings, persisted to settings.json. Keys starting with a dot
 // are internal and never shown in the settings screen.
 Map<String, dynamic> xdef = {
-  'Program language': 'EN',
+  'Program language': 'en',
   'Color theme': 'System',
   'Device name': '',
   'Receive folder': '',
@@ -146,28 +136,66 @@ void serverStateChanged() => serverTick.value++;
 // can open what arrived; no history is kept between runs.
 List<TransferSession> xvTransfers = [];
 
-void initThemeColors(bool dark) {
-  final int i = dark ? 1 : 0;
-  clFon = curTHEME[i][0];
-  clMenu = curTHEME[i][1];
-  clSel = curTHEME[i][2];
-  clUpBar = curTHEME[i][3];
-  clText = curTHEME[i][4];
-  clFill = curTHEME[i][5];
-  clFrame = curTHEME[i][6];
-  xvDarkNow = dark;
+// '#RRGGBB' or '#AARRGGBB' -> Color. Missing alpha means fully opaque.
+Color hexToColor(String hex) {
+  String value = hex.replaceAll('#', '');
+  if (value.length == 6) value = 'FF$value';
+  return Color(int.tryParse(value, radix: 16) ?? 0xFF000000);
 }
 
-// Resolve the stored theme name against the current platform brightness.
-bool isDarkTheme(Brightness platformBrightness) {
-  switch (xdef['Color theme']) {
-    case 'Light':
-      return false;
-    case 'Dark':
-      return true;
-    default:
-      return platformBrightness == Brightness.dark;
+// Read every palette from colors.json. Without them the app still runs on the
+// built-in defaults above, just with no way to switch.
+Future<void> loadThemes() async {
+  try {
+    final String jsonString = await rootBundle.loadString(colorsFile);
+    final Map<String, dynamic> data = json.decode(jsonString);
+    loadedThemes = {};
+    data.forEach((name, colors) {
+      if (colors is Map) loadedThemes[name] = Map<String, String>.from(colors);
+    });
+    myPrint('loaded ${loadedThemes.length} themes: ${loadedThemes.keys.join(', ')}');
+  } catch (e) {
+    myPrint('loadThemes failed: $e');
+    loadedThemes = {};
   }
+}
+
+// Read the language codes and their names from locales.json.
+Future<void> loadLanguageNames() async {
+  try {
+    final String jsonString = await rootBundle.loadString(langFile);
+    final Map<String, dynamic> data = json.decode(jsonString);
+    final dynamic section = data['_language_name'];
+    if (section is Map && section.isNotEmpty) {
+      langNames = Map<String, String>.from(section);
+      myPrint('languages: ${langNames.keys.join(', ')}');
+    }
+  } catch (e) {
+    myPrint('loadLanguageNames failed: $e');
+  }
+}
+
+// Which palette the stored setting resolves to right now.
+String resolveThemeName(Brightness platformBrightness) {
+  final String stored = xdef['Color theme'] as String? ?? themeSystem;
+  if (stored != themeSystem && loadedThemes.containsKey(stored)) return stored;
+  return platformBrightness == Brightness.dark ? themeDark : themeLight;
+}
+
+void applyTheme(String themeName) {
+  final Map<String, String>? theme = loadedThemes[themeName];
+  if (theme == null) {
+    myPrint('theme $themeName not found, keeping current colors');
+    return;
+  }
+  clFon = hexToColor(theme['background'] ?? '#FFFFFF');
+  clMenu = hexToColor(theme['menu'] ?? '#B3E5FC');
+  clSel = hexToColor(theme['selected'] ?? '#4DFFA500');
+  clUpBar = hexToColor(theme['appBar'] ?? '#DAA520');
+  clText = hexToColor(theme['text'] ?? '#000000');
+  clFill = hexToColor(theme['fill'] ?? '#FFFFFF');
+  clFrame = hexToColor(theme['frame'] ?? '#9E9E9E');
+  xvDarkNow = themeName == themeDark;
 }
 
 // Function to initialize translations
@@ -175,9 +203,9 @@ Map<String, String> _translationCache = {};
 
 // Load localizations for the current language from the JSON file
 Future<void> initTranslations() async {
-  // The code must match the keys inside locales.json ('ru', 'ua'), so it is
-  // taken straight from the setting rather than mapped to an ISO code.
-  final String lang = (xdef['Program language'] as String).toLowerCase();
+  // The code is used exactly as it appears in the '_language_name' section of
+  // locales.json, which is what the translation entries are keyed by too.
+  final String lang = xdef['Program language'] as String;
   // No cache needed for English: the keys are the English strings
   if (lang == 'en') {
     _translationCache.clear();
@@ -188,6 +216,7 @@ Future<void> initTranslations() async {
     final Map<String, dynamic> allTranslations = json.decode(jsonString);
     _translationCache.clear();
     allTranslations.forEach((key, value) {
+      if (key.startsWith('_')) return;
       if (value is Map && value.containsKey(lang)) {
         _translationCache[key] = value[lang];
       }
@@ -201,7 +230,7 @@ Future<void> initTranslations() async {
 
 // Function to translate a word
 String lw(String wrd) {
-  if (xdef['Program language'] == 'EN') return wrd;
+  if (xdef['Program language'] == 'en') return wrd;
   // Marker on purpose, in release too: builds here are always release, and a
   // missing translation has to be visible rather than silently English.
   return _translationCache[wrd] ?? '(( $wrd ))';

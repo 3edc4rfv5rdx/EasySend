@@ -2,6 +2,8 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+- N: Build the theme list from assets/colors.json, so a palette is data rather than code
+- N: Build the language list from the _language_name section of locales.json, names included
 - E: Show language codes as-is instead of running them through lw(), which printed (( EN ))
 - E: Load translations by the code used in locales.json, so Ukrainian is found at all
 - E: Rebuild the home screen on a language or theme change; a const widget kept the old strings

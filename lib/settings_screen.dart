@@ -119,13 +119,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _tile(
             icon: Icons.language,
             title: lw('Language'),
-            value: xdef['Program language'],
+            value: langNames[xdef['Program language']] ?? xdef['Program language'],
             onTap: () => _pickFromList(
               title: lw('Language'),
               options: appLANGUAGES,
               current: xdef['Program language'],
-              // Language codes are shown as-is: they are not words to translate.
-              labelOf: (code) => code,
+              // Names come from locales.json and are never translated.
+              labelOf: (code) => langNames[code] ?? code,
               onPick: (v) async {
                 xdef['Program language'] = v;
                 await saveSettings();

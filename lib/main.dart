@@ -19,6 +19,8 @@ Future<void> main() async {
   await initPaths();
   await loadSettings();
   await initIdentity();
+  await loadThemes();
+  await loadLanguageNames();
   await initTranslations();
   await initNotifications();
 
@@ -69,7 +71,7 @@ class _EasySendAppState extends State<EasySendApp> with WidgetsBindingObserver {
   // The 'System' theme has to follow the platform, so react to its changes.
   @override
   void didChangePlatformBrightness() {
-    if (xdef['Color theme'] == 'System') setState(() {});
+    if (xdef['Color theme'] == themeSystem) setState(() {});
   }
 
   @override
@@ -77,10 +79,11 @@ class _EasySendAppState extends State<EasySendApp> with WidgetsBindingObserver {
     return ValueListenableBuilder<int>(
       valueListenable: appRebuild,
       builder: (context, tick, child) {
-        final bool dark = isDarkTheme(
+        final String themeName = resolveThemeName(
           WidgetsBinding.instance.platformDispatcher.platformBrightness,
         );
-        initThemeColors(dark);
+        applyTheme(themeName);
+        final bool dark = themeName == themeDark;
         return MaterialApp(
           title: 'EasySend',
           debugShowCheckedModeBanner: false,
