@@ -189,11 +189,12 @@ build_app() {
     echo "Generating icons..."
     dart run flutter_launcher_icons
 
+    # 64-bit only: armeabi-v7a is dropped, no 32-bit device is in use here.
     echo "Building universal APK..."
-    flutter build apk --release
+    flutter build apk --release --target-platform android-arm64,android-x64
 
     echo "Building APK for different architectures..."
-    flutter build apk --release --split-per-abi
+    flutter build apk --release --split-per-abi --target-platform android-arm64,android-x64
 
     # Rename APK files
     echo "Renaming APK files..."
@@ -209,13 +210,6 @@ build_app() {
     if [ -f "$APK_PATH/app-arm64-v8a-release.apk" ]; then
         NEW_NAME="$APK_PATH/app-arm64-v8a-release-$VER-$VER_CODE.apk"
         mv "$APK_PATH/app-arm64-v8a-release.apk" "$NEW_NAME"
-        echo "✓ Created: $NEW_NAME"
-    fi
-
-    # APK for armeabi-v7a
-    if [ -f "$APK_PATH/app-armeabi-v7a-release.apk" ]; then
-        NEW_NAME="$APK_PATH/app-armeabi-v7a-release-$VER-$VER_CODE.apk"
-        mv "$APK_PATH/app-armeabi-v7a-release.apk" "$NEW_NAME"
         echo "✓ Created: $NEW_NAME"
     fi
 
