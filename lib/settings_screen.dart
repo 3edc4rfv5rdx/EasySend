@@ -61,6 +61,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     required List<String> options,
     required String current,
     required Future<void> Function(String) onPick,
+    String Function(String)? labelOf,
   }) async {
     final String? picked = await showDialog<String>(
       context: context,
@@ -77,7 +78,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 .map((o) => RadioListTile<String>(
                       value: o,
                       activeColor: clUpBar,
-                      title: Text(lw(o), style: tsNormal),
+                      title: Text(labelOf?.call(o) ?? lw(o), style: tsNormal),
                     ))
                 .toList(),
           ),
@@ -123,6 +124,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               title: lw('Language'),
               options: appLANGUAGES,
               current: xdef['Program language'],
+              // Language codes are shown as-is: they are not words to translate.
+              labelOf: (code) => code,
               onPick: (v) async {
                 xdef['Program language'] = v;
                 await saveSettings();

@@ -37,7 +37,7 @@ Future<String> _resolveConfigDir() async {
 
 // Subdirectory inside the system downloads folder. getDownloadsDirectory()
 // resolves the real localized folder (XDG_DOWNLOAD_DIR on Linux, the Downloads
-// known folder on Windows), so "Загрузки" and friends are handled for us.
+// known folder on Windows), so a localized folder name is handled for us.
 Future<String> _resolveRecvDir() async {
   if (Platform.isAndroid) {
     return p.join('/storage/emulated/0/Download', recvDirName);

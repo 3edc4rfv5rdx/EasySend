@@ -23,20 +23,25 @@ subprojects {
 // default (1.8) while Kotlin follows the running JDK, and the build stops with
 // "Inconsistent JVM-target compatibility". Pin every subproject to 17, the
 // version the app itself uses.
-subprojects {
-    afterEvaluate {
-        extensions.findByName("android")?.let { android ->
-            if (android is com.android.build.gradle.BaseExtension) {
-                android.compileOptions {
-                    sourceCompatibility = JavaVersion.VERSION_17
-                    targetCompatibility = JavaVersion.VERSION_17
-                }
-            }
-        }
-        tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinJvmCompile>().configureEach {
-            compilerOptions.jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+fun Project.alignJvmTarget17() {
+    val android = extensions.findByName("android")
+    if (android is com.android.build.gradle.BaseExtension) {
+        android.compileOptions {
+            sourceCompatibility = JavaVersion.VERSION_17
+            targetCompatibility = JavaVersion.VERSION_17
         }
     }
+    tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinJvmCompile>().configureEach {
+        compilerOptions.jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+    }
+}
+
+subprojects {
+    // ':app' is already evaluated here, forced by evaluationDependsOn above,
+    // so its compileOptions are finalized and cannot be changed any more. It
+    // needs no help anyway: it sets 17 itself. Only the plugins do.
+    if (state.executed) return@subprojects
+    afterEvaluate { alignJvmTarget17() }
 }
 
 tasks.register<Delete>("clean") {

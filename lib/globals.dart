@@ -18,7 +18,7 @@ final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 const String prgName = 'easysend';
 const String progVersion = '0.1.260807';
-const int buildNumber = 6;
+const int buildNumber = 11;
 const String progAuthor = 'Eugen';
 
 const String langFile = 'assets/locales.json';
@@ -48,15 +48,6 @@ const String recvDirName = 'EasySend';
 
 // All program languages. English is the key language of locales.json itself.
 const List<String> appLANGUAGES = ['EN', 'RU', 'UA'];
-
-String getLocaleCode(String language) {
-  // Dictionary only for exceptions where the country code differs
-  const Map<String, String> exceptions = {
-    'UA': 'uk', // ukraine
-  };
-  final String langCode = language.toUpperCase();
-  return exceptions[langCode] ?? langCode.toLowerCase();
-}
 
 // Theme names as shown in settings. 'System' follows the platform brightness.
 const List<String> appTHEMES = ['System', 'Light', 'Dark'];
@@ -184,7 +175,9 @@ Map<String, String> _translationCache = {};
 
 // Load localizations for the current language from the JSON file
 Future<void> initTranslations() async {
-  final String lang = getLocaleCode(xdef['Program language']);
+  // The code must match the keys inside locales.json ('ru', 'ua'), so it is
+  // taken straight from the setting rather than mapped to an ISO code.
+  final String lang = (xdef['Program language'] as String).toLowerCase();
   // No cache needed for English: the keys are the English strings
   if (lang == 'en') {
     _translationCache.clear();
@@ -209,6 +202,8 @@ Future<void> initTranslations() async {
 // Function to translate a word
 String lw(String wrd) {
   if (xdef['Program language'] == 'EN') return wrd;
+  // Marker on purpose, in release too: builds here are always release, and a
+  // missing translation has to be visible rather than silently English.
   return _translationCache[wrd] ?? '(( $wrd ))';
 }
 

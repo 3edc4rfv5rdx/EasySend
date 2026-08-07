@@ -87,7 +87,9 @@ class _EasySendAppState extends State<EasySendApp> with WidgetsBindingObserver {
           navigatorKey: navigatorKey,
           scaffoldMessengerKey: scaffoldMessengerKey,
           theme: _buildTheme(dark),
-          home: const HomeScreen(),
+          // Not const: an identical widget would let Flutter skip rebuilding
+          // the subtree, and the screen would keep the previous language.
+          home: HomeScreen(),
         );
       },
     );
