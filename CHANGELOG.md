@@ -2,6 +2,14 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+- E: Stop really stops mid-file; the upload stream is broken instead of letting the current file finish and the bar run to the end
+- E: Ask before removing a manual device or revoking trust, instead of doing it on a single tap
+- N: Stop an incoming transfer from the receiving side, which had no way to cancel at all
+- N: Send button turns into a red Stop while a transfer runs, so the cross means only remove
+- N: Remove a finished transfer from the list with the cross
+- N: Deselect the target device by tapping it again
+- N: My IP in settings, with the port and copy on tap, for typing into another device
+- F: Colour the progress bar by outcome and make it thick and orange, with the colour taken from colors.json
 - N: Build the theme list from assets/colors.json, so a palette is data rather than code
 - N: Build the language list from the _language_name section of locales.json, names included
 - E: Show language codes as-is instead of running them through lw(), which printed (( EN ))

@@ -17,6 +17,7 @@ class _Incoming {
   final Map<String, String> finalPaths; // fileId -> destination path
   final Map<String, int> crc = {};      // fileId -> checksum computed here
   int settledBytes = 0;                 // bytes of files already finished
+  bool cancelled = false;               // set when the user stops the receive
 
   _Incoming({
     required this.sessionId,
@@ -208,6 +209,7 @@ class ReceiveServer {
 
     try {
       await for (final List<int> chunk in req) {
+        if (session.cancelled) break;
         written += chunk.length;
         // Never write past the declared size: the manifest is the contract.
         if (written > item.size) {
@@ -227,6 +229,11 @@ class ReceiveServer {
       await sink.flush();
     } finally {
       await sink.close();
+    }
+
+    if (session.cancelled) {
+      await _deleteQuietly(part);
+      return _status(req, HttpStatus.conflict);
     }
 
     if (overflow || written != item.size) {
@@ -299,6 +306,15 @@ class ReceiveServer {
     if (session == null) return _status(req, HttpStatus.badRequest);
     await _abort(session, TransferStatus.cancelled);
     return _json(req, {'ok': true});
+  }
+
+  // Stop an incoming transfer from this side. The upload loop notices the flag
+  // and drops what it was writing.
+  Future<void> cancelCurrent() async {
+    final _Incoming? session = _current;
+    if (session == null || !session.transfer.isRunning) return;
+    session.cancelled = true;
+    await _abort(session, TransferStatus.cancelled);
   }
 
   Future<void> _abort(_Incoming session, TransferStatus status) async {

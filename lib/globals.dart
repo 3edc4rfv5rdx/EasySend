@@ -18,7 +18,7 @@ final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 const String prgName = 'easysend';
 const String progVersion = '0.1.260807';
-const int buildNumber = 12;
+const int buildNumber = 16;
 const String progAuthor = 'Eugen';
 
 const String langFile = 'assets/locales.json';
@@ -74,6 +74,8 @@ Color clUpBar = const Color(0xFFDAA520);
 Color clText = const Color(0xFF000000);
 Color clFill = const Color(0xFFFFFFFF);
 Color clFrame = const Color(0xFF9E9E9E);
+// Transfer progress: deliberately the loudest colour on the screen.
+Color clProgress = const Color(0xFFFF9800);
 
 Color clRed = Colors.red;
 Color clGreen = Colors.green;
@@ -195,6 +197,7 @@ void applyTheme(String themeName) {
   clText = hexToColor(theme['text'] ?? '#000000');
   clFill = hexToColor(theme['fill'] ?? '#FFFFFF');
   clFrame = hexToColor(theme['frame'] ?? '#9E9E9E');
+  clProgress = hexToColor(theme['progress'] ?? '#FF9800');
   xvDarkNow = themeName == themeDark;
 }
 

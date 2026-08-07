@@ -6,7 +6,8 @@
     "appBar": "#DAA520",
     "text": "#000000",
     "fill": "#FFFFFF",
-    "frame": "#9E9E9E"
+    "frame": "#9E9E9E",
+    "progress": "#FF9800"
   },
   "Dark": {
     "background": "#121212",
@@ -15,6 +16,7 @@
     "appBar": "#404040",
     "text": "#E0E0E0",
     "fill": "#4D4D4D",
-    "frame": "#808080"
+    "frame": "#808080",
+    "progress": "#FFA726"
   }
 }

@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'android_helpers.dart';
 import 'globals.dart';
@@ -14,6 +15,62 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
+  List<String> _addresses = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAddresses();
+  }
+
+  Future<void> _loadAddresses() async {
+    final List<String> found = await localAddresses();
+    if (mounted) setState(() => _addresses = found);
+  }
+
+  // What to type on the other device under "Add device". Tapping an entry
+  // copies it, which beats reading digits off one screen onto another.
+  Future<void> _showMyAddresses() async {
+    await _loadAddresses();
+    if (!mounted) return;
+    if (_addresses.isEmpty) {
+      okInfoBarRed(lw('No network connection'));
+      return;
+    }
+    await showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: clFon,
+        shape: dialogShape,
+        title: Text(lw('My IP'), style: tsLarge),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: _addresses.map((a) {
+            final String full = '$a:$currentPort';
+            return ListTile(
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              title: Text(full, style: tsNormal),
+              trailing: Icon(Icons.copy, size: 18, color: clFrame),
+              onTap: () async {
+                await Clipboard.setData(ClipboardData(text: full));
+                if (context.mounted) Navigator.pop(context);
+                okInfoBarGreen(lw('Copied'));
+              },
+            );
+          }).toList(),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            style: dialogButtonStyle,
+            child: Text(lw('Ok')),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _apply(VoidCallback change) async {
     setState(change);
     await saveSettings();
@@ -117,6 +174,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
             onTap: _editPort,
           ),
           _tile(
+            icon: Icons.wifi_tethering,
+            title: lw('My IP'),
+            value: _addresses.isEmpty
+                ? lw('No network connection')
+                : '${_addresses.first}:$currentPort',
+            onTap: _showMyAddresses,
+          ),
+          _tile(
             icon: Icons.language,
             title: lw('Language'),
             value: langNames[xdef['Program language']] ?? xdef['Program language'],
@@ -177,9 +242,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 title: Text(d.name, style: tsNormal),
                 subtitle: Text(d.address, style: tsSmall),
                 trailing: IconButton(
-                  icon: Icon(Icons.delete_outline, color: clRed),
+                  icon: Icon(Icons.close, color: clFrame, size: 20),
                   tooltip: lw('Revoke trust'),
-                  onPressed: () => _apply(() => d.trusted = false),
+                  onPressed: () async {
+                    final bool yes = await okConfirm(
+                      title: lw('Revoke trust'),
+                      message: '${lw('Ask again before accepting from this device')}?\n${d.name}',
+                    );
+                    if (yes) await _apply(() => d.trusted = false);
+                  },
                 ),
               )),
           const Divider(),

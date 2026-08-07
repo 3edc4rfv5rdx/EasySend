@@ -7,6 +7,13 @@ import 'package:uuid/uuid.dart';
 
 import 'globals.dart';
 
+// Thrown from inside the upload stream to stop it mid-file. Cancelling has to
+// break the stream itself: a flag checked between files lets the current one
+// finish, which is exactly what the user asked to avoid.
+class _Cancelled implements Exception {
+  const _Cancelled();
+}
+
 // Sending side. One transfer at a time, files strictly in sequence.
 class SendService {
   final HttpClient _client = HttpClient();
@@ -111,6 +118,9 @@ class SendService {
         if (_cancelled) return;
         ok = await _sendFile(peer, transfer, item, settled);
       }
+      // Do not count an interrupted file as sent: the bar would run to the
+      // end even though nothing arrived.
+      if (_cancelled) return;
       item.done = ok;
       item.failed = !ok;
       settled += item.size;
@@ -136,6 +146,7 @@ class SendService {
       );
       req.contentLength = item.size;
       await req.addStream(File(source).openRead().map((chunk) {
+        if (_cancelled) throw const _Cancelled();
         crc = getCrc32(chunk, crc);
         sent += chunk.length;
         final DateTime now = DateTime.now();
@@ -160,6 +171,9 @@ class SendService {
       }));
       item.crc32 = crc;
       return verify.statusCode == HttpStatus.ok;
+    } on _Cancelled {
+      myPrint('upload of ${item.relativePath} cancelled');
+      return false;
     } on SocketException {
       rethrow;
     } catch (e) {

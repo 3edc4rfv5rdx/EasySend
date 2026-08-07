@@ -396,8 +396,15 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           trailing: device.manual
               ? IconButton(
-                  icon: Icon(Icons.delete_outline, color: clFrame),
+                  icon: Icon(Icons.close, color: clFrame, size: 20),
+                  tooltip: lw('Remove'),
                   onPressed: () async {
+                    // Getting it back means typing the address again.
+                    final bool yes = await okConfirm(
+                      title: lw('Remove'),
+                      message: '${lw('Remove this device')}?\n${device.name}',
+                    );
+                    if (!yes) return;
                     xvDevices.remove(device);
                     if (_target?.id == device.id) _target = null;
                     await saveSettings();
@@ -405,8 +412,11 @@ class _HomeScreenState extends State<HomeScreen> {
                   },
                 )
               : null,
-          // A tap only selects: an accidental touch must not start a transfer.
-          onTap: device.online ? () => setState(() => _target = device) : null,
+          // A tap only selects, never sends: an accidental touch must not start
+          // a transfer. Tapping the selected device again clears the choice.
+          onTap: device.online
+              ? () => setState(() => _target = _target?.id == device.id ? null : device)
+              : null,
         );
       },
     );
@@ -436,11 +446,14 @@ class _HomeScreenState extends State<HomeScreen> {
               Icon(t.incoming ? Icons.download : Icons.upload, size: 18, color: clText),
               const SizedBox(width: 6),
               Expanded(child: Text(t.peerName, style: tsNormal, overflow: TextOverflow.ellipsis)),
-              if (t.isRunning)
+              if (!t.isRunning)
                 IconButton(
-                  icon: Icon(Icons.close, color: clRed, size: 20),
-                  tooltip: lw('Cancel'),
-                  onPressed: () => sender.cancel(),
+                  icon: Icon(Icons.close, color: clFrame, size: 20),
+                  tooltip: lw('Remove'),
+                  onPressed: () {
+                    xvTransfers.remove(t);
+                    transfersChanged();
+                  },
                 ),
               // Only the files that did not make it are sent again.
               if (t.canRetry)
@@ -456,17 +469,37 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
             ],
           ),
-          // One bar for the whole transfer, counted in bytes (SPEC 3.3).
+          // One bar for the whole transfer, counted in bytes (SPEC 3.3). Thick
+          // and bright on purpose: it has to be readable across the room.
           LinearProgressIndicator(
             value: t.progress,
+            minHeight: 12,
+            borderRadius: BorderRadius.circular(6),
             backgroundColor: clFrame.withValues(alpha: 0.3),
-            color: t.status == TransferStatus.failed ? clRed : clUpBar,
+            color: _progressColor(t),
           ),
           const SizedBox(height: 4),
           Text(_transferSubtitle(t, currentFile, eta), style: tsSmall),
         ],
       ),
     );
+  }
+
+  // The bar carries the outcome at a glance: red went wrong, grey was stopped
+  // on purpose, green finished.
+  Color _progressColor(TransferSession t) {
+    switch (t.status) {
+      case TransferStatus.failed:
+        return clRed;
+      case TransferStatus.cancelled:
+        return clFrame;
+      case TransferStatus.done:
+        return clGreen;
+      case TransferStatus.partial:
+      case TransferStatus.pending:
+      case TransferStatus.active:
+        return clProgress;
+    }
   }
 
   String _transferSubtitle(TransferSession t, FileItem? currentFile, int? eta) {
@@ -489,25 +522,58 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  TransferSession? get _running {
+    for (final TransferSession t in xvTransfers) {
+      if (t.isRunning) return t;
+    }
+    return null;
+  }
+
+  // While a transfer runs, the main button turns into Stop: one obvious place
+  // to interrupt it, in either direction.
+  Future<void> _stop() async {
+    final TransferSession? active = _running;
+    if (active == null) return;
+    if (active.incoming) {
+      await receiveServer.cancelCurrent();
+    } else {
+      await sender.cancel();
+    }
+  }
+
   Widget _buildSendButton() {
-    final String label = _selected.isEmpty
-        ? lw('Send')
-        : '${lw('Send')}  ${_selected.length} — ${formatBytes(_totalBytes)}';
+    final TransferSession? active = _running;
+    final bool stopping = active != null;
+    final String label = stopping
+        ? lw('Stop')
+        : _selected.isEmpty
+            ? lw('Send')
+            : '${lw('Send')}  ${_selected.length} — ${formatBytes(_totalBytes)}';
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(12, 6, 12, 10),
         child: SizedBox(
           width: double.infinity,
           child: ElevatedButton(
-            onPressed: _canSend ? _send : null,
+            onPressed: stopping
+                ? _stop
+                : _canSend
+                    ? _send
+                    : null,
             style: ElevatedButton.styleFrom(
-              backgroundColor: clUpBar,
+              backgroundColor: stopping ? clRed : clUpBar,
               foregroundColor: clText,
               disabledBackgroundColor: clFrame.withValues(alpha: 0.3),
               padding: const EdgeInsets.symmetric(vertical: 16),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             ),
-            child: Text(label, style: TextStyle(fontSize: fsLarge, color: clText)),
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: fsLarge,
+                color: stopping ? Colors.white : clText,
+              ),
+            ),
           ),
         ),
       ),

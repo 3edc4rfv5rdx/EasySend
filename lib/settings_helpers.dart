@@ -172,3 +172,24 @@ Future<void> initIdentity() async {
 }
 
 int get currentPort => int.tryParse(xdef['Port'] as String? ?? '') ?? defaultPort;
+
+// Addresses of this device, for typing into another one that cannot discover
+// us by broadcast. Loopback is useless to a peer, so it is left out.
+Future<List<String>> localAddresses() async {
+  final List<String> found = [];
+  try {
+    final List<NetworkInterface> interfaces = await NetworkInterface.list(
+      type: InternetAddressType.IPv4,
+      includeLoopback: false,
+      includeLinkLocal: false,
+    );
+    for (final NetworkInterface iface in interfaces) {
+      for (final InternetAddress addr in iface.addresses) {
+        found.add(addr.address);
+      }
+    }
+  } catch (e) {
+    myPrint('cannot list interfaces: $e');
+  }
+  return found;
+}
