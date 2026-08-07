@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:archive/archive.dart';
+import 'package:uuid/uuid.dart';
 
 import 'globals.dart';
 
@@ -32,6 +33,7 @@ class SendService {
       id: '',
       incoming: false,
       peerName: peer.name,
+      peerId: peer.id,
       files: files,
     );
     _current = transfer;
@@ -172,6 +174,29 @@ class SendService {
     final HttpClientResponse resp = await req.close();
     await resp.drain<void>();
     return resp;
+  }
+
+  // Send again only what did not make it. The peer is looked up by id, so a new
+  // address after a DHCP lease change is picked up automatically.
+  Future<bool> retryFailed(TransferSession previous) async {
+    if (!previous.canRetry || busy) return false;
+
+    final int index = xvDevices.indexWhere((d) => d.id == previous.peerId);
+    if (index < 0 || !xvDevices[index].online) return false;
+
+    final List<FileItem> again = previous.files
+        .where((f) => f.failed && f.sourcePath != null)
+        .map((f) => FileItem(
+              id: const Uuid().v4(),
+              relativePath: f.relativePath,
+              size: f.size,
+              sourcePath: f.sourcePath,
+            ))
+        .toList();
+    if (again.isEmpty) return false;
+
+    await send(peer: xvDevices[index], files: again);
+    return true;
   }
 
   // Cancelling stops the stream here and tells the peer to drop its .part files.

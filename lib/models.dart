@@ -97,6 +97,9 @@ class TransferSession {
   final String id;
   final bool incoming;
   final String peerName;
+  // Who it went to, so a partial outgoing transfer can be retried later even
+  // after the device changed its address.
+  final String peerId;
   final List<FileItem> files;
 
   int bytesDone = 0;
@@ -141,6 +144,7 @@ class TransferSession {
     required this.incoming,
     required this.peerName,
     required this.files,
+    this.peerId = '',
   });
 
   int get bytesTotal => files.fold(0, (sum, f) => sum + f.size);
@@ -155,4 +159,9 @@ class TransferSession {
   }
 
   bool get isRunning => status == TransferStatus.pending || status == TransferStatus.active;
+
+  // Only our own sends can be started again; an incoming one is not ours to
+  // repeat.
+  bool get canRetry =>
+      !incoming && !isRunning && failedCount > 0 && peerId.isNotEmpty;
 }

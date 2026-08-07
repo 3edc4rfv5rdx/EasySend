@@ -2,6 +2,8 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+- N: Retry button re-sends only the files that failed, finding the device by id so a new IP still works
+- N: Drag and drop files and folders onto the desktop window
 - N: Android side: foreground service with wake and Wi-Fi locks, background receiving, share menu, accept prompt as a notification
 - N: Sending files and folders with streamed upload, per-file CRC32 and automatic resend of a corrupted file
 - N: Receive server writing to .easysend-part and renaming only after the checksum matches

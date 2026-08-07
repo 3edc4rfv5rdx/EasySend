@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:desktop_drop/desktop_drop.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:receive_sharing_intent/receive_sharing_intent.dart';
@@ -24,6 +25,8 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final List<FileItem> _selected = [];
   Device? _target;
+  // True while something is being dragged over the drop zone.
+  bool _dragOver = false;
 
   // One listenable for everything the screen mirrors.
   late final Listenable _netTicks = Listenable.merge([devicesTick, transfersTick, serverTick]);
@@ -226,14 +229,48 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildPickRow() {
+    final Widget buttons = Row(
+      children: [
+        Expanded(child: _pickButton(Icons.insert_drive_file_outlined, lw('File'), _pickFiles)),
+        const SizedBox(width: 8),
+        Expanded(child: _pickButton(Icons.folder_open, lw('Folder'), _pickFolder)),
+      ],
+    );
+
+    // Android has no pointer to drag with; there the share menu does this job.
+    if (Platform.isAndroid) {
+      return Padding(padding: const EdgeInsets.fromLTRB(12, 12, 12, 4), child: buttons);
+    }
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
-      child: Row(
-        children: [
-          Expanded(child: _pickButton(Icons.insert_drive_file_outlined, lw('File'), _pickFiles)),
-          const SizedBox(width: 8),
-          Expanded(child: _pickButton(Icons.folder_open, lw('Folder'), _pickFolder)),
-        ],
+      child: DropTarget(
+        // Dropped folders arrive as plain paths, and collectFiles walks them.
+        onDragDone: (details) {
+          setState(() => _dragOver = false);
+          _addPaths(details.files.map((f) => f.path).toList());
+        },
+        onDragEntered: (_) => setState(() => _dragOver = true),
+        onDragExited: (_) => setState(() => _dragOver = false),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 120),
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(8),
+            color: _dragOver ? clSel : Colors.transparent,
+            border: Border.all(
+              color: _dragOver ? clUpBar : clFrame.withValues(alpha: 0.4),
+              width: _dragOver ? 2 : 1,
+            ),
+          ),
+          child: Column(
+            children: [
+              buttons,
+              const SizedBox(height: 6),
+              Text(lw('or drop files here'), style: tsSmall),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -404,6 +441,18 @@ class _HomeScreenState extends State<HomeScreen> {
                   icon: Icon(Icons.close, color: clRed, size: 20),
                   tooltip: lw('Cancel'),
                   onPressed: () => sender.cancel(),
+                ),
+              // Only the files that did not make it are sent again.
+              if (t.canRetry)
+                TextButton.icon(
+                  icon: Icon(Icons.refresh, size: 18, color: clText),
+                  label: Text(lw('Retry'), style: tsSmall),
+                  style: TextButton.styleFrom(foregroundColor: clText),
+                  onPressed: () async {
+                    if (!await sender.retryFailed(t)) {
+                      okInfoBarRed(lw('Device is not reachable'));
+                    }
+                  },
                 ),
             ],
           ),

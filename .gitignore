@@ -43,6 +43,7 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+/android/build/
 
 # Build artifacts kept in the project root by 00-Make.sh
 *.apkx
