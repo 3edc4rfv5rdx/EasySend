@@ -46,6 +46,35 @@ Future<T?> showFlatDialog<T>({
   );
 }
 
+// Section heading: a 2 px rule with the name laid into it, the trailing button
+// sitting in the line as well. A filled strip made every section shout; here
+// the structure is the line and the only coloured area left is Send.
+Widget sectionTitle(String text, {Widget? trailing}) {
+  Widget rule([double? width]) {
+    final Widget line = Container(height: 2, color: clFrame);
+    return width == null ? Expanded(child: line) : SizedBox(width: width, child: line);
+  }
+
+  return Padding(
+    padding: const EdgeInsets.fromLTRB(12, 12, 12, 6),
+    child: Row(
+      children: [
+        rule(16),
+        const SizedBox(width: 8),
+        Text(text, style: TextStyle(fontSize: fsLarge, fontWeight: fwBold, color: clText)),
+        const SizedBox(width: 8),
+        rule(),
+        if (trailing != null) ...[
+          const SizedBox(width: 10),
+          trailing,
+          const SizedBox(width: 10),
+          rule(12),
+        ],
+      ],
+    ),
+  );
+}
+
 Future<bool> okConfirm({
   required String title,
   required String message,

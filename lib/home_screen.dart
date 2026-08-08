@@ -431,7 +431,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       label: Text(label),
       style: OutlinedButton.styleFrom(
         foregroundColor: clText,
-        backgroundColor: clMenu,
+        backgroundColor: clFill,
         side: BorderSide(color: clFrame),
         padding: const EdgeInsets.symmetric(vertical: 6),
       ),
@@ -472,7 +472,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   ButtonStyle get _headerButtonStyle => TextButton.styleFrom(
         foregroundColor: clText,
-        backgroundColor: clMenu,
+        backgroundColor: clFill,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
         minimumSize: Size.zero,
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -546,26 +546,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
   }
 
-  // Same strip for every section: a trailing button must not make one of them
-  // taller than the rest.
-  Widget _sectionTitle(String text, {Widget? trailing}) {
-    return Container(
-      width: double.infinity,
-      color: clMenu,
-      padding: const EdgeInsets.fromLTRB(12, 4, 24, 4),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(text, style: TextStyle(fontSize: fsNormal, fontWeight: fwBold, color: clText)),
-          ),
-          ?trailing,
-        ],
-      ),
-    );
-  }
-
   Widget _buildDevicesHeader() {
-    return _sectionTitle(
+    return sectionTitle(
       lw('Devices'),
       trailing: Tooltip(
         message: lw('Add device'),
@@ -595,7 +577,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   // The receive folder is one tap away wherever the transfers are listed, so
   // the section header stays on screen even with nothing in it yet.
   Widget _buildTransfersHeader() {
-    return _sectionTitle(
+    return sectionTitle(
       lw('Transfers'),
       trailing: Tooltip(
         message: lw('Open the receive folder'),

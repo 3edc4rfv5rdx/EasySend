@@ -298,7 +298,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             onChanged: (v) => _apply(() => xdef['Ask before exit'] = '$v'),
           ),
           const Divider(),
-          _sectionTitle('${lw('Trusted devices')} (${trusted.length})'),
+          sectionTitle('${lw('Trusted devices')} (${trusted.length})'),
           ...trusted.map((d) => ListTile(
                 dense: true,
                 leading: Icon(
@@ -323,13 +323,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
     );
   }
-
-  Widget _sectionTitle(String text) => Container(
-        width: double.infinity,
-        color: clMenu,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        child: Text(text, style: TextStyle(fontSize: fsNormal, fontWeight: fwBold, color: clText)),
-      );
 
   Widget _tile({
     required IconData icon,

@@ -2,6 +2,8 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+- F: Buttons take the fill colour, the one meant for controls, instead of the menu colour, which named a thing this app does not have
+- F: Section headings are a 2 px rule with the name laid into it in 18 pt bold, instead of a filled coloured strip; one sectionTitle() now serves both screens
 - N: Two designed palettes, Sand and Slate: one warm base with a cold accent and the reverse, two tones each instead of six
 - R: Message colours come from the palette now, not from Colors.blue/red/orange/green in the code, so a theme owns the whole screen
 - F: Readable message banners: the ink is whichever of black or white contrasts better by WCAG ratio, the text is body size and semibold, and a banner stays up a second or two longer
