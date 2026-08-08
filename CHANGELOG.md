@@ -2,6 +2,8 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+
+## v0.1.260808+37
 - I: 99 keeps one .apkx link, dropping the previous builds' instead of piling them up in the project root
 - F: Send names whatever is missing: the files, the device, or both at once, instead of only answering when the target is the missing piece
 - F: Bigger arrow on the chosen device, without moving the names beside it
