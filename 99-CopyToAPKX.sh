@@ -25,8 +25,10 @@ fi
 
 dst="EasySend-${BUILD}.apkx"
 
-# Drop stale .apkx symlinks whose target APK is gone (e.g. cleaned old builds).
-find . -maxdepth 1 -name '*.apkx' -xtype l -delete
+# Only the current build keeps a link: the earlier ones are stale the moment
+# this one is made, and dead ones point at APKs that were cleaned away. Plain
+# .apkx files are left alone, they are copies someone made on purpose.
+find . -maxdepth 1 -name '*.apkx' -type l ! -name "$dst" -delete
 
 ln -sf "$apk" "$dst" 2>/dev/null || cp "$apk" "$dst"
 

@@ -152,9 +152,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   bool get _canSend => _selected.isNotEmpty && _target != null && !sender.busy;
 
-  // Pressable without a target too, so the button can say what is missing
+  // Pressable with a piece missing too, so the button can say which one it is
   // instead of sitting there grey and mute.
-  bool get _armed => _selected.isNotEmpty && !sender.busy;
+  bool get _armed => !sender.busy;
 
   Future<void> _pickFiles() async {
     final FilePickerResult? result = await FilePicker.platform.pickFiles(allowMultiple: true);
@@ -231,8 +231,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   // Send with nothing chosen: one reachable device is no choice at all, so it
-  // becomes the target and the transfer starts; with several, ask.
+  // becomes the target and the transfer starts; with several, ask. An empty
+  // selection is asked about first, being the earlier of the two steps.
   Future<void> _sendOrPickTarget() async {
+    if (_selected.isEmpty) {
+      // With neither piece in place, naming only the files would leave the
+      // second step to be discovered on the next press.
+      okInfoBarOrange(lw(_target == null
+          ? 'Add files and pick a device'
+          : 'Add files or folders to send'));
+      return;
+    }
     if (_target == null) {
       final List<Device> reachable = xvDevices.where((d) => d.online).toList();
       if (reachable.length != 1) {
@@ -679,10 +688,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     // icon would not fit inside a triangle, and the highlight alone was easy
     // to miss.
     if (isTarget) {
+      // Scaled rather than sized: the arrow reads bigger than the circle it
+      // replaces while the row keeps the same 32 px slot, so the names below
+      // do not shift sideways.
       return SizedBox(
         width: 32,
         height: 32,
-        child: Icon(Icons.play_arrow, color: clGreen, size: 32),
+        child: Transform.scale(
+          scale: 1.4,
+          child: Icon(Icons.play_arrow, color: clGreen, size: 32),
+        ),
       );
     }
     return CircleAvatar(

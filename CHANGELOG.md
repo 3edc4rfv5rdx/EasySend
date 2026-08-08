@@ -2,6 +2,10 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+- I: 99 keeps one .apkx link, dropping the previous builds' instead of piling them up in the project root
+- F: Send names whatever is missing: the files, the device, or both at once, instead of only answering when the target is the missing piece
+- F: Bigger arrow on the chosen device, without moving the names beside it
+- F: Smaller launcher icon: the blue square became the adaptive background and the drawing alone the foreground, inset by 26 dp, so shrinking it no longer shows a square inside the round mask
 - N: Confirming the exit is a switch in settings; with it off an idle app closes at once, while a running transfer still asks
 - F: Tighter rows in settings, the stock spacing wasted half the screen
 - F: No animation left anywhere: no overscroll stretch, glow or bounce, no screen transitions, no dialog fade, no tap ripple, no theme cross-fade
