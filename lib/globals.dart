@@ -18,7 +18,7 @@ final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 const String prgName = 'easysend';
 const String progVersion = '0.1.260808';
-const int buildNumber = 29;
+const int buildNumber = 31;
 const String progAuthor = 'Eugen';
 
 const String langFile = 'assets/locales.json';
@@ -102,6 +102,7 @@ Map<String, dynamic> xdef = {
   'Receive folder': '',
   'Port': '$defaultPort',
   'Receive in background': 'false',
+  'Ask before exit': 'true',
   '.Device id': '',
   '.First start': 'true',
   '.Prog version': progVersion,

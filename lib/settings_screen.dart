@@ -272,6 +272,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           if (Platform.isAndroid)
             SwitchListTile(
+              dense: true,
+              visualDensity: const VisualDensity(vertical: -2),
               secondary: Icon(Icons.notifications_active_outlined, color: clText),
               activeThumbColor: clUpBar,
               value: xdef['Receive in background'] == 'true',
@@ -285,6 +287,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 if (v) okInfoBarBlue(lw('Also exclude EasySend from battery optimisation'));
               },
             ),
+          SwitchListTile(
+            dense: true,
+            visualDensity: const VisualDensity(vertical: -2),
+            secondary: Icon(Icons.exit_to_app, color: clText),
+            activeThumbColor: clUpBar,
+            value: xdef['Ask before exit'] == 'true',
+            title: Text(lw('Ask before exit'), style: tsNormal),
+            subtitle: Text(lw('A running transfer is always asked about'), style: tsSmall),
+            onChanged: (v) => _apply(() => xdef['Ask before exit'] = '$v'),
+          ),
           const Divider(),
           _sectionTitle('${lw('Trusted devices')} (${trusted.length})'),
           ...trusted.map((d) => ListTile(
@@ -326,6 +338,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     VoidCallback? onTap,
   }) {
     return ListTile(
+      // Tighter than stock: every row here is two short lines, and the default
+      // spacing turns a handful of settings into a page of scrolling.
+      dense: true,
+      visualDensity: const VisualDensity(vertical: -2),
       leading: Icon(icon, color: clText),
       title: Text(title, style: tsNormal),
       subtitle: Text(value, style: tsSmall, overflow: TextOverflow.ellipsis),

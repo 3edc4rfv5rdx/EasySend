@@ -207,13 +207,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   // peers keep seeing this device for another twenty seconds.
   Future<void> _exitApp() async {
     final bool running = xvTransfers.any((t) => t.isRunning);
-    final bool yes = await okConfirm(
-      title: lw('Exit'),
-      message: running
-          ? '${lw('A transfer is running')}. ${lw('Exit the application')}?'
-          : '${lw('Exit the application')}?',
-    );
-    if (!yes) return;
+    // An interrupted transfer is always worth a question; an idle app is only
+    // worth one if the user asked to be asked.
+    if (running || xdef['Ask before exit'] == 'true') {
+      final bool yes = await okConfirm(
+        title: lw('Exit'),
+        message: running
+            ? '${lw('A transfer is running')}. ${lw('Exit the application')}?'
+            : '${lw('Exit the application')}?',
+      );
+      if (!yes) return;
+    }
 
     await receiveServer.stop();
     await discovery.stop();
@@ -502,7 +506,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 subtitle: Text(
                   item.modified == null
                       ? formatBytes(item.size)
-                      : '${formatBytes(item.size)}   ${formatDateTime(item.modified!)}',
+                      : '${formatDateTime(item.modified!)}   ${formatBytes(item.size)}',
                   style: tsSmall,
                 ),
                 // Checking what is about to be sent should not mean leaving

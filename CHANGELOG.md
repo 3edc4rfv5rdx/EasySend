@@ -2,6 +2,8 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+- N: Confirming the exit is a switch in settings; with it off an idle app closes at once, while a running transfer still asks
+- F: Tighter rows in settings, the stock spacing wasted half the screen
 - F: No animation left anywhere: no overscroll stretch, glow or bounce, no screen transitions, no dialog fade, no tap ripple, no theme cross-fade
 - F: A couple of pixels between the selection frame and the Devices strip
 - E: Make the receive folder at startup instead of when the first file lands, so opening it works before anything has arrived
@@ -16,7 +18,7 @@
 - N: Own folder picker on Android instead of SAF, which asked to grant access to the whole tree on every pick and returned an unusable content URI
 - N: Receive folder can be changed on Android too, now that the picker returns a real path
 - N: Four palettes taken from the archived projects: Light, Dark, Blue, Green
-- F: Show the file date next to its size, and spell out offline devices instead of relying on icon colour alone
+- F: Show the file date before its size, and spell out offline devices instead of relying on icon colour alone
 - F: Reachable devices get an inverted badge; dialogs sit on the fill colour so they no longer dissolve into a dark background
 - F: Tidy the layout: matching section strips, rounder and narrower Send, filled File/Folder buttons, About moved into the settings app bar
 - E: Stop really stops mid-file; the upload stream is broken instead of letting the current file finish and the bar run to the end
