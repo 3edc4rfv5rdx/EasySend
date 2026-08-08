@@ -1,11 +1,44 @@
 import 'dart:io';
 
+import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 import 'package:uuid/uuid.dart';
 
 import 'globals.dart';
 
 const Uuid _uuid = Uuid();
+
+// The same channel the foreground service talks over.
+const MethodChannel _androidChannel = MethodChannel('easysend/service');
+
+// Hand a file or a folder over to whatever the system has for it. Android goes
+// through the native side: a file needs a FileProvider URI, and a folder needs
+// a documents URI, since a plain file:// intent is no longer allowed to leave
+// the app. Returns false when nothing on the device can open it.
+Future<bool> openExternally(String path, {bool folder = false}) async {
+  if (path.isEmpty) return false;
+  try {
+    if (Platform.isAndroid) {
+      final bool? ok = await _androidChannel.invokeMethod<bool>(
+        folder ? 'openFolder' : 'openFile',
+        {'path': path},
+      );
+      return ok ?? false;
+    }
+    if (Platform.isLinux) {
+      final ProcessResult r = await Process.run('xdg-open', [path]);
+      return r.exitCode == 0;
+    }
+    if (Platform.isWindows) {
+      // explorer.exe reports a non-zero exit code even when it worked.
+      await Process.run('explorer', [path.replaceAll('/', r'\')]);
+      return true;
+    }
+  } catch (e) {
+    myPrint('cannot open $path: $e');
+  }
+  return false;
+}
 
 // Windows device names are unusable as file names even on other platforms,
 // because the transfer may land on Windows.

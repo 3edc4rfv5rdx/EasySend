@@ -70,6 +70,54 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  // One line per fact instead of a single run-on string: the version, the
+  // build and the device id are what gets quoted when something goes wrong.
+  Future<void> _showAbout() async {
+    await showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: clFill,
+        shape: dialogShape,
+        title: Row(
+          children: [
+            Icon(Icons.info_outline, color: clUpBar),
+            const SizedBox(width: 8),
+            Text('EasySend', style: tsLarge),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _aboutRow(lw('Version'), progVersion),
+            _aboutRow(lw('Build'), '$buildNumber'),
+            _aboutRow(lw('Author'), progAuthor),
+            _aboutRow(lw('Platform'), xvPlatform),
+            _aboutRow(lw('Device id'), xvDeviceId),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            style: dialogButtonStyle,
+            child: Text(lw('Ok')),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _aboutRow(String label, String value) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 3),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(width: 110, child: Text('$label:', style: tsSmall)),
+            Expanded(child: Text(value, style: tsNormal)),
+          ],
+        ),
+      );
+
   Future<void> _apply(VoidCallback change) async {
     setState(change);
     await saveSettings();
@@ -155,7 +203,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           IconButton(
             icon: const Icon(Icons.info_outline),
             tooltip: lw('About'),
-            onPressed: () => okInfo('EasySend $progVersion+$buildNumber\n$progAuthor'),
+            onPressed: _showAbout,
           ),
         ],
       ),

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Files handed to another app for viewing. Anything on the device can be in
+     the selection, so the whole tree is covered; the URI is granted per file
+     and only for as long as the viewer is open. -->
+<paths>
+    <external-path name="external" path="." />
+    <root-path name="root" path="/" />
+</paths>

@@ -61,6 +61,8 @@ android {
 
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
+    // FileProvider, used to hand a picked or received file to another app.
+    implementation("androidx.core:core:1.13.1")
 }
 
 flutter {

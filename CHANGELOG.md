@@ -2,6 +2,14 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+- N: Open a picked file in whatever app the system has for it, by tapping it in the list
+- N: Open the receive folder in a file manager from the Transfers header
+- N: New folder button in the folder picker, stepping into the folder it creates
+- F: The selection scrolls inside a third of the screen instead of pushing the devices and transfers off it
+- F: Send with a single device around picks it by itself, and with several asks for a target instead of sitting there grey and mute
+- F: The chosen device is marked with a green arrow; the platform icon does not fit inside it
+- F: About split into version, build, author, platform and device id
+- F: Heavier plus on the Devices header, the icon stroke was too thin to read
 - N: Own folder picker on Android instead of SAF, which asked to grant access to the whole tree on every pick and returned an unusable content URI
 - N: Receive folder can be changed on Android too, now that the picker returns a real path
 - N: Four palettes taken from the archived projects: Light, Dark, Blue, Green

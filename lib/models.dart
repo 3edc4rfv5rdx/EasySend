@@ -162,8 +162,4 @@ class TransferSession {
 
   bool get isRunning => status == TransferStatus.pending || status == TransferStatus.active;
 
-  // Only our own sends can be started again; an incoming one is not ours to
-  // repeat.
-  bool get canRetry =>
-      !incoming && !isRunning && failedCount > 0 && peerId.isNotEmpty;
 }

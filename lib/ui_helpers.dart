@@ -281,7 +281,21 @@ Future<String?> pickFolder({String? initialPath}) async {
           return AlertDialog(
             backgroundColor: clFill,
             shape: dialogShape,
-            title: Text(lw('Select folder'), style: tsLarge),
+            title: Row(
+              children: [
+                Expanded(child: Text(lw('Select folder'), style: tsLarge)),
+                // Sorting the received files needs somewhere to put them, and
+                // leaving the app for a file manager to make one is absurd.
+                IconButton(
+                  icon: Icon(Icons.create_new_folder_outlined, color: clText),
+                  tooltip: lw('New folder'),
+                  onPressed: () async {
+                    final String? made = await _createFolder(current);
+                    if (made != null) setState(() => current = made);
+                  },
+                ),
+              ],
+            ),
             content: SizedBox(
               width: double.maxFinite,
               child: Column(
@@ -342,6 +356,34 @@ Future<String?> pickFolder({String? initialPath}) async {
       );
     },
   );
+}
+
+// Ask for a name and make the folder inside parent. Returns its full path, so
+// the caller can step straight into it, or null when nothing was created.
+Future<String?> _createFolder(String parent) async {
+  final String? name = await showInputDialog(
+    title: lw('New folder'),
+    hint: lw('Folder name'),
+  );
+  if (name == null || name.isEmpty) return null;
+
+  // A single plain name: the same rules the receiver applies to incoming
+  // paths, plus no separators, so it cannot land outside the folder on screen.
+  final String? safe = sanitizeRelPath(name);
+  if (safe == null || safe.contains('/')) {
+    okInfoBarRed(lw('Invalid folder name'));
+    return null;
+  }
+
+  final String full = p.join(parent, safe);
+  try {
+    await Directory(full).create();
+    return full;
+  } catch (e) {
+    myPrint('cannot create $full: $e');
+    okInfoBarRed(lw('Cannot create the folder'));
+    return null;
+  }
 }
 
 // Readable subdirectories, dot-folders left out: they are never what someone

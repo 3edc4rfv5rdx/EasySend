@@ -4,7 +4,9 @@ import 'dart:io';
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:receive_sharing_intent/receive_sharing_intent.dart';
+import 'package:window_manager/window_manager.dart';
 
 import 'android_helpers.dart';
 import 'globals.dart';
@@ -22,11 +24,18 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   final List<FileItem> _selected = [];
+  // Paths of the last batch handed to the sender, so the list can be brought
+  // back after it emptied itself. Only paths: the files are re-read on restore,
+  // so sizes and dates are current and vanished ones simply drop out.
+  List<String> _lastSentPaths = [];
   Device? _target;
   // True while something is being dragged over the drop zone.
   bool _dragOver = false;
+  // The selection has its own scroll area, so it needs its own controller for
+  // the scrollbar to attach to.
+  final ScrollController _selectedScroll = ScrollController();
 
   // One listenable for everything the screen mirrors.
   late final Listenable _netTicks = Listenable.merge([devicesTick, transfersTick, serverTick]);
@@ -36,8 +45,55 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    devicesTick.addListener(_dropOfflineTarget);
+    transfersTick.addListener(_pruneSentFiles);
     _startNetwork();
     _listenForShares();
+  }
+
+  // The picked list doubles as the queue: a file that arrived and passed its
+  // checksum leaves it, so whatever remains is exactly what did not get there.
+  void _pruneSentFiles() {
+    if (_selected.isEmpty || !mounted) return;
+    final int before = _selected.length;
+    _selected.removeWhere((f) => f.done);
+    if (_selected.length != before) setState(() {});
+  }
+
+  // A device that went away must not stay highlighted as the chosen target,
+  // and Send must not stay enabled for it.
+  void _dropOfflineTarget() {
+    final Device? target = _target;
+    if (target == null || !mounted) return;
+    final int index = xvDevices.indexWhere((d) => d.id == target.id);
+    if (index < 0 || !xvDevices[index].online) {
+      setState(() => _target = null);
+    }
+  }
+
+  // With background receiving off, a backgrounded app must stop announcing and
+  // stop listening: otherwise it keeps advertising itself as reachable while
+  // the user believes it is closed (SPEC 7).
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (!Platform.isAndroid) return;
+    if (xdef['Receive in background'] == 'true') return;
+
+    switch (state) {
+      case AppLifecycleState.resumed:
+        _startNetwork();
+      case AppLifecycleState.paused:
+      case AppLifecycleState.detached:
+      case AppLifecycleState.hidden:
+        // A transfer in flight is not interrupted by leaving the screen.
+        if (sender.busy || xvTransfers.any((t) => t.isRunning)) return;
+        discovery.stop();
+        manualPoller.stop();
+        receiveServer.stop();
+      case AppLifecycleState.inactive:
+        break;
+    }
   }
 
   // "Share -> EasySend" drops straight into the selection, so all that is left
@@ -62,7 +118,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    devicesTick.removeListener(_dropOfflineTarget);
+    transfersTick.removeListener(_pruneSentFiles);
     _shareSub?.cancel();
+    _selectedScroll.dispose();
     androidService.detach();
     receiveServer.stop();
     discovery.stop();
@@ -90,6 +150,10 @@ class _HomeScreenState extends State<HomeScreen> {
   int get _totalBytes => _selected.fold(0, (sum, f) => sum + f.size);
 
   bool get _canSend => _selected.isNotEmpty && _target != null && !sender.busy;
+
+  // Pressable without a target too, so the button can say what is missing
+  // instead of sitting there grey and mute.
+  bool get _armed => _selected.isNotEmpty && !sender.busy;
 
   Future<void> _pickFiles() async {
     final FilePickerResult? result = await FilePicker.platform.pickFiles(allowMultiple: true);
@@ -138,12 +202,76 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() {});
   }
 
+  // Closing the app has to release the port and stop announcing, otherwise
+  // peers keep seeing this device for another twenty seconds.
+  Future<void> _exitApp() async {
+    final bool running = xvTransfers.any((t) => t.isRunning);
+    final bool yes = await okConfirm(
+      title: lw('Exit'),
+      message: running
+          ? '${lw('A transfer is running')}. ${lw('Exit the application')}?'
+          : '${lw('Exit the application')}?',
+    );
+    if (!yes) return;
+
+    await receiveServer.stop();
+    await discovery.stop();
+    manualPoller.stop();
+
+    if (Platform.isAndroid) {
+      await SystemNavigator.pop();
+    } else {
+      await windowManager.close();
+    }
+  }
+
+  // Send with nothing chosen: one reachable device is no choice at all, so it
+  // becomes the target and the transfer starts; with several, ask.
+  Future<void> _sendOrPickTarget() async {
+    if (_target == null) {
+      final List<Device> reachable = xvDevices.where((d) => d.online).toList();
+      if (reachable.length != 1) {
+        okInfoBarOrange(lw('Select a target device'));
+        return;
+      }
+      setState(() => _target = reachable.first);
+    }
+    await _send();
+  }
+
   Future<void> _send() async {
     final Device? target = _target;
     if (target == null || _selected.isEmpty) return;
     final List<FileItem> batch = List<FileItem>.of(_selected);
-    setState(_selected.clear);
-    await sender.send(peer: target, files: batch);
+    setState(() {
+      _lastSentPaths = batch.map((f) => f.sourcePath).whereType<String>().toList();
+    });
+    // Files leave the list one by one as they land, via _pruneSentFiles.
+    final TransferStatus status = await sender.send(peer: target, files: batch);
+    if (!mounted) return;
+    // Everything arrived: drop the target too, so the next send starts clean.
+    // After a partial or failed one it stays selected, together with the files
+    // still in the list, ready for another attempt.
+    if (status == TransferStatus.done) setState(() => _target = null);
+  }
+
+  // Bring the last batch back into the list, re-reading it from disk.
+  Future<void> _restoreLastBatch() async {
+    if (_lastSentPaths.isEmpty) return;
+    final List<FileItem> items = await collectFiles(_lastSentPaths);
+    if (!mounted) return;
+    if (items.isEmpty) {
+      okInfoBarRed(lw('Files are no longer there'));
+      return;
+    }
+    setState(() {
+      _selected
+        ..clear()
+        ..addAll(items);
+    });
+    if (items.length != _lastSentPaths.length) {
+      okInfoBarOrange(lw('Some files are no longer there'));
+    }
   }
 
   @override
@@ -151,6 +279,11 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       backgroundColor: clFon,
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.close),
+          tooltip: lw('Exit'),
+          onPressed: _exitApp,
+        ),
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisAlignment: MainAxisAlignment.center,
@@ -186,8 +319,7 @@ class _HomeScreenState extends State<HomeScreen> {
             _buildSelectedList(),
             SliverToBoxAdapter(child: _buildDevicesHeader()),
             _buildDeviceList(),
-            if (xvTransfers.isNotEmpty)
-              SliverToBoxAdapter(child: _sectionTitle(lw('Transfers'))),
+            SliverToBoxAdapter(child: _buildTransfersHeader()),
             _buildTransferList(),
           ],
         ),
@@ -286,7 +418,7 @@ class _HomeScreenState extends State<HomeScreen> {
       label: Text(label),
       style: OutlinedButton.styleFrom(
         foregroundColor: clText,
-        backgroundColor: clFill,
+        backgroundColor: clMenu,
         side: BorderSide(color: clFrame),
         padding: const EdgeInsets.symmetric(vertical: 6),
       ),
@@ -294,64 +426,109 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildSelectedHeader() {
-    if (_selected.isEmpty) {
-      return Padding(
-        padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-        child: Text(lw('Nothing selected'), style: tsSmall),
-      );
-    }
+    final bool empty = _selected.isEmpty;
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 8, 4, 4),
       child: Row(
         children: [
           Expanded(
             child: Text(
-              '${lw('Selected')}: ${_selected.length} — ${formatBytes(_totalBytes)}',
+              empty
+                  ? lw('Nothing selected')
+                  : '${lw('Selected')}: ${_selected.length} — ${formatBytes(_totalBytes)}',
               style: tsSmall,
             ),
           ),
-          TextButton(
-            onPressed: _clear,
-            style: TextButton.styleFrom(
-              foregroundColor: clText,
-              backgroundColor: clFill,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              minimumSize: Size.zero,
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-                side: BorderSide(color: clFrame),
-              ),
+          if (empty && _lastSentPaths.isNotEmpty)
+            TextButton.icon(
+              onPressed: _restoreLastBatch,
+              icon: Icon(Icons.restore, size: 16, color: clText),
+              label: Text(lw('Restore'), style: tsSmall),
+              style: _headerButtonStyle,
             ),
-            child: Text(lw('Clear'), style: tsSmall),
-          ),
+          if (!empty)
+            TextButton(
+              onPressed: _clear,
+              style: _headerButtonStyle,
+              child: Text(lw('Clear'), style: tsSmall),
+            ),
         ],
       ),
     );
   }
 
+  ButtonStyle get _headerButtonStyle => TextButton.styleFrom(
+        foregroundColor: clText,
+        backgroundColor: clMenu,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        minimumSize: Size.zero,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: clFrame),
+        ),
+      );
+
   Widget _buildSelectedList() {
-    return SliverList.builder(
-      itemCount: _selected.length,
-      itemBuilder: (context, index) {
-        final FileItem item = _selected[index];
-        return ListTile(
-          dense: true,
-          visualDensity: VisualDensity.compact,
-          title: Text(item.relativePath, style: tsNormal, overflow: TextOverflow.ellipsis),
-          subtitle: Text(
-            item.modified == null
-                ? formatBytes(item.size)
-                : '${formatBytes(item.size)}   ${formatDateTime(item.modified!)}',
-            style: tsSmall,
+    if (_selected.isEmpty) return const SliverToBoxAdapter(child: SizedBox.shrink());
+
+    // A folder full of files must not push the devices and the transfers off
+    // the screen: the selection keeps to a third of the height and scrolls
+    // inside itself.
+    final double maxHeight = MediaQuery.sizeOf(context).height / 3;
+    return SliverToBoxAdapter(
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 12),
+        constraints: BoxConstraints(maxHeight: maxHeight),
+        decoration: BoxDecoration(
+          border: Border.all(color: clFrame.withValues(alpha: 0.4)),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Scrollbar(
+          controller: _selectedScroll,
+          thumbVisibility: true,
+          child: ListView.builder(
+            controller: _selectedScroll,
+            shrinkWrap: true,
+            padding: EdgeInsets.zero,
+            itemCount: _selected.length,
+            itemBuilder: (context, index) {
+              final FileItem item = _selected[index];
+              return ListTile(
+                dense: true,
+                visualDensity: VisualDensity.compact,
+                title: Text(item.relativePath, style: tsNormal, overflow: TextOverflow.ellipsis),
+                subtitle: Text(
+                  item.modified == null
+                      ? formatBytes(item.size)
+                      : '${formatBytes(item.size)}   ${formatDateTime(item.modified!)}',
+                  style: tsSmall,
+                ),
+                // Checking what is about to be sent should not mean leaving
+                // the app and finding the file by hand.
+                onTap: () => _openItem(item),
+                trailing: IconButton(
+                  icon: Icon(Icons.close, color: clFrame, size: 20),
+                  onPressed: () => _remove(item),
+                ),
+              );
+            },
           ),
-          trailing: IconButton(
-            icon: Icon(Icons.close, color: clFrame, size: 20),
-            onPressed: () => _remove(item),
-          ),
-        );
-      },
+        ),
+      ),
     );
+  }
+
+  Future<void> _openItem(FileItem item) async {
+    final String? path = item.sourcePath;
+    if (path == null) return;
+    if (!await openExternally(path)) okInfoBarRed(lw('Nothing can open this'));
+  }
+
+  Future<void> _openRecvFolder() async {
+    if (!await openExternally(xvRecvDir, folder: true)) {
+      okInfoBarRed(lw('Nothing can open this'));
+    }
   }
 
   // Same strip for every section: a trailing button must not make one of them
@@ -383,8 +560,34 @@ class _HomeScreenState extends State<HomeScreen> {
           child: CircleAvatar(
             radius: 12,
             backgroundColor: clText,
-            child: Icon(Icons.add, color: clFill, size: 18),
+            // Drawn rather than taken from the icon font: the icon's stroke is
+            // too thin to read on a circle this small.
+            child: Text(
+              '+',
+              style: TextStyle(
+                color: clFill,
+                fontSize: 22,
+                height: 1,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
           ),
+        ),
+      ),
+    );
+  }
+
+  // The receive folder is one tap away wherever the transfers are listed, so
+  // the section header stays on screen even with nothing in it yet.
+  Widget _buildTransfersHeader() {
+    return _sectionTitle(
+      lw('Transfers'),
+      trailing: Tooltip(
+        message: lw('Open the receive folder'),
+        child: InkWell(
+          onTap: _openRecvFolder,
+          customBorder: const CircleBorder(),
+          child: Icon(Icons.folder_open, color: clText, size: 22),
         ),
       ),
     );
@@ -418,7 +621,7 @@ class _HomeScreenState extends State<HomeScreen> {
           // Reachable devices get an inverted badge: a filled circle with the
           // icon punched out in the background colour. Two shades of the same
           // icon were impossible to tell apart at a glance.
-          leading: _deviceIcon(device),
+          leading: _deviceIcon(device, isTarget),
           title: Text(device.name, style: tsNormal),
           // Spelled out as well as coloured: an unreachable device cannot be
           // picked, and that should not look like an unexplained dead row.
@@ -460,11 +663,21 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _deviceIcon(Device device) {
+  Widget _deviceIcon(Device device, bool isTarget) {
     final IconData icon =
         device.platform == 'android' ? Icons.smartphone : Icons.computer;
     if (!device.online) {
       return Icon(icon, color: clFrame);
+    }
+    // The chosen device turns into an arrow pointing at its row: the platform
+    // icon would not fit inside a triangle, and the highlight alone was easy
+    // to miss.
+    if (isTarget) {
+      return SizedBox(
+        width: 32,
+        height: 32,
+        child: Icon(Icons.play_arrow, color: clGreen, size: 32),
+      );
     }
     return CircleAvatar(
       radius: 16,
@@ -497,18 +710,6 @@ class _HomeScreenState extends State<HomeScreen> {
               Icon(t.incoming ? Icons.download : Icons.upload, size: 18, color: clText),
               const SizedBox(width: 6),
               Expanded(child: Text(t.peerName, style: tsNormal, overflow: TextOverflow.ellipsis)),
-              // Only the files that did not make it are sent again.
-              if (t.canRetry)
-                TextButton.icon(
-                  icon: Icon(Icons.refresh, size: 18, color: clText),
-                  label: Text(lw('Retry'), style: tsSmall),
-                  style: TextButton.styleFrom(foregroundColor: clText),
-                  onPressed: () async {
-                    if (!await sender.retryFailed(t)) {
-                      okInfoBarRed(lw('Device is not reachable'));
-                    }
-                  },
-                ),
             ],
           ),
           Row(
@@ -623,11 +824,17 @@ class _HomeScreenState extends State<HomeScreen> {
           child: ElevatedButton(
             onPressed: stopping
                 ? _stop
-                : _canSend
-                    ? _send
+                : _armed
+                    ? _sendOrPickTarget
                     : null,
             style: ElevatedButton.styleFrom(
-              backgroundColor: stopping ? clRed : clUpBar,
+              // Grey while a target is still missing: pressing it then only
+              // asks for one.
+              backgroundColor: stopping
+                  ? clRed
+                  : _canSend
+                      ? clUpBar
+                      : clFrame.withValues(alpha: 0.3),
               foregroundColor: clText,
               disabledBackgroundColor: clFrame.withValues(alpha: 0.3),
               padding: const EdgeInsets.symmetric(vertical: 12),

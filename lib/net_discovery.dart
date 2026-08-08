@@ -51,6 +51,9 @@ class DiscoveryService {
   void _tick() {
     _broadcast('announce');
     _forgetStaleDevices();
+    // Going offline is a silent event: nothing arrives to signal it. Without a
+    // nudge here the list would keep showing a dead device as reachable.
+    devicesChanged();
   }
 
   Map<String, dynamic> _payload(String type) => {
