@@ -12,7 +12,7 @@ ButtonStyle get dialogButtonStyle => TextButton.styleFrom(
   // Same reason as the frame: appBar sits too close to the dialog surface on
   // a dark theme.
   backgroundColor: xvDarkNow ? clFrame : clUpBar,
-  foregroundColor: clText,
+  foregroundColor: xvDarkNow ? clText : clUpBarText,
   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
   elevation: 4,
@@ -155,7 +155,7 @@ Future<(bool, bool)> showAcceptDialog({
                   controlAffinity: ListTileControlAffinity.leading,
                   value: trust,
                   activeColor: clUpBar,
-                  checkColor: clText,
+                  checkColor: clUpBarText,
                   title: Text(lw('Always trust this device'), style: tsSmall),
                   onChanged: (v) => setState(() => trust = v ?? false),
                 ),
@@ -228,40 +228,61 @@ Future<String?> showInputDialog({
   return result;
 }
 
-void okInfo(String message) => showCustomDialog(title: lw('Info'), message: message, color: Colors.blue, icon: Icons.info_outline);
-void okErr(String message) => showCustomDialog(title: lw('Error'), message: message, color: Colors.red, icon: Icons.error_outline);
-void okWarning(String message) => showCustomDialog(title: lw('Warning'), message: message, color: Colors.orange, icon: Icons.warning_amber_outlined);
-void okSuccess(String message) => showCustomDialog(title: lw('Success'), message: message, color: Colors.green, icon: Icons.check_circle_outline);
+void okInfo(String message) => showCustomDialog(title: lw('Info'), message: message, color: clInfo, icon: Icons.info_outline);
+void okErr(String message) => showCustomDialog(title: lw('Error'), message: message, color: clError, icon: Icons.error_outline);
+void okWarning(String message) => showCustomDialog(title: lw('Warning'), message: message, color: clWarning, icon: Icons.warning_amber_outlined);
+void okSuccess(String message) => showCustomDialog(title: lw('Success'), message: message, color: clSuccess, icon: Icons.check_circle_outline);
+
+// Black or white, whichever actually contrasts better — compared by WCAG ratio
+// rather than by a brightness threshold. Halfway-bright colours like amber are
+// exactly where a threshold picks white and leaves the text barely there.
+Color onColor(Color background) {
+  final double l = background.computeLuminance();
+  final double onWhite = 1.05 / (l + 0.05);
+  final double onBlack = (l + 0.05) / 0.05;
+  return onBlack >= onWhite ? Colors.black : Colors.white;
+}
 
 // Core SnackBar function
 void okInfoBar(String message, {
-  Color bgColor = Colors.blue,
+  Color? bgColor,
   Color? textColor,
   Duration? duration,
   DismissDirection dismissDirection = DismissDirection.down,
   SnackBarAction? action,
 }) {
+  final Color background = bgColor ?? clInfo;
   scaffoldMessengerKey.currentState?.showSnackBar(
     SnackBar(
-      content: Text(message, style: TextStyle(fontSize: fsSmall, color: textColor ?? clText)),
+      // Body size, not the small one: this is on screen for seconds and then
+      // gone, so it has to be readable at a glance rather than studied.
+      content: Text(
+        message,
+        style: TextStyle(
+          fontSize: fsNormal,
+          fontWeight: FontWeight.w500,
+          color: textColor ?? onColor(background),
+        ),
+      ),
       behavior: SnackBarBehavior.floating,
-      backgroundColor: bgColor,
-      duration: duration ?? const Duration(seconds: 4),
+      backgroundColor: background,
+      duration: duration ?? const Duration(seconds: 5),
       dismissDirection: dismissDirection,
       action: action,
     ),
   );
 }
 
-// Colored SnackBar shortcuts
-void okInfoBarBlue(String message) => okInfoBar(message, bgColor: Colors.blue, textColor: Colors.white, duration: const Duration(seconds: 5));
-void okInfoBarRed(String message, {Duration? duration}) => okInfoBar(message, bgColor: Colors.red, textColor: Colors.white, duration: duration ?? const Duration(seconds: 7), dismissDirection: DismissDirection.none);
-void okInfoBarOrange(String message) => okInfoBar(message, bgColor: Colors.orange);
-void okInfoBarGreen(String message, {Duration? duration}) => okInfoBar(message, bgColor: Colors.green, duration: duration ?? const Duration(seconds: 3));
+// SnackBar shortcuts, named after what they mean rather than the hue they used
+// to be: the palette decides how a warning looks.
+void okInfoBarBlue(String message) => okInfoBar(message, bgColor: clInfo, duration: const Duration(seconds: 6));
+void okInfoBarRed(String message, {Duration? duration}) => okInfoBar(message, bgColor: clError, duration: duration ?? const Duration(seconds: 7), dismissDirection: DismissDirection.none);
+void okInfoBarOrange(String message) => okInfoBar(message, bgColor: clWarning, duration: const Duration(seconds: 6));
+void okInfoBarGreen(String message, {Duration? duration}) => okInfoBar(message, bgColor: clSuccess, duration: duration ?? const Duration(seconds: 4));
 void okInfoBarPurple(String message) => okInfoBar(
   message,
-  bgColor: Colors.purple,
-  textColor: Colors.white,
+  bgColor: clUpBar,
+  textColor: clUpBarText,
   duration: const Duration(days: 3),
   dismissDirection: DismissDirection.none,
   action: SnackBarAction(

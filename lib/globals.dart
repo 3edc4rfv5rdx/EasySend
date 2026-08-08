@@ -18,7 +18,7 @@ final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 const String prgName = 'easysend';
 const String progVersion = '0.1.260808';
-const int buildNumber = 37;
+const int buildNumber = 40;
 const String progAuthor = 'Eugen';
 
 const String langFile = 'assets/locales.json';
@@ -71,13 +71,21 @@ Color clFon = const Color(0xFFFFF8E1);
 Color clMenu = const Color(0xFFB3E5FC);
 Color clSel = const Color(0x4DFFA500);
 Color clUpBar = const Color(0xFFDAA520);
+// What is legible on top of clUpBar: an accent bright enough to need dark text
+// is exactly what a fixed foreground colour gets wrong.
+Color clUpBarText = const Color(0xFF000000);
 Color clText = const Color(0xFF000000);
 Color clFill = const Color(0xFFFFFFFF);
 Color clFrame = const Color(0xFF9E9E9E);
 // Transfer progress: deliberately the loudest colour on the screen.
 Color clProgress = const Color(0xFFFF9800);
 
-Color clRed = Colors.red;
+// Meaning, not hue: every message colour comes from the palette, so a theme
+// owns the whole screen instead of half of it.
+Color clError = const Color(0xFFC62828);
+Color clWarning = const Color(0xFFEF6C00);
+Color clInfo = const Color(0xFF1565C0);
+Color clSuccess = const Color(0xFF2E7D32);
 // Reachable devices; read from the palette like everything else.
 Color clGreen = const Color(0xFF43A047);
 
@@ -197,11 +205,18 @@ void applyTheme(String themeName) {
   clSel = hexToColor(theme['selected'] ?? '#4DFFA500');
   clUpBar = hexToColor(theme['appBar'] ?? '#DAA520');
   clText = hexToColor(theme['text'] ?? '#000000');
+  clUpBarText = hexToColor(theme['appBarText'] ?? theme['text'] ?? '#000000');
   clFill = hexToColor(theme['fill'] ?? '#FFFFFF');
   clFrame = hexToColor(theme['frame'] ?? '#9E9E9E');
   clProgress = hexToColor(theme['progress'] ?? '#FF9800');
   clGreen = hexToColor(theme['online'] ?? '#43A047');
-  xvDarkNow = themeName == themeDark;
+  clError = hexToColor(theme['error'] ?? '#C62828');
+  clWarning = hexToColor(theme['warning'] ?? '#EF6C00');
+  clInfo = hexToColor(theme['info'] ?? '#1565C0');
+  clSuccess = hexToColor(theme['success'] ?? '#2E7D32');
+  // Read off the background rather than the name: a dark palette of any name
+  // needs the same lighter dialog frame that 'Dark' does.
+  xvDarkNow = clFon.computeLuminance() < 0.4;
 }
 
 // Function to initialize translations

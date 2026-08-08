@@ -303,7 +303,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             const Text('EasySend', style: TextStyle(fontSize: fsLarge, fontWeight: fwBold)),
-            Text(xvDeviceName, style: TextStyle(fontSize: fsSmall, color: clText)),
+            Text(xvDeviceName, style: TextStyle(fontSize: fsSmall, color: clUpBarText)),
           ],
         ),
         actions: [
@@ -350,16 +350,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Widget _buildPortBanner() {
     return Container(
       width: double.infinity,
-      color: clRed,
+      color: clError,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       child: Row(
         children: [
-          const Icon(Icons.error_outline, color: Colors.white, size: 20),
+          Icon(Icons.error_outline, color: onColor(clError), size: 20),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
               '${lw('Port is busy, receiving is off')}: $currentPort',
-              style: const TextStyle(color: Colors.white, fontSize: fsSmall),
+              style: TextStyle(color: onColor(clError), fontSize: fsSmall),
             ),
           ),
           TextButton(
@@ -371,7 +371,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               await _restartNetwork();
               if (mounted) setState(() {});
             },
-            child: Text(lw('Settings'), style: const TextStyle(color: Colors.white, fontSize: fsSmall)),
+            child: Text(lw('Settings'), style: TextStyle(color: onColor(clError), fontSize: fsSmall)),
           ),
         ],
       ),
@@ -778,7 +778,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Color _progressColor(TransferSession t) {
     switch (t.status) {
       case TransferStatus.failed:
-        return clRed;
+        return clError;
       case TransferStatus.cancelled:
         return clFrame;
       case TransferStatus.done:
@@ -852,11 +852,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               // Grey while a target is still missing: pressing it then only
               // asks for one.
               backgroundColor: stopping
-                  ? clRed
+                  ? clError
                   : _canSend
                       ? clUpBar
                       : clFrame.withValues(alpha: 0.3),
-              foregroundColor: clText,
               disabledBackgroundColor: clFrame.withValues(alpha: 0.3),
               padding: const EdgeInsets.symmetric(vertical: 12),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
@@ -865,7 +864,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               label,
               style: TextStyle(
                 fontSize: fsLarge,
-                color: stopping ? Colors.white : clText,
+                // Whatever the button is painted with decides the lettering:
+                // an accent light enough for dark text is a valid palette.
+                color: stopping
+                    ? onColor(clError)
+                    : _canSend
+                        ? clUpBarText
+                        : clText,
               ),
             ),
           ),

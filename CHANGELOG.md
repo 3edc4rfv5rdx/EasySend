@@ -2,6 +2,13 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+- N: Two designed palettes, Sand and Slate: one warm base with a cold accent and the reverse, two tones each instead of six
+- R: Message colours come from the palette now, not from Colors.blue/red/orange/green in the code, so a theme owns the whole screen
+- F: Readable message banners: the ink is whichever of black or white contrasts better by WCAG ratio, the text is body size and semibold, and a banner stays up a second or two longer
+- F: Text over the accent is a palette colour of its own
+- F: Dark is decided by the palette's background rather than by the theme being called Dark, so stock widgets follow a dark palette of any name
+- F: Translate the new palette names, and drop the ones no palette answers to any more
+- F: Drop the Blue and Green palettes; a theme that is gone falls back to System instead of lingering in the settings
 
 ## v0.1.260808+37
 - I: 99 keeps one .apkx link, dropping the previous builds' instead of piling them up in the project root

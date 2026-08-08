@@ -20,6 +20,12 @@ Future<void> main() async {
   await loadSettings();
   await initIdentity();
   await loadThemes();
+  // A palette dropped from colors.json must not linger in the settings as a
+  // name nothing answers to.
+  if (xdef['Color theme'] != themeSystem &&
+      !loadedThemes.containsKey(xdef['Color theme'])) {
+    xdef['Color theme'] = themeSystem;
+  }
   await loadLanguageNames();
   await initTranslations();
   await initNotifications();
@@ -83,7 +89,9 @@ class _EasySendAppState extends State<EasySendApp> with WidgetsBindingObserver {
           WidgetsBinding.instance.platformDispatcher.platformBrightness,
         );
         applyTheme(themeName);
-        final bool dark = themeName == themeDark;
+        // Taken from the palette's own background, so a dark palette under any
+        // name gets dark stock widgets too.
+        final bool dark = xvDarkNow;
         return MaterialApp(
           title: 'EasySend',
           debugShowCheckedModeBanner: false,
@@ -154,11 +162,12 @@ ThemeData _buildTheme(bool dark) {
       seedColor: clUpBar,
       brightness: dark ? Brightness.dark : Brightness.light,
       surface: clFon,
+      error: clError,
     ),
     scaffoldBackgroundColor: clFon,
     appBarTheme: AppBarTheme(
       backgroundColor: clUpBar,
-      foregroundColor: clText,
+      foregroundColor: clUpBarText,
       elevation: 2,
       centerTitle: false,
     ),
