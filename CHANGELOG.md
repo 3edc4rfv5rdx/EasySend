@@ -2,6 +2,9 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+- F: No animation left anywhere: no overscroll stretch, glow or bounce, no screen transitions, no dialog fade, no tap ripple, no theme cross-fade
+- F: A couple of pixels between the selection frame and the Devices strip
+- E: Make the receive folder at startup instead of when the first file lands, so opening it works before anything has arrived
 - N: Open a picked file in whatever app the system has for it, by tapping it in the list
 - N: Open the receive folder in a file manager from the Transfers header
 - N: New folder button in the folder picker, stepping into the folder it creates

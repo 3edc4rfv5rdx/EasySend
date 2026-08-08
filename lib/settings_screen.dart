@@ -36,7 +36,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       okInfoBarRed(lw('No network connection'));
       return;
     }
-    await showDialog<void>(
+    await showFlatDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: clFill,
@@ -73,7 +73,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   // One line per fact instead of a single run-on string: the version, the
   // build and the device id are what gets quoted when something goes wrong.
   Future<void> _showAbout() async {
-    await showDialog<void>(
+    await showFlatDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: clFill,
@@ -167,7 +167,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     required Future<void> Function(String) onPick,
     String Function(String)? labelOf,
   }) async {
-    final String? picked = await showDialog<String>(
+    final String? picked = await showFlatDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: clFill,

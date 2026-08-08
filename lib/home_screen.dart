@@ -135,6 +135,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     // without storage access the receive folder cannot be written at all.
     await ensureStoragePermission();
     await ensureNotificationPermission();
+    await ensureRecvDir();
     androidService.attach();
     await receiveServer.start();
     await discovery.start();
@@ -388,8 +389,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         },
         onDragEntered: (_) => setState(() => _dragOver = true),
         onDragExited: (_) => setState(() => _dragOver = false),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 120),
+        child: Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(8),
@@ -478,7 +478,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final double maxHeight = MediaQuery.sizeOf(context).height / 3;
     return SliverToBoxAdapter(
       child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 12),
+        // The bottom margin keeps the frame off the Devices strip below it.
+        margin: const EdgeInsets.fromLTRB(12, 0, 12, 6),
         constraints: BoxConstraints(maxHeight: maxHeight),
         decoration: BoxDecoration(
           border: Border.all(color: clFrame.withValues(alpha: 0.4)),
@@ -526,6 +527,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _openRecvFolder() async {
+    await ensureRecvDir();
     if (!await openExternally(xvRecvDir, folder: true)) {
       okInfoBarRed(lw('Nothing can open this'));
     }

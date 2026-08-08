@@ -26,14 +26,33 @@ RoundedRectangleBorder get dialogShape => RoundedRectangleBorder(
   borderRadius: BorderRadius.circular(8.0),
 );
 
+// Dialogs appear at once: showDialog fades and scales them in, which is one
+// animation more than this app wants anywhere. Otherwise it is showDialog, with
+// the app-wide navigator as the default context.
+Future<T?> showFlatDialog<T>({
+  required WidgetBuilder builder,
+  BuildContext? context,
+  bool barrierDismissible = true,
+}) {
+  final BuildContext? ctx = context ?? navigatorKey.currentContext;
+  if (ctx == null) return Future<T?>.value();
+  return showGeneralDialog<T>(
+    context: ctx,
+    barrierDismissible: barrierDismissible,
+    barrierLabel: MaterialLocalizations.of(ctx).modalBarrierDismissLabel,
+    barrierColor: Colors.black54,
+    transitionDuration: Duration.zero,
+    pageBuilder: (BuildContext context, _, __) => builder(context),
+  );
+}
+
 Future<bool> okConfirm({
   required String title,
   required String message,
   String? yesText,
   String? noText,
 }) async {
-  final result = await showDialog<bool>(
-    context: navigatorKey.currentContext!,
+  final result = await showFlatDialog<bool>(
     builder: (BuildContext context) {
       return AlertDialog(
         title: Text(title, style: tsLarge),
@@ -64,8 +83,7 @@ void showCustomDialog({
   required Color color,
   required IconData icon,
 }) {
-  showDialog(
-    context: navigatorKey.currentContext!,
+  showFlatDialog<void>(
     builder: (context) {
       return AlertDialog(
         backgroundColor: clFill,
@@ -104,7 +122,7 @@ Future<(bool, bool)> showAcceptDialog({
 
   bool trust = false;
   Timer? timer;
-  final (bool, bool)? result = await showDialog<(bool, bool)>(
+  final (bool, bool)? result = await showFlatDialog<(bool, bool)>(
     context: context,
     barrierDismissible: false,
     builder: (BuildContext dialogContext) {
@@ -172,8 +190,7 @@ Future<String?> showInputDialog({
   String? hint,
 }) async {
   final TextEditingController controller = TextEditingController(text: initial);
-  final String? result = await showDialog<String>(
-    context: navigatorKey.currentContext!,
+  final String? result = await showFlatDialog<String>(
     builder: (BuildContext context) {
       return AlertDialog(
         backgroundColor: clFill,
@@ -273,7 +290,7 @@ Future<String?> pickFolder({String? initialPath}) async {
   // the context behind an async gap.
   if (!Directory(current).existsSync()) current = root;
 
-  return showDialog<String>(
+  return showFlatDialog<String>(
     context: context,
     builder: (BuildContext dialogContext) {
       return StatefulBuilder(

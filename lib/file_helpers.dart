@@ -11,6 +11,19 @@ const Uuid _uuid = Uuid();
 // The same channel the foreground service talks over.
 const MethodChannel _androidChannel = MethodChannel('easysend/service');
 
+// The receive folder is made when the first file lands, which leaves nothing to
+// open before that and nothing to see in a file manager. Called at startup and
+// again before opening it, since the storage permission may arrive in between.
+Future<bool> ensureRecvDir() async {
+  try {
+    await Directory(xvRecvDir).create(recursive: true);
+    return true;
+  } catch (e) {
+    myPrint('cannot create $xvRecvDir: $e');
+    return false;
+  }
+}
+
 // Hand a file or a folder over to whatever the system has for it. Android goes
 // through the native side: a file needs a FileProvider URI, and a folder needs
 // a documents URI, since a plain file:// intent is no longer allowed to leave
