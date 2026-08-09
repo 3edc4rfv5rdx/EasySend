@@ -70,30 +70,35 @@ Widget sectionTitle(String text, {Widget? trailing, bool trailingToEdge = false}
 
   return Padding(
     padding: const EdgeInsets.fromLTRB(12, 12, 12, 6),
-    child: Row(
-      children: [
-        rule(16),
-        const SizedBox(width: 8),
-        // Flexible: a heading carrying a count and a size can outgrow a narrow
-        // screen, and it should shorten rather than push the rule off it.
-        Flexible(
-          child: Text(
-            text,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(fontSize: fsLarge, fontWeight: fwBold, color: clText),
+    child: LayoutBuilder(
+      builder: (context, constraints) => Row(
+        children: [
+          rule(16),
+          const SizedBox(width: 8),
+          // Its natural width, capped rather than made flexible: a Flexible
+          // here would share the free space with the Expanded rule and get
+          // half of it, shortening headings that fit perfectly well. The cap
+          // only bites on a heading long enough to squeeze the rule out.
+          ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: constraints.maxWidth * 0.6),
+            child: Text(
+              text,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: fsLarge, fontWeight: fwBold, color: clText),
+            ),
           ),
-        ),
-        const SizedBox(width: 8),
-        rule(),
-        if (trailing != null) ...[
-          const SizedBox(width: 10),
-          trailing,
-          if (!trailingToEdge) ...[
+          const SizedBox(width: 8),
+          rule(),
+          if (trailing != null) ...[
             const SizedBox(width: 10),
-            rule(12),
+            trailing,
+            if (!trailingToEdge) ...[
+              const SizedBox(width: 10),
+              rule(12),
+            ],
           ],
         ],
-      ],
+      ),
     ),
   );
 }
