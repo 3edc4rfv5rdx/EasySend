@@ -2,6 +2,7 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+- F: One corner on every button: File, Folder, Restore, Clear, Send and the dialog buttons are all the same 8 px rounded rectangle, from a single btnRadius, instead of a mix of stadiums and rectangles
 - E: A file already in the choice is not added a second time, whether it is the same file on disk or one that would land on the same place at the far end; the snack bar says how many were skipped
 - N: The Olive palette: a beige-olive page, an olive bar and a deep olive-green accent
 - F: Snack bars keep the Dark palette's tones in every theme, so a message floating over the page is its own surface and reads the same wherever it appears

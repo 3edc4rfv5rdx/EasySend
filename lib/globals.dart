@@ -104,6 +104,9 @@ Color clSnackInfo = const Color(0xFF6FB0DA);
 Color clSnackSuccess = const Color(0xFF56C08A);
 Color clSnackAccent = const Color(0xFF37698C);
 
+// One corner for every button and dialog: rounded rectangles, no stadiums.
+const double btnRadius = 8;
+
 const double fsSmall = 13;  // Small font size
 const double fsNormal = 15; // Main font size
 const double fsLarge = 18;  // Font size for headers

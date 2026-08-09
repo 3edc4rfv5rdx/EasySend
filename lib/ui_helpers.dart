@@ -12,14 +12,14 @@ ButtonStyle get dialogButtonStyle => TextButton.styleFrom(
   backgroundColor: clAccent,
   foregroundColor: onColor(clAccent),
   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(btnRadius)),
   elevation: 4,
   minimumSize: const Size(60, 40),
 );
 
 RoundedRectangleBorder get dialogShape => RoundedRectangleBorder(
   side: BorderSide(color: clAccent, width: 3.0),
-  borderRadius: BorderRadius.circular(8.0),
+  borderRadius: BorderRadius.circular(btnRadius),
 );
 
 // Dialogs appear at once: showDialog fades and scales them in, which is one

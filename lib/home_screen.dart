@@ -449,6 +449,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         foregroundColor: clText,
         backgroundColor: clButton,
         side: BorderSide(color: clFrame),
+        // Material 3 would make this a stadium; every button in the app is the
+        // same rounded rectangle instead.
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(btnRadius)),
         padding: const EdgeInsets.symmetric(vertical: 6),
       ),
     );
@@ -493,7 +496,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         minimumSize: Size.zero,
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(btnRadius),
           side: BorderSide(color: clFrame),
         ),
       );
@@ -856,7 +859,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       : clFrame.withValues(alpha: 0.3),
               disabledBackgroundColor: clFrame.withValues(alpha: 0.3),
               padding: const EdgeInsets.symmetric(vertical: 12),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(btnRadius)),
             ),
             child: Text(
               label,
