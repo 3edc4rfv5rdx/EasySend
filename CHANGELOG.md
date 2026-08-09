@@ -2,6 +2,7 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+- F: An empty Transfers section says so, instead of leaving its heading with nothing underneath
 - F: The selection heading is a section rule like Devices and Transfers, with the count and the size laid into it; Clear and Restore still end at the screen margin, and a heading too long for the screen shortens instead of pushing the rule off it
 - F: The way out of a dialog looks different from the way on: No, Cancel and Decline sit on the button surface with a frame, and the accent is left to the answer that does something
 - F: No divider above Trusted devices in the settings: the section heading is a rule already, and two lines in a row said the same thing twice

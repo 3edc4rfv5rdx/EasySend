@@ -703,6 +703,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Widget _buildTransferList() {
     // Newest on top.
     final List<TransferSession> list = xvTransfers.reversed.toList();
+    // Said outright, the way the device list says it: a heading with nothing
+    // under it looks like something failed to load.
+    if (list.isEmpty) {
+      return SliverToBoxAdapter(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Text(lw('No transfers yet'), style: tsSmall),
+        ),
+      );
+    }
     return SliverList.builder(
       itemCount: list.length,
       itemBuilder: (context, index) => _buildTransferTile(list[index]),
