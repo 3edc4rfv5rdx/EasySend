@@ -297,7 +297,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
             subtitle: Text(lw('A running transfer is always asked about'), style: tsSmall),
             onChanged: (v) => _apply(() => xdef['Ask before exit'] = '$v'),
           ),
-          const Divider(),
           sectionTitle('${lw('Trusted devices')} (${trusted.length})'),
           ...trusted.map((d) => ListTile(
                 dense: true,
