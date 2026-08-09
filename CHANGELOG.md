@@ -2,6 +2,7 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+- F: The buttons in the section headings match the rest: Add device and Open the receive folder are the same framed button on the button colour, instead of a filled black circle and a bare icon
 - E: Section headings stop cutting themselves short: the text shared the row's free space with the rule and got half of it, so 'Selected: 1 — 2.4 MB' and 'Trusted devices' ended in an ellipsis with the room to spare
 - F: Trusted devices says when there are none, instead of a heading with empty space under it
 - F: Softer corners on the buttons and the dialogs: btnRadius is 14, halfway between the flat 8 and a capsule

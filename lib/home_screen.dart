@@ -560,27 +560,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Widget _buildDevicesHeader() {
     return sectionTitle(
       lw('Devices'),
-      trailing: Tooltip(
-        message: lw('Add device'),
-        child: InkWell(
-          onTap: _addManualDevice,
-          customBorder: const CircleBorder(),
-          child: CircleAvatar(
-            radius: 12,
-            backgroundColor: clText,
-            // Drawn rather than taken from the icon font: the icon's stroke is
-            // too thin to read on a circle this small.
-            child: Text(
-              '+',
-              style: TextStyle(
-                color: clFill,
-                fontSize: 22,
-                height: 1,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-          ),
-        ),
+      trailing: sectionButton(
+        Icons.add,
+        tooltip: lw('Add device'),
+        onTap: _addManualDevice,
       ),
     );
   }
@@ -590,13 +573,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Widget _buildTransfersHeader() {
     return sectionTitle(
       lw('Transfers'),
-      trailing: Tooltip(
-        message: lw('Open the receive folder'),
-        child: InkWell(
-          onTap: _openRecvFolder,
-          customBorder: const CircleBorder(),
-          child: Icon(Icons.folder_open, color: clText, size: 22),
-        ),
+      trailing: sectionButton(
+        Icons.folder_open,
+        tooltip: lw('Open the receive folder'),
+        onTap: _openRecvFolder,
       ),
     );
   }

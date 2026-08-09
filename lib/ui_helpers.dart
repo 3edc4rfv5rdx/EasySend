@@ -103,6 +103,30 @@ Widget sectionTitle(String text, {Widget? trailing, bool trailingToEdge = false}
   );
 }
 
+// The button that rides inside a section heading. One shape for all of them:
+// a filled circle for one and a bare icon for the next read as two different
+// kinds of thing when they are the same kind of thing.
+Widget sectionButton(IconData icon, {required String tooltip, required VoidCallback onTap}) {
+  return Tooltip(
+    message: tooltip,
+    child: InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(btnRadius),
+      child: Container(
+        width: 34,
+        height: 26,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: clButton,
+          border: Border.all(color: clFrame),
+          borderRadius: BorderRadius.circular(btnRadius),
+        ),
+        child: Icon(icon, color: clText, size: 18),
+      ),
+    ),
+  );
+}
+
 Future<bool> okConfirm({
   required String title,
   required String message,
