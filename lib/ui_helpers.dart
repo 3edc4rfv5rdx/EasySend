@@ -59,46 +59,39 @@ Future<T?> showFlatDialog<T>({
 // Section heading: a 2 px rule with the name laid into it, the trailing button
 // sitting in the line as well. A filled strip made every section shout; here
 // the structure is the line and the only coloured area left is Send.
-// trailingToEdge drops the closing stub of rule, so the trailing widget ends
-// where the screen's 12 px margin does — that is how Clear lines up with the
-// Folder button above it.
-Widget sectionTitle(String text, {Widget? trailing, bool trailingToEdge = false}) {
-  Widget rule([double? width]) {
-    final Widget line = Container(height: 2, color: clFrame);
-    return width == null ? Expanded(child: line) : SizedBox(width: width, child: line);
-  }
-
+Widget sectionTitle(String text, {Widget? trailing}) {
   return Padding(
     padding: const EdgeInsets.fromLTRB(12, 12, 12, 6),
-    child: LayoutBuilder(
-      builder: (context, constraints) => Row(
-        children: [
-          rule(16),
-          const SizedBox(width: 8),
-          // Its natural width, capped rather than made flexible: a Flexible
-          // here would share the free space with the Expanded rule and get
-          // half of it, shortening headings that fit perfectly well. The cap
-          // only bites on a heading long enough to squeeze the rule out.
-          ConstrainedBox(
-            constraints: BoxConstraints(maxWidth: constraints.maxWidth * 0.6),
-            child: Text(
-              text,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontSize: fsLarge, fontWeight: fwBold, color: clText),
+    child: Stack(
+      alignment: Alignment.center,
+      children: [
+        // One rule across the whole row. The name and the button are laid over
+        // it on the screen colour, so the line reads as passing behind them
+        // instead of being cut into pieces that have to be measured.
+        Positioned.fill(
+          child: Center(child: Container(height: 2, color: clFrame)),
+        ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Flexible(
+              child: Container(
+                color: clFon,
+                margin: const EdgeInsets.only(left: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: Text(
+                  text,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: fsLarge, fontWeight: fwBold, color: clText),
+                ),
+              ),
             ),
-          ),
-          const SizedBox(width: 8),
-          rule(),
-          if (trailing != null) ...[
-            const SizedBox(width: 10),
-            trailing,
-            if (!trailingToEdge) ...[
-              const SizedBox(width: 10),
-              rule(12),
-            ],
+            // The button paints its own surface, so it hides the rule by itself
+            // and ends at the screen margin, in line with the buttons above.
+            if (trailing != null) trailing,
           ],
-        ],
-      ),
+        ),
+      ],
     ),
   );
 }

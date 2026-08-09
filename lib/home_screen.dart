@@ -481,7 +481,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       );
     }
 
-    return sectionTitle(title, trailing: trailing, trailingToEdge: true);
+    return sectionTitle(title, trailing: trailing);
   }
 
   ButtonStyle get _headerButtonStyle => TextButton.styleFrom(
