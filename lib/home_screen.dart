@@ -408,7 +408,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             borderRadius: BorderRadius.circular(8),
             color: _dragOver ? clSel : Colors.transparent,
             border: Border.all(
-              color: _dragOver ? clUpBar : clFrame.withValues(alpha: 0.4),
+              color: _dragOver ? clAccent : clFrame.withValues(alpha: 0.4),
               width: _dragOver ? 2 : 1,
             ),
           ),
@@ -431,7 +431,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       label: Text(label),
       style: OutlinedButton.styleFrom(
         foregroundColor: clText,
-        backgroundColor: clFill,
+        backgroundColor: clButton,
         side: BorderSide(color: clFrame),
         padding: const EdgeInsets.symmetric(vertical: 6),
       ),
@@ -472,7 +472,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   ButtonStyle get _headerButtonStyle => TextButton.styleFrom(
         foregroundColor: clText,
-        backgroundColor: clFill,
+        backgroundColor: clButton,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
         minimumSize: Size.zero,
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -836,7 +836,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               backgroundColor: stopping
                   ? clError
                   : _canSend
-                      ? clUpBar
+                      ? clAccent
                       : clFrame.withValues(alpha: 0.3),
               disabledBackgroundColor: clFrame.withValues(alpha: 0.3),
               padding: const EdgeInsets.symmetric(vertical: 12),
@@ -851,7 +851,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 color: stopping
                     ? onColor(clError)
                     : _canSend
-                        ? clUpBarText
+                        ? onColor(clAccent)
                         : clText,
               ),
             ),

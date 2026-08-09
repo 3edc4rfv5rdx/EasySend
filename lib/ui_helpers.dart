@@ -9,10 +9,8 @@ import 'globals.dart';
 
 // Shared look for dialog action buttons, so every dialog stays identical.
 ButtonStyle get dialogButtonStyle => TextButton.styleFrom(
-  // Same reason as the frame: appBar sits too close to the dialog surface on
-  // a dark theme.
-  backgroundColor: xvDarkNow ? clFrame : clUpBar,
-  foregroundColor: xvDarkNow ? clText : clUpBarText,
+  backgroundColor: clAccent,
+  foregroundColor: onColor(clAccent),
   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
   elevation: 4,
@@ -20,9 +18,7 @@ ButtonStyle get dialogButtonStyle => TextButton.styleFrom(
 );
 
 RoundedRectangleBorder get dialogShape => RoundedRectangleBorder(
-  // On a dark theme the appBar colour is too close to the dialog surface, so
-  // the lighter frame colour is used instead.
-  side: BorderSide(color: xvDarkNow ? clFrame : clUpBar, width: 3.0),
+  side: BorderSide(color: clAccent, width: 3.0),
   borderRadius: BorderRadius.circular(8.0),
 );
 
@@ -165,7 +161,7 @@ Future<(bool, bool)> showAcceptDialog({
             shape: dialogShape,
             title: Row(
               children: [
-                Icon(Icons.download_outlined, color: clUpBar),
+                Icon(Icons.download_outlined, color: clAccent),
                 const SizedBox(width: 8),
                 Text(lw('Incoming files'), style: tsLarge),
               ],
@@ -183,8 +179,8 @@ Future<(bool, bool)> showAcceptDialog({
                   contentPadding: EdgeInsets.zero,
                   controlAffinity: ListTileControlAffinity.leading,
                   value: trust,
-                  activeColor: clUpBar,
-                  checkColor: clUpBarText,
+                  activeColor: clAccent,
+                  checkColor: onColor(clAccent),
                   title: Text(lw('Always trust this device'), style: tsSmall),
                   onChanged: (v) => setState(() => trust = v ?? false),
                 ),
@@ -235,7 +231,7 @@ Future<String?> showInputDialog({
             hintText: hint,
             hintStyle: TextStyle(color: clFrame),
             enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: clFrame)),
-            focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: clUpBar)),
+            focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: clAccent)),
           ),
         ),
         actions: [
@@ -280,7 +276,7 @@ void okInfoBar(String message, {
   DismissDirection dismissDirection = DismissDirection.down,
   SnackBarAction? action,
 }) {
-  final Color background = bgColor ?? clInfo;
+  final Color background = bgColor ?? clSnackInfo;
   scaffoldMessengerKey.currentState?.showSnackBar(
     SnackBar(
       // Body size, not the small one: this is on screen for seconds and then
@@ -303,19 +299,21 @@ void okInfoBar(String message, {
 }
 
 // SnackBar shortcuts, named after what they mean rather than the hue they used
-// to be: the palette decides how a warning looks.
-void okInfoBarBlue(String message) => okInfoBar(message, bgColor: clInfo, duration: const Duration(seconds: 6));
-void okInfoBarRed(String message, {Duration? duration}) => okInfoBar(message, bgColor: clError, duration: duration ?? const Duration(seconds: 7), dismissDirection: DismissDirection.none);
-void okInfoBarOrange(String message) => okInfoBar(message, bgColor: clWarning, duration: const Duration(seconds: 6));
-void okInfoBarGreen(String message, {Duration? duration}) => okInfoBar(message, bgColor: clSuccess, duration: duration ?? const Duration(seconds: 4));
+// to be. The tones come from the Dark palette in every theme: a strip floating
+// over the page is its own surface, not part of the one behind it.
+void okInfoBarBlue(String message) => okInfoBar(message, bgColor: clSnackInfo, duration: const Duration(seconds: 6));
+void okInfoBarRed(String message, {Duration? duration}) => okInfoBar(message, bgColor: clSnackError, duration: duration ?? const Duration(seconds: 7), dismissDirection: DismissDirection.none);
+void okInfoBarOrange(String message) => okInfoBar(message, bgColor: clSnackWarning, duration: const Duration(seconds: 6));
+void okInfoBarGreen(String message, {Duration? duration}) => okInfoBar(message, bgColor: clSnackSuccess, duration: duration ?? const Duration(seconds: 4));
 void okInfoBarPurple(String message) => okInfoBar(
   message,
-  bgColor: clUpBar,
-  textColor: clUpBarText,
+  bgColor: clSnackAccent,
   duration: const Duration(days: 3),
   dismissDirection: DismissDirection.none,
   action: SnackBarAction(
     label: '[ OK ]',
+    // The action sits on the same strip, so it takes the same ink as the text.
+    textColor: onColor(clSnackAccent),
     onPressed: () => scaffoldMessengerKey.currentState?.hideCurrentSnackBar(),
   ),
 );
@@ -394,7 +392,7 @@ Future<String?> pickFolder({String? initialPath}) async {
                             final Directory dir = dirs[index - (atRoot ? 0 : 1)];
                             return ListTile(
                               dense: true,
-                              leading: Icon(Icons.folder, color: clUpBar),
+                              leading: Icon(Icons.folder, color: clAccent),
                               title: Text(p.basename(dir.path), style: tsNormal),
                               onTap: () => setState(() => current = dir.path),
                             );

@@ -2,6 +2,14 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+- N: The Olive palette: a beige-olive page, an olive bar and a deep olive-green accent
+- F: Snack bars keep the Dark palette's tones in every theme, so a message floating over the page is its own surface and reads the same wherever it appears
+- N: The accent is a palette colour of its own: Send, the switches, the checkbox, the dialog buttons and the drop target no longer follow the app bar, so the bar can be quiet without taking the controls down with it
+- F: A lighter warning colour in the light palettes, so the orange banner reads as a note and not as a second error
+- N: Buttons stand on a colour of their own: the dead 'menu' key became 'button', the surface File, Folder, Restore and Clear are drawn on, instead of the fill they shared with every card
+- F: Quieter accents in Sand and Slate: the teal and the amber of the app bar were the loudest thing on a screen built out of muted tones
+- I: palette-preview.html reads assets/colors.json, mocks the home screen in every palette with WCAG ratios beside each colour, and edits the colours in place: judging and tuning a theme no longer needs a build
+- F: Light and Dark are built the way Sand and Slate are: one neutral base, a quiet grey-blue bar over it, a fill that reads apart from the background, and a Dark that starts from near-black instead of grey-on-grey
 - F: Buttons take the fill colour, the one meant for controls, instead of the menu colour, which named a thing this app does not have
 - F: Section headings are a 2 px rule with the name laid into it in 18 pt bold, instead of a filled coloured strip; one sectionTitle() now serves both screens
 - N: Two designed palettes, Sand and Slate: one warm base with a cold accent and the reverse, two tones each instead of six

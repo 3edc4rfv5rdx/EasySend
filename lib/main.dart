@@ -159,7 +159,7 @@ ThemeData _buildTheme(bool dark) {
     highlightColor: Colors.transparent,
     hoverColor: Colors.transparent,
     colorScheme: ColorScheme.fromSeed(
-      seedColor: clUpBar,
+      seedColor: clAccent,
       brightness: dark ? Brightness.dark : Brightness.light,
       surface: clFon,
       error: clError,

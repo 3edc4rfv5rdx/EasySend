@@ -17,8 +17,8 @@ final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey = GlobalKey<Scaffol
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 const String prgName = 'easysend';
-const String progVersion = '0.1.260808';
-const int buildNumber = 42;
+const String progVersion = '0.1.260809';
+const int buildNumber = 43;
 const String progAuthor = 'Eugen';
 
 const String langFile = 'assets/locales.json';
@@ -68,12 +68,18 @@ List<String> get appTHEMES => [themeSystem, ...loadedThemes.keys];
 
 // Current theme colors, replaced wholesale by applyTheme().
 Color clFon = const Color(0xFFFFF8E1);
-Color clMenu = const Color(0xFFB3E5FC);
+// The surface a button sits on: a step off the background, so a control is a
+// filled shape and not a rectangle of frame.
+Color clButton = const Color(0xFFC8D2DC);
 Color clSel = const Color(0x4DFFA500);
 Color clUpBar = const Color(0xFFDAA520);
 // What is legible on top of clUpBar: an accent bright enough to need dark text
 // is exactly what a fixed foreground colour gets wrong.
 Color clUpBarText = const Color(0xFF000000);
+// The colour that has to be seen — Send, switches, checkboxes, dialog buttons,
+// the drop target. Split off the app bar so the bar can be quiet without
+// taking every control down with it; onColor() finds the ink for it.
+Color clAccent = const Color(0xFF37698C);
 Color clText = const Color(0xFF000000);
 Color clFill = const Color(0xFFFFFFFF);
 Color clFrame = const Color(0xFF9E9E9E);
@@ -88,6 +94,15 @@ Color clInfo = const Color(0xFF1565C0);
 Color clSuccess = const Color(0xFF2E7D32);
 // Reachable devices; read from the palette like everything else.
 Color clGreen = const Color(0xFF43A047);
+
+// Snack bars are painted from the Dark palette whatever theme is on: a strip
+// floating over the page reads best in those tones, and a warning then looks
+// the same wherever it pops up. Filled in by loadThemes().
+Color clSnackError = const Color(0xFFE4695C);
+Color clSnackWarning = const Color(0xFFE09A4E);
+Color clSnackInfo = const Color(0xFF6FB0DA);
+Color clSnackSuccess = const Color(0xFF56C08A);
+Color clSnackAccent = const Color(0xFF37698C);
 
 const double fsSmall = 13;  // Small font size
 const double fsNormal = 15; // Main font size
@@ -166,6 +181,16 @@ Future<void> loadThemes() async {
       if (colors is Map) loadedThemes[name] = Map<String, String>.from(colors);
     });
     myPrint('loaded ${loadedThemes.length} themes: ${loadedThemes.keys.join(', ')}');
+    // The snack bar tones live outside the current theme, so they are read once
+    // here rather than in applyTheme().
+    final Map<String, String>? dark = loadedThemes[themeDark];
+    if (dark != null) {
+      clSnackError = hexToColor(dark['error'] ?? '#E4695C');
+      clSnackWarning = hexToColor(dark['warning'] ?? '#E09A4E');
+      clSnackInfo = hexToColor(dark['info'] ?? '#6FB0DA');
+      clSnackSuccess = hexToColor(dark['success'] ?? '#56C08A');
+      clSnackAccent = hexToColor(dark['accent'] ?? dark['appBar'] ?? '#37698C');
+    }
   } catch (e) {
     myPrint('loadThemes failed: $e');
     loadedThemes = {};
@@ -201,9 +226,12 @@ void applyTheme(String themeName) {
     return;
   }
   clFon = hexToColor(theme['background'] ?? '#FFFFFF');
-  clMenu = hexToColor(theme['menu'] ?? '#B3E5FC');
+  clButton = hexToColor(theme['button'] ?? '#C8D2DC');
   clSel = hexToColor(theme['selected'] ?? '#4DFFA500');
   clUpBar = hexToColor(theme['appBar'] ?? '#DAA520');
+  // A palette without an accent of its own keeps the old behaviour: the bar
+  // colour doubles as the accent.
+  clAccent = hexToColor(theme['accent'] ?? theme['appBar'] ?? '#37698C');
   clText = hexToColor(theme['text'] ?? '#000000');
   clUpBarText = hexToColor(theme['appBarText'] ?? theme['text'] ?? '#000000');
   clFill = hexToColor(theme['fill'] ?? '#FFFFFF');

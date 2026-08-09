@@ -80,7 +80,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         shape: dialogShape,
         title: Row(
           children: [
-            Icon(Icons.info_outline, color: clUpBar),
+            Icon(Icons.info_outline, color: clAccent),
             const SizedBox(width: 8),
             Text('EasySend', style: tsLarge),
           ],
@@ -275,7 +275,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               dense: true,
               visualDensity: const VisualDensity(vertical: -2),
               secondary: Icon(Icons.notifications_active_outlined, color: clText),
-              activeThumbColor: clUpBar,
+              activeThumbColor: clAccent,
               value: xdef['Receive in background'] == 'true',
               title: Text(lw('Receive in background'), style: tsNormal),
               subtitle: Text(lw('Keeps a notification and receives with the screen off'), style: tsSmall),
@@ -291,7 +291,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             dense: true,
             visualDensity: const VisualDensity(vertical: -2),
             secondary: Icon(Icons.exit_to_app, color: clText),
-            activeThumbColor: clUpBar,
+            activeThumbColor: clAccent,
             value: xdef['Ask before exit'] == 'true',
             title: Text(lw('Ask before exit'), style: tsNormal),
             subtitle: Text(lw('A running transfer is always asked about'), style: tsSmall),

@@ -1,0 +1,442 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EasySend — палитры</title>
+<style>
+  body {
+    margin: 0; padding: 20px 24px 40px;
+    font: 15px/1.45 system-ui, "Segoe UI", Roboto, sans-serif;
+    background: #6b6b6b; color: #fff;
+  }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .hint { font-size: 13px; opacity: .85; margin: 0 0 12px; max-width: 900px; }
+  code { background: rgba(0,0,0,.3); padding: 1px 5px; border-radius: 3px; }
+
+  .tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 18px; }
+  .tools button {
+    padding: 7px 13px; border: 0; border-radius: 6px; cursor: pointer;
+    background: #384451; color: #fff; font: 600 13px system-ui;
+  }
+  .tools button:hover { background: #465565; }
+  .tools .state { font-size: 12px; opacity: .85; margin-left: 4px; }
+
+  .row { display: flex; flex-wrap: wrap; gap: 22px; align-items: flex-start; }
+  .theme { width: 358px; }
+  .theme > h2 { font-size: 15px; margin: 0 0 6px; letter-spacing: .04em; text-transform: uppercase; }
+
+  /* --- mock screen ------------------------------------------------ */
+  .screen { border-radius: 10px; overflow: hidden; box-shadow: 0 6px 20px rgba(0,0,0,.45); }
+  .bar { display: flex; align-items: center; gap: 10px; padding: 10px 12px; }
+  .bar .ico { font-size: 18px; opacity: .95; }
+  .bar .t1 { font-size: 15px; font-weight: 700; }
+  .bar .t2 { font-size: 12px; opacity: .85; }
+  .bar .grow { flex: 1; }
+  .banner { display: flex; align-items: center; gap: 8px; padding: 8px 12px; font-size: 12px; }
+  .banner .link { margin-left: auto; text-decoration: underline; }
+  .body { padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+  .pick { display: flex; gap: 8px; }
+  .btn { flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;
+         padding: 9px 8px; border-radius: 6px; border: 1px solid; font-size: 14px; }
+  .head { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 700; }
+  .head .rule { flex: 1; height: 2px; }
+  .head .pill { padding: 2px 10px; border-radius: 12px; font-size: 12px; font-weight: 400; border: 1px solid; }
+  .card { border-radius: 6px; border: 1px solid; overflow: hidden; }
+  .line { display: flex; align-items: center; gap: 8px; padding: 8px 10px; font-size: 13px; }
+  .line .x { margin-left: auto; font-size: 13px; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+  .prog { height: 6px; border-radius: 3px; overflow: hidden; margin-top: 6px; }
+  .prog > i { display: block; height: 100%; width: 62%; }
+  .send { padding: 13px; text-align: center; font-size: 15px; font-weight: 700; }
+  .dialog { margin: 12px; border-radius: 8px; border: 3px solid; padding: 12px; font-size: 13px; }
+  .dialog .acts { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+  .dialog .act { padding: 6px 14px; border-radius: 5px; font-size: 13px; font-weight: 600; }
+
+  /* --- snack bars: one block, they are the same in every theme ------ */
+  .snacks { margin: 0 0 22px; }
+  .snacks h3 { font-size: 12px; margin: 0 0 6px; letter-spacing: .05em; opacity: .85; text-transform: uppercase; }
+  .snacklist { display: flex; flex-wrap: wrap; gap: 8px; }
+  .snack { display: flex; align-items: center; gap: 10px; padding: 10px 14px; width: 340px;
+           border-radius: 6px; font-size: 13px; }
+  .snack b { font-weight: 600; }
+  .snack .act { margin-left: auto; font-size: 12px; font-weight: 700; text-decoration: underline; }
+
+  /* --- editor ------------------------------------------------------ */
+  table.edit { border-collapse: collapse; width: 100%; margin-top: 10px; font-size: 12px; }
+  table.edit td { padding: 1px 5px 1px 0; }
+  table.edit input[type=color] { width: 30px; height: 20px; padding: 0; border: 0; background: none; cursor: pointer; }
+  table.edit input[type=text] {
+    width: 76px; font: 12px ui-monospace, Menlo, Consolas, monospace;
+    background: #4a4a4a; color: #fff; border: 1px solid #6a6a6a; border-radius: 3px; padding: 1px 4px;
+  }
+  table.edit .cr { text-align: right; font-variant-numeric: tabular-nums; opacity: .85; }
+  table.edit .cr.bad { color: #ff8f80; font-weight: 700; }
+
+  .vars { margin-top: 10px; font-size: 12px; }
+  .vars .list { display: flex; gap: 6px; margin-top: 5px; }
+  .vars button { flex: 1; height: 30px; border: 2px solid transparent; border-radius: 5px;
+                 cursor: pointer; font: 600 10px/1 system-ui; text-shadow: 0 1px 2px rgba(0,0,0,.55); }
+  .vars button.on { border-color: #fff; }
+</style>
+</head>
+<body>
+<h1>EasySend — образцы палитр</h1>
+<p class="hint">
+  Цвета берутся из <code>assets/colors.json</code>. Через <code>file://</code> браузер читать соседние файлы не даёт:
+  либо нажми «Открыть colors.json», либо подними <code>python3 -m http.server</code> в корне проекта и открой
+  <code>http://localhost:8000/palette-preview.html</code> — тогда файл подхватится сам.
+  Правки в таблицах живут только в странице, пока не сохранишь.
+</p>
+
+<div class="tools">
+  <button id="open">Открыть colors.json</button>
+  <button id="save">Сохранить в файл</button>
+  <button id="copy">Скопировать JSON</button>
+  <button id="reload">Перечитать</button>
+  <span class="state" id="state"></span>
+</div>
+
+<div id="snacks"></div>
+<div class="row" id="row"></div>
+
+<script>
+// Last-resort copy of the palettes: used only when the JSON cannot be read,
+// so the page still shows something when opened straight off the disk.
+const FALLBACK = {
+  Light: { text:"#1B1F24", background:"#EFF2F5", appBar:"#5A6B7A", appBarText:"#FFFFFF",
+    accent:"#4C6785", fill:"#FFFFFF", selected:"#D8E3EE", button:"#C8D2DC", frame:"#A9B4C0",
+    progress:"#B26430", online:"#3E7D52", error:"#A93F35", warning:"#D98A3F",
+    info:"#4C6785", success:"#3E7D52" },
+  Dark: { text:"#F0F4F8", background:"#0D1117", appBar:"#26333F", appBarText:"#FFFFFF",
+    accent:"#37698C", fill:"#171D24", selected:"#2F4A66", button:"#2A333D", frame:"#55636F",
+    progress:"#E09A4E", online:"#56C08A", error:"#E4695C", warning:"#E09A4E",
+    info:"#6FB0DA", success:"#56C08A" },
+  Sand: { text:"#22201B", background:"#F6F1E7", appBar:"#3D6E6A", appBarText:"#FFFDF8",
+    accent:"#1F6F6B", fill:"#FFFDF8", selected:"#CFE3E0", button:"#E0D3B8", frame:"#B8AE9A",
+    progress:"#C2683F", online:"#4E7A3C", error:"#A8412F", warning:"#DE9256",
+    info:"#3D6E6A", success:"#4E7A3C" },
+  Slate: { text:"#E8EDF2", background:"#12181F", appBar:"#7A5A34", appBarText:"#F3E6D4",
+    accent:"#A8763C", fill:"#1B232D", selected:"#4A3A26", button:"#2E3A48", frame:"#47566A",
+    progress:"#E0A458", online:"#5FBF9A", error:"#D2695B", warning:"#E0A458",
+    info:"#74A8C9", success:"#5FBF9A" },
+  Olive: { text:"#1E2118", background:"#E9EAD6", appBar:"#9DA07B", appBarText:"#1E2118",
+    accent:"#5A8C24", fill:"#F7F8EC", selected:"#D9DAC6", button:"#C7CBB1", frame:"#9DA283",
+    progress:"#B07A3A", online:"#4A8A4A", error:"#A34A4A", warning:"#D79A4A",
+    info:"#2A7BA8", success:"#4A8A4A" }
+};
+
+// Candidate up-bar tones per theme: [hex, text on it, label].
+const APPBAR_VARIANTS = {
+  Light: [["#4C6785","#FFFFFF","сталь"], ["#5A6B7A","#FFFFFF","серо-синий"], ["#4F6B5B","#FFFFFF","хвоя"]],
+  Dark:  [["#2F536E","#FFFFFF","сталь"], ["#26333F","#FFFFFF","графит"], ["#3A5F5C","#FFFFFF","тёмный тил"]],
+  Sand:  [["#1F6F6B","#FFFDF8","тил ярче"], ["#3D6E6A","#FFFDF8","тил тише"], ["#6B7A63","#FFFDF8","олива"]],
+  Slate: [["#A8763C","#000000","янтарь ярче"], ["#7A5A34","#F3E6D4","янтарь тише"], ["#3F566E","#FFFFFF","сталь"]],
+  Olive: [["#B0B190","#1E2118","олива светлее"], ["#9DA07B","#1E2118","олива"], ["#8A8F6B","#F7F8EC","олива темнее"]]
+};
+
+// Candidate accents, where a theme has more than one worth trying: [hex, label].
+const ACCENT_VARIANTS = {
+  Olive: [["#5A8C24","салат темнее"], ["#70AA31","салат"], ["#4E6B2F","глубокая олива"]]
+};
+
+const KEYS = ["text","background","appBar","appBarText","accent","fill","selected","button","frame",
+              "progress","online","error","warning","info","success"];
+const SURFACE = ["background","fill","button","selected"];
+const MESSAGE = ["progress","online","error","warning","info","success"];
+
+let PALETTES = JSON.parse(JSON.stringify(FALLBACK));
+let fileHandle = null;          // set once the File System Access API opens the JSON
+
+/* ---------- colour maths: WCAG ratios, same test the app uses ---------- */
+function lum(hex) {
+  const v = [1, 3, 5].map(i => {
+    const c = parseInt(hex.substr(i, 2), 16) / 255;
+    return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+  });
+  return 0.2126 * v[0] + 0.7152 * v[1] + 0.0722 * v[2];
+}
+function contrast(a, b) {
+  const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p);
+  return (x + 0.05) / (y + 0.05);
+}
+// Black or white, whichever reads better — mirrors onColor() in the app.
+function onColor(bg) { return contrast("#FFFFFF", bg) >= contrast("#000000", bg) ? "#FFFFFF" : "#000000"; }
+
+// Every colour is rated by the job it does: a surface by the text laid on it, a
+// message colour by the ink onColor() picks for it, the accent by both.
+function ratio(p, k) {
+  if (k === "appBarText") return contrast(p[k], p.appBar);
+  if (k === "appBar") return contrast(p.appBarText, p[k]);
+  if (k === "accent") return contrast(onColor(p[k]), p[k]);   // Send, switches, dialog buttons
+  if (k === "text") return contrast(p[k], p.background);
+  if (SURFACE.includes(k)) return contrast(p.text, p[k]);
+  if (MESSAGE.includes(k)) return contrast(onColor(p[k]), p[k]);
+  return contrast(p[k], p.background);   // frame: a hairline, 3:1 is enough
+}
+function ratioBad(k, cr) { return k === "frame" ? cr < 1.6 : cr < 4.5; }
+
+/* ---------- the mock screen ---------- */
+function screenHtml(p) {
+  const dim = (hex, a) => hex + Math.round(a * 255).toString(16).padStart(2, "0");
+  // Everything meant to be pressed is on the accent, the bar keeps to itself.
+  const okBg = p.accent, okFg = onColor(p.accent);
+  return `
+  <div class="screen" style="background:${p.background};color:${p.text}">
+    <div class="bar" style="background:${p.appBar};color:${p.appBarText}">
+      <span class="ico">✕</span>
+      <div><div class="t1">EasySend</div><div class="t2">redmi-note-11</div></div>
+      <span class="grow"></span><span class="ico">⚙</span>
+    </div>
+
+    <div class="banner" style="background:${p.error};color:${onColor(p.error)}">
+      <span>⚠</span><span>Порт занят, приём выключен: 52525</span><span class="link">Настройки</span>
+    </div>
+
+    <div class="body">
+      <div class="pick">
+        <div class="btn" style="background:${p.button};border-color:${p.frame};color:${p.text}">📄 Файл</div>
+        <div class="btn" style="background:${p.button};border-color:${p.frame};color:${p.text}">📁 Папка</div>
+      </div>
+
+      <div class="head">Выбрано: 3<span class="rule" style="background:${p.frame}"></span>
+        <span class="pill" style="background:${p.button};border-color:${p.frame};color:${p.text}">Очистить</span></div>
+      <div class="card" style="border-color:${dim(p.frame, .4)};background:${p.fill}">
+        <div class="line">📄 report-2026.pdf <span class="x" style="color:${p.frame}">✕</span></div>
+        <div class="line" style="border-top:1px solid ${dim(p.frame, .4)}">🖼 photo-1043.jpg
+          <span class="x" style="color:${p.frame}">✕</span></div>
+      </div>
+
+      <div class="head">Устройства<span class="rule" style="background:${p.frame}"></span></div>
+      <div class="card" style="border-color:${dim(p.frame, .4)};background:${p.fill}">
+        <div class="line" style="background:${p.selected}">
+          <span class="dot" style="background:${p.online}"></span> laptop-work · 192.168.1.14
+          <span class="x" style="color:${p.frame}">✕</span>
+        </div>
+        <div class="line" style="border-top:1px solid ${dim(p.frame, .4)};color:${p.frame}">
+          <span class="dot" style="background:${p.frame}"></span> tablet-kitchen · офлайн
+        </div>
+      </div>
+
+      <div class="head">Передачи<span class="rule" style="background:${p.frame}"></span></div>
+      <div class="card" style="border-color:${dim(p.frame, .4)};background:${p.fill}">
+        <div style="padding:8px 10px;font-size:13px">
+          ⬆ report-2026.pdf — 62%
+          <div class="prog" style="background:${dim(p.frame, .3)}"><i style="background:${p.progress}"></i></div>
+        </div>
+        <div class="line" style="border-top:1px solid ${dim(p.frame, .4)}">
+          <span style="color:${p.success}">✔</span> photo-1043.jpg — готово
+        </div>
+      </div>
+    </div>
+
+    <div class="dialog" style="background:${p.fill};border-color:${p.frame}">
+      <b>Входящая передача</b><div style="margin-top:4px">laptop-work хочет отправить 2 файла (14 МБ)</div>
+      <div class="acts">
+        <div class="act" style="background:${p.fill};border:1px solid ${p.frame};color:${p.text}">Отклонить</div>
+        <div class="act" style="background:${okBg};color:${okFg}">Принять</div>
+      </div>
+    </div>
+
+    <div class="send" style="background:${p.accent};color:${onColor(p.accent)}">Отправить (3)</div>
+  </div>`;
+}
+
+/* ---------- snack bars: three ways of colouring the same message ---------- */
+const SNACK_MSG = { error: "Устройство не отвечает", warning: "Часть файлов уже нет на месте",
+                    success: "Отправлено 3 файла", info: "Приём идёт на порту 52525" };
+
+function snackRow(bg, ink, key) {
+  return `<div class="snack" style="background:${bg};color:${ink}">
+    <b>${SNACK_MSG[key]}</b><span class="act">ОК</span></div>`;
+}
+
+// The snack bars are painted from the Dark palette whatever theme is on, so
+// they are drawn once for the whole page: editing Dark is what changes them.
+function renderSnacks() {
+  const D = PALETTES.Dark;
+  const rows = Object.keys(SNACK_MSG).map(k => snackRow(D[k], onColor(D[k]), k)).join("");
+  document.getElementById("snacks").innerHTML =
+    `<div class="snacks"><h3>Снек-бары — цвета Dark в любой теме</h3>
+       <div class="snacklist">${rows}</div></div>`;
+}
+
+/* ---------- rendering ---------- */
+function render() {
+  const row = document.getElementById("row");
+  row.innerHTML = Object.keys(PALETTES).map(name => `
+    <div class="theme" data-theme="${name}">
+      <h2>${name}</h2>
+      <div class="screen-wrap">${screenHtml(PALETTES[name])}</div>
+      <table class="edit"></table>
+      <div class="vars"><b>up-bar:</b><div class="list">${
+        (APPBAR_VARIANTS[name] || []).map(([hex, fg, label], i) =>
+          `<button class="${PALETTES[name].appBar === hex ? "on" : ""}"
+             style="background:${hex};color:${fg}" data-theme="${name}" data-key="appBar" data-var="${i}">${label}</button>`).join("")
+      }</div></div>
+      ${ACCENT_VARIANTS[name] ? `<div class="vars"><b>accent:</b><div class="list">${
+        ACCENT_VARIANTS[name].map(([hex, label], i) =>
+          `<button class="${PALETTES[name].accent === hex ? "on" : ""}"
+             style="background:${hex};color:${onColor(hex)}" data-theme="${name}" data-key="accent" data-var="${i}">${label}</button>`).join("")
+      }</div></div>` : ""}
+    </div>`).join("");
+
+  renderSnacks();
+  row.querySelectorAll(".theme").forEach(el => buildEditor(el, el.dataset.theme));
+  row.querySelectorAll(".vars button").forEach(b =>
+    b.onclick = () => pickVariant(b.dataset.theme, b.dataset.key, +b.dataset.var));
+}
+
+// The editor rows are built as nodes, not markup, so the inputs keep their
+// identity — retyping a hex must not tear down the field under the cursor.
+function buildEditor(themeEl, name) {
+  const p = PALETTES[name];
+  const table = themeEl.querySelector("table.edit");
+  KEYS.forEach(k => {
+    const tr = table.insertRow();
+    const swatch = document.createElement("input");
+    swatch.type = "color"; swatch.value = p[k] || "#000000";
+    const hex = document.createElement("input");
+    hex.type = "text"; hex.value = p[k] || "";
+    const cr = document.createElement("td");
+    cr.className = "cr";
+
+    const apply = (value, echo) => {
+      if (!/^#[0-9a-fA-F]{6}$/.test(value)) return;
+      p[k] = value.toUpperCase();
+      if (echo) { swatch.value = p[k]; } else { hex.value = p[k]; }
+      redraw(name);
+      markDirty();
+    };
+    swatch.oninput = () => apply(swatch.value, false);
+    hex.oninput = () => apply(hex.value.trim(), true);
+
+    tr.insertCell().appendChild(swatch);
+    tr.insertCell().textContent = k;
+    tr.insertCell().appendChild(hex);
+    tr.appendChild(cr);
+  });
+  refreshRatios(themeEl, name);
+}
+
+function refreshRatios(themeEl, name) {
+  const p = PALETTES[name];
+  themeEl.querySelectorAll("table.edit tr").forEach((tr, i) => {
+    const k = KEYS[i], cr = ratio(p, k), cell = tr.querySelector(".cr");
+    cell.textContent = cr.toFixed(1) + ":1";
+    cell.classList.toggle("bad", ratioBad(k, cr));
+  });
+}
+
+// Only the drawing is rebuilt on an edit; Dark also paints the snack bars.
+function redraw(name) {
+  const el = document.querySelector(`.theme[data-theme="${name}"]`);
+  if (el) {
+    el.querySelector(".screen-wrap").innerHTML = screenHtml(PALETTES[name]);
+    refreshRatios(el, name);
+  }
+  if (name === "Dark") renderSnacks();
+}
+
+function pickVariant(name, key, i) {
+  if (key === "accent") {
+    PALETTES[name].accent = ACCENT_VARIANTS[name][i][0];
+  } else {
+    const [hex, fg] = APPBAR_VARIANTS[name][i];
+    PALETTES[name].appBar = hex;
+    PALETTES[name].appBarText = fg;
+  }
+  render();
+  markDirty();
+}
+
+/* ---------- reading and writing colors.json ---------- */
+const stateEl = document.getElementById("state");
+let dirty = false;
+function setState(text) { stateEl.textContent = text; }
+function markDirty() { dirty = true; setState(fileHandle ? "есть несохранённые правки" : "правки только в странице"); }
+
+function adopt(json, source) {
+  // An older colors.json may be missing a key the page draws with; the fallback
+  // fills the hole instead of leaving an undefined colour to render.
+  for (const [name, p] of Object.entries(json)) {
+    const base = FALLBACK[name] || FALLBACK.Light;
+    KEYS.forEach(k => { if (!/^#[0-9a-fA-F]{6}$/.test(p[k] || "")) p[k] = base[k]; });
+  }
+  PALETTES = json;
+  dirty = false;
+  render();
+  setState("загружено из " + source);
+}
+
+async function loadFromServer(quiet) {
+  try {
+    const r = await fetch("assets/colors.json", { cache: "no-store" });
+    if (!r.ok) throw new Error(r.status);
+    adopt(await r.json(), "assets/colors.json");
+    return true;
+  } catch (e) {
+    if (!quiet) setState("прочитать assets/colors.json не вышло: " + e.message);
+    return false;
+  }
+}
+
+// Chrome can hand back a writable handle; everything else falls back to a
+// download, and the file is replaced by hand.
+document.getElementById("open").onclick = async () => {
+  if (window.showOpenFilePicker) {
+    try {
+      const [h] = await window.showOpenFilePicker({
+        types: [{ description: "JSON", accept: { "application/json": [".json"] } }]
+      });
+      fileHandle = h;
+      adopt(JSON.parse(await (await h.getFile()).text()), h.name + " (с записью)");
+      return;
+    } catch (e) {
+      if (e.name === "AbortError") return;
+      setState("не открылось: " + e.message);
+    }
+  }
+  const input = document.createElement("input");
+  input.type = "file"; input.accept = ".json,application/json";
+  input.onchange = async () => {
+    const f = input.files[0];
+    if (f) adopt(JSON.parse(await f.text()), f.name);
+  };
+  input.click();
+};
+
+document.getElementById("save").onclick = async () => {
+  const text = JSON.stringify(PALETTES, null, 2) + "\n";
+  if (fileHandle) {
+    const w = await fileHandle.createWritable();
+    await w.write(text); await w.close();
+    dirty = false;
+    setState("записано в " + fileHandle.name);
+    return;
+  }
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([text], { type: "application/json" }));
+  a.download = "colors.json";
+  a.click();
+  URL.revokeObjectURL(a.href);
+  setState("скачан colors.json — положи его в assets/");
+};
+
+document.getElementById("copy").onclick = async () => {
+  await navigator.clipboard.writeText(JSON.stringify(PALETTES, null, 2) + "\n");
+  setState("JSON в буфере");
+};
+
+document.getElementById("reload").onclick = async () => {
+  if (dirty && !confirm("Правки в странице пропадут. Перечитать файл?")) return;
+  if (fileHandle) { adopt(JSON.parse(await (await fileHandle.getFile()).text()), fileHandle.name); return; }
+  if (!await loadFromServer(false)) setState("нечего перечитывать: файл ещё не открывали");
+};
+
+render();
+setState("встроенная копия палитр");
+loadFromServer(true);
+</script>
+</body>
+</html>
