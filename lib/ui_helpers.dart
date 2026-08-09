@@ -59,7 +59,10 @@ Future<T?> showFlatDialog<T>({
 // Section heading: a 2 px rule with the name laid into it, the trailing button
 // sitting in the line as well. A filled strip made every section shout; here
 // the structure is the line and the only coloured area left is Send.
-Widget sectionTitle(String text, {Widget? trailing}) {
+// trailingToEdge drops the closing stub of rule, so the trailing widget ends
+// where the screen's 12 px margin does — that is how Clear lines up with the
+// Folder button above it.
+Widget sectionTitle(String text, {Widget? trailing, bool trailingToEdge = false}) {
   Widget rule([double? width]) {
     final Widget line = Container(height: 2, color: clFrame);
     return width == null ? Expanded(child: line) : SizedBox(width: width, child: line);
@@ -71,14 +74,24 @@ Widget sectionTitle(String text, {Widget? trailing}) {
       children: [
         rule(16),
         const SizedBox(width: 8),
-        Text(text, style: TextStyle(fontSize: fsLarge, fontWeight: fwBold, color: clText)),
+        // Flexible: a heading carrying a count and a size can outgrow a narrow
+        // screen, and it should shorten rather than push the rule off it.
+        Flexible(
+          child: Text(
+            text,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(fontSize: fsLarge, fontWeight: fwBold, color: clText),
+          ),
+        ),
         const SizedBox(width: 8),
         rule(),
         if (trailing != null) ...[
           const SizedBox(width: 10),
           trailing,
-          const SizedBox(width: 10),
-          rule(12),
+          if (!trailingToEdge) ...[
+            const SizedBox(width: 10),
+            rule(12),
+          ],
         ],
       ],
     ),

@@ -459,35 +459,29 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   Widget _buildSelectedHeader() {
     final bool empty = _selected.isEmpty;
-    return Padding(
-      // Same 12 on the right as the pick row above: Clear ends where Folder does.
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              empty
-                  ? lw('Nothing selected')
-                  : '${lw('Selected')}: ${_selected.length} — ${formatBytes(_totalBytes)}',
-              style: tsSmall,
-            ),
-          ),
-          if (empty && _lastSentPaths.isNotEmpty)
-            TextButton.icon(
-              onPressed: _restoreLastBatch,
-              icon: Icon(Icons.restore, size: 16, color: clText),
-              label: Text(lw('Restore'), style: tsSmall),
-              style: _headerButtonStyle,
-            ),
-          if (!empty)
-            TextButton(
-              onPressed: _clear,
-              style: _headerButtonStyle,
-              child: Text(lw('Clear'), style: tsSmall),
-            ),
-        ],
-      ),
-    );
+    // The same heading as Devices and Transfers, so the screen has one kind of
+    // section and not two; the count and the size ride in the heading itself.
+    final String title = empty
+        ? lw('Nothing selected')
+        : '${lw('Selected')}: ${_selected.length} — ${formatBytes(_totalBytes)}';
+
+    Widget? trailing;
+    if (empty && _lastSentPaths.isNotEmpty) {
+      trailing = TextButton.icon(
+        onPressed: _restoreLastBatch,
+        icon: Icon(Icons.restore, size: 16, color: clText),
+        label: Text(lw('Restore'), style: tsSmall),
+        style: _headerButtonStyle,
+      );
+    } else if (!empty) {
+      trailing = TextButton(
+        onPressed: _clear,
+        style: _headerButtonStyle,
+        child: Text(lw('Clear'), style: tsSmall),
+      );
+    }
+
+    return sectionTitle(title, trailing: trailing, trailingToEdge: true);
   }
 
   ButtonStyle get _headerButtonStyle => TextButton.styleFrom(
