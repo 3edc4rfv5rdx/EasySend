@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 import 'package:uuid/uuid.dart';
 
+import 'android_helpers.dart';
 import 'globals.dart';
 
 const Uuid _uuid = Uuid();
@@ -22,6 +23,28 @@ Future<bool> ensureRecvDir() async {
     myPrint('cannot create $xvRecvDir: $e');
     return false;
   }
+}
+
+// Open the receive folder whatever state the storage is in. The folder is made
+// first; if that failed for want of permission, Android is asked for it and the
+// folder tried again. Should the folder still not open, the nearest parent that
+// does open is used instead: landing in the file manager one level up beats an
+// error the user cannot do anything about.
+Future<bool> openRecvFolder() async {
+  if (!await ensureRecvDir() && Platform.isAndroid) {
+    if (await ensureStoragePermission()) await ensureRecvDir();
+  }
+
+  String path = xvRecvDir;
+  while (path.isNotEmpty) {
+    if (await Directory(path).exists() && await openExternally(path, folder: true)) {
+      return true;
+    }
+    final String parent = p.dirname(path);
+    if (parent == path) return false;   // reached the root and it would not open
+    path = parent;
+  }
+  return false;
 }
 
 // Hand a file or a folder over to whatever the system has for it. Android goes

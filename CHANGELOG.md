@@ -2,6 +2,7 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+- E: The folder button always lands somewhere: the receive folder is created first, storage permission is asked for when creating it failed, and a folder that still will not open gives way to the nearest parent that does
 - F: Clear and Restore end where the Folder button above them does, instead of hanging 8 px further right
 - F: One corner on every button: File, Folder, Restore, Clear, Send and the dialog buttons are all the same 8 px rounded rectangle, from a single btnRadius, instead of a mix of stadiums and rectangles
 - E: A file already in the choice is not added a second time, whether it is the same file on disk or one that would land on the same place at the far end; the snack bar says how many were skipped

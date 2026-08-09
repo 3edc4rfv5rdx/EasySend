@@ -560,10 +560,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _openRecvFolder() async {
-    await ensureRecvDir();
-    if (!await openExternally(xvRecvDir, folder: true)) {
-      okInfoBarRed(lw('Nothing can open this'));
-    }
+    if (!await openRecvFolder()) okInfoBarRed(lw('Nothing can open this'));
   }
 
   Widget _buildDevicesHeader() {
