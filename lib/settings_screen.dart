@@ -298,6 +298,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
             onChanged: (v) => _apply(() => xdef['Ask before exit'] = '$v'),
           ),
           sectionTitle('${lw('Trusted devices')} (${trusted.length})'),
+          // Nobody trusted yet is a state worth spelling out: the heading alone
+          // looks like a list that failed to appear.
+          if (trusted.isEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+              child: Text(lw('No trusted devices'), style: tsSmall),
+            ),
           ...trusted.map((d) => ListTile(
                 dense: true,
                 leading: Icon(

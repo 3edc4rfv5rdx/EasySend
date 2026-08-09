@@ -2,6 +2,7 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+- F: Trusted devices says when there are none, instead of a heading with empty space under it
 - F: Softer corners on the buttons and the dialogs: btnRadius is 14, halfway between the flat 8 and a capsule
 - F: An empty Transfers section says so, instead of leaving its heading with nothing underneath
 - F: The selection heading is a section rule like Devices and Transfers, with the count and the size laid into it; Clear and Restore still end at the screen margin, and a heading too long for the screen shortens instead of pushing the rule off it
