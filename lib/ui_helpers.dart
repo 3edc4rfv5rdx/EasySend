@@ -17,6 +17,20 @@ ButtonStyle get dialogButtonStyle => TextButton.styleFrom(
   minimumSize: const Size(60, 40),
 );
 
+// The way out of a dialog: No, Cancel, Decline. On the button surface rather
+// than the accent, so the answer that changes nothing does not look exactly
+// like the one that does.
+ButtonStyle get dialogCancelStyle => TextButton.styleFrom(
+  backgroundColor: clButton,
+  foregroundColor: clText,
+  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+  shape: RoundedRectangleBorder(
+    borderRadius: BorderRadius.circular(btnRadius),
+    side: BorderSide(color: clFrame),
+  ),
+  minimumSize: const Size(60, 40),
+);
+
 RoundedRectangleBorder get dialogShape => RoundedRectangleBorder(
   side: BorderSide(color: clAccent, width: 3.0),
   borderRadius: BorderRadius.circular(btnRadius),
@@ -87,7 +101,7 @@ Future<bool> okConfirm({
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            style: dialogButtonStyle,
+            style: dialogCancelStyle,
             child: Text(noText ?? lw('No')),
           ),
           TextButton(
@@ -189,7 +203,7 @@ Future<(bool, bool)> showAcceptDialog({
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(dialogContext, (false, false)),
-                style: dialogButtonStyle,
+                style: dialogCancelStyle,
                 child: Text(lw('Decline')),
               ),
               TextButton(
@@ -237,7 +251,7 @@ Future<String?> showInputDialog({
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            style: dialogButtonStyle,
+            style: dialogCancelStyle,
             child: Text(lw('Cancel')),
           ),
           TextButton(
@@ -407,7 +421,7 @@ Future<String?> pickFolder({String? initialPath}) async {
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(dialogContext),
-                style: dialogButtonStyle,
+                style: dialogCancelStyle,
                 child: Text(lw('Cancel')),
               ),
               TextButton(
