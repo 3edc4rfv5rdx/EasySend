@@ -172,12 +172,28 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Future<void> _addPaths(List<String> paths) async {
     final List<FileItem> items = await collectFiles(paths);
     if (!mounted) return;
-    // Same file picked twice adds nothing.
-    final Set<String> known = _selected.map((f) => f.sourcePath ?? f.relativePath).toSet();
-    setState(() {
-      _selected.addAll(items.where((f) => known.add(f.sourcePath ?? f.relativePath)));
-    });
+    // Two ways of picking the same thing twice: the same file on disk, and two
+    // files that would land on the same place at the far end. The second one
+    // catches a file added on its own and again inside its folder, which the
+    // receiver would otherwise unpack as 'photo (1).jpg'.
+    final Set<String> knownSources =
+        _selected.map((f) => f.sourcePath).whereType<String>().toSet();
+    final Set<String> knownTargets = _selected.map(_targetKey).toSet();
+    final List<FileItem> fresh = items.where((f) {
+      final String? source = f.sourcePath;
+      // Both sets are asked before the verdict: && would skip the second add.
+      final bool newSource = source == null || knownSources.add(source);
+      final bool newTarget = knownTargets.add(_targetKey(f));
+      return newSource && newTarget;
+    }).toList();
+
+    setState(() => _selected.addAll(fresh));
+    final int skipped = items.length - fresh.length;
+    if (skipped > 0) okInfoBarOrange('${lw('Duplicates skipped')}: $skipped');
   }
+
+  // What the receiver will see: same place, same size means the same file.
+  static String _targetKey(FileItem f) => '${f.relativePath}|${f.size}';
 
   // Clear resets the whole choice, files and target alike.
   void _clear() => setState(() {

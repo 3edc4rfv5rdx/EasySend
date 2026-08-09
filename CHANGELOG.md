@@ -2,6 +2,7 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+- E: A file already in the choice is not added a second time, whether it is the same file on disk or one that would land on the same place at the far end; the snack bar says how many were skipped
 - N: The Olive palette: a beige-olive page, an olive bar and a deep olive-green accent
 - F: Snack bars keep the Dark palette's tones in every theme, so a message floating over the page is its own surface and reads the same wherever it appears
 - N: The accent is a palette colour of its own: Send, the switches, the checkbox, the dialog buttons and the drop target no longer follow the app bar, so the bar can be quiet without taking the controls down with it
