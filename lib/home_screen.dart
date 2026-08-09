@@ -460,7 +460,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Widget _buildSelectedHeader() {
     final bool empty = _selected.isEmpty;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 8, 4, 4),
+      // Same 12 on the right as the pick row above: Clear ends where Folder does.
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
       child: Row(
         children: [
           Expanded(
