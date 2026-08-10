@@ -48,6 +48,14 @@ const String partSuffix = '.easysend-part';
 const int acceptTimeoutSec = 30;
 // Valid protocol progress refreshes this receiver-side inactivity deadline.
 const int receiveSessionTimeoutSec = 60;
+const int maxPrepareBodyBytes = 1024 * 1024;
+const int maxManifestFiles = 1000;
+const int maxProtocolIdBytes = 128;
+const int maxSenderNameBytes = 256;
+const int maxDeclaredFileBytes = 16 * 1024 * 1024 * 1024 * 1024;
+const int maxDeclaredTransferBytes = 64 * 1024 * 1024 * 1024 * 1024;
+const int maxInfoBodyBytes = 64 * 1024;
+const int protocolBodyTimeoutSec = 5;
 // Automatic re-sends of a file that failed its checksum.
 const int maxResendAttempts = 2;
 // Speed and ETA are averaged over this window; the instant value is unreadable.

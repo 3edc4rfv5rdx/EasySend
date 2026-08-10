@@ -17,6 +17,12 @@ enum _ReceivePhase {
   cancelled,
 }
 
+class _ProtocolProblem implements Exception {
+  final int status;
+  final String reason;
+  const _ProtocolProblem(this.status, this.reason);
+}
+
 // Receiving side of a transfer in flight.
 class _Incoming {
   final String sessionId;
@@ -143,19 +149,71 @@ class ReceiveServer {
     // Reserve the one receive slot before body parsing or the consent await.
     _preparing = true;
     try {
-      final Map<String, dynamic> body = json.decode(
-        await utf8.decoder.bind(req).join(),
-      );
-      final String senderId = body['senderId'] as String? ?? '';
-      final String senderName = body['senderName'] as String? ?? senderId;
-      final List<dynamic> rawFiles = body['files'] as List? ?? [];
-      if (senderId.isEmpty || rawFiles.isEmpty) {
-        return _status(req, HttpStatus.badRequest);
+      if (req.headers.contentType?.mimeType != ContentType.json.mimeType) {
+        throw const _ProtocolProblem(
+          HttpStatus.unsupportedMediaType,
+          'content-type',
+        );
       }
-
-      final List<FileItem> files = rawFiles
-          .map((f) => FileItem.fromJson((f as Map).cast<String, dynamic>()))
-          .toList();
+      final dynamic decoded = json.decode(
+        await _readRequestText(req, maxPrepareBodyBytes),
+      );
+      if (decoded is! Map) {
+        throw const _ProtocolProblem(HttpStatus.badRequest, 'json-object');
+      }
+      final Map<String, dynamic> body;
+      try {
+        body = decoded.cast<String, dynamic>();
+      } catch (_) {
+        throw const _ProtocolProblem(HttpStatus.badRequest, 'json-object');
+      }
+      final dynamic rawSenderId = body['senderId'];
+      final dynamic rawSenderName = body['senderName'];
+      final dynamic rawManifest = body['files'];
+      if (rawSenderId is! String ||
+          rawSenderId.isEmpty ||
+          utf8.encode(rawSenderId).length > maxProtocolIdBytes ||
+          rawSenderName is! String ||
+          utf8.encode(rawSenderName).length > maxSenderNameBytes ||
+          rawManifest is! List ||
+          rawManifest.isEmpty ||
+          rawManifest.length > maxManifestFiles) {
+        throw const _ProtocolProblem(HttpStatus.badRequest, 'manifest-shape');
+      }
+      final String senderId = rawSenderId;
+      final String senderName = rawSenderName.isEmpty
+          ? senderId
+          : rawSenderName;
+      final List<FileItem> files = [];
+      int totalBytes = 0;
+      for (final dynamic raw in rawManifest) {
+        if (raw is! Map) {
+          throw const _ProtocolProblem(HttpStatus.badRequest, 'file-shape');
+        }
+        final Map<String, dynamic> data;
+        try {
+          data = raw.cast<String, dynamic>();
+        } catch (_) {
+          throw const _ProtocolProblem(HttpStatus.badRequest, 'file-shape');
+        }
+        final dynamic id = data['id'];
+        final dynamic path = data['path'];
+        final dynamic size = data['size'];
+        if (id is! String ||
+            id.isEmpty ||
+            utf8.encode(id).length > maxProtocolIdBytes ||
+            path is! String ||
+            size is! int ||
+            size < 0 ||
+            size > maxDeclaredFileBytes) {
+          throw const _ProtocolProblem(HttpStatus.badRequest, 'file-shape');
+        }
+        totalBytes += size;
+        if (totalBytes > maxDeclaredTransferBytes) {
+          throw const _ProtocolProblem(HttpStatus.badRequest, 'total-size');
+        }
+        files.add(FileItem(id: id, relativePath: path, size: size));
+      }
 
       // Resolve every destination before answering: a manifest that cannot be
       // written safely is refused as a whole, not half-accepted.
@@ -173,14 +231,13 @@ class ReceiveServer {
         return _json(req, {'reason': e.reason}, status: HttpStatus.badRequest);
       }
 
-      final int totalBytes = files.fold(0, (sum, f) => sum + f.size);
       if (!await _askAccept(
         senderId,
         senderName,
         files.length,
         totalBytes,
         address: req.connectionInfo?.remoteAddress.address ?? '',
-        port: (body['senderPort'] as num?)?.toInt() ?? currentPort,
+        port: _senderPort(body['senderPort']),
       )) {
         return _json(req, {'reason': 'declined'}, status: HttpStatus.forbidden);
       }
@@ -206,6 +263,12 @@ class ReceiveServer {
       );
       _touch(_current!);
       return _json(req, {'sessionId': transfer.id});
+    } on _ProtocolProblem catch (e) {
+      return _json(req, {'reason': e.reason}, status: e.status);
+    } on FormatException {
+      return _json(req, {
+        'reason': 'invalid-json',
+      }, status: HttpStatus.badRequest);
     } finally {
       _preparing = false;
     }
@@ -533,6 +596,38 @@ class ReceiveServer {
       session.transfer.error = lw('Connection timed out');
       await _abort(session, TransferStatus.failed);
     });
+  }
+
+  int _senderPort(dynamic value) {
+    if (value == null) return currentPort;
+    if (value is! int || value < 1 || value > 65535) {
+      throw const _ProtocolProblem(HttpStatus.badRequest, 'sender-port');
+    }
+    return value;
+  }
+
+  Future<String> _readRequestText(HttpRequest request, int limit) async {
+    final List<int> bytes = [];
+    final Stream<List<int>> body = request.timeout(
+      const Duration(seconds: protocolBodyTimeoutSec),
+      onTimeout: (sink) => sink.addError(
+        const _ProtocolProblem(HttpStatus.requestTimeout, 'body-timeout'),
+      ),
+    );
+    await for (final List<int> chunk in body) {
+      if (bytes.length + chunk.length > limit) {
+        throw const _ProtocolProblem(
+          HttpStatus.requestEntityTooLarge,
+          'body-too-large',
+        );
+      }
+      bytes.addAll(chunk);
+    }
+    try {
+      return utf8.decode(bytes, allowMalformed: false);
+    } on FormatException {
+      throw const _ProtocolProblem(HttpStatus.badRequest, 'invalid-utf8');
+    }
   }
 
   Future<void> _deleteQuietly(File file) async {

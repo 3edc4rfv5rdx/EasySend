@@ -339,8 +339,17 @@ class ManualPoller {
         await resp.drain<void>();
         return null;
       }
-      return json.decode(await utf8.decoder.bind(resp).join())
-          as Map<String, dynamic>;
+      final List<int> bytes = [];
+      await for (final List<int> chunk in resp.timeout(
+        const Duration(seconds: manualPollTimeoutSec),
+      )) {
+        if (bytes.length + chunk.length > maxInfoBodyBytes) return null;
+        bytes.addAll(chunk);
+      }
+      final dynamic decoded = json.decode(
+        utf8.decode(bytes, allowMalformed: false),
+      );
+      return decoded is Map ? decoded.cast<String, dynamic>() : null;
     } catch (e) {
       myPrint('poll $host:$port failed: $e');
       return null;
