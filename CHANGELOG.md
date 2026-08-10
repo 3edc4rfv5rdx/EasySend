@@ -2,6 +2,7 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+- F: The right phone in the icon sits closer to the triangle: the point takes up less room than the base, so equal gaps left a hole on that side
 - I: A split APK carries the build number as its version code again, instead of the abi * 1000 + build the Flutter plugin writes for stores
 - E: The receive folder opens on Samsung again: the intent offered the file manager a URI the app does not own, and Android refused to start it at all; a refused intent now also falls through to the next way in instead of ending the call
 - E: The desktop build quits without the abort in the engine's GTK teardown: the services are stopped and the process ends, instead of handing the window back to a compositor cleanup with no GL context left

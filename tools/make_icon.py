@@ -24,7 +24,14 @@ TEAL = (130, 211, 224)  # #82D3E0, the screens
 TRIANGLE = (1, 56, 163)  # #0138A3, 9.4:1 against the cream
 INK = (17, 17, 17)  # #111111, the phone bodies
 
-HEIGHT = 0.45  # phone height as a fraction of the canvas
+# Everything below is a fraction of the canvas. The triangle narrows to a point,
+# so an equal gap on both sides of it reads as a hole on the right: the right one
+# is closed to about half.
+PHONE_W, PHONE_H = 0.235, 0.45
+TRI_W, TRI_H = 0.20, 0.26
+GAP_LEFT = 0.08
+GAP_RIGHT = 0.05
+
 # The round launcher mask leaves a 61% circle. The far corner of the drawing has
 # to sit inside it, and this is the scale at which it does.
 SAFE = 0.646
@@ -86,13 +93,17 @@ def drawing(background, scale=1.0):
     s = SIZE * SS
     im = Image.new("RGBA", (s, s), background)
     d = ImageDraw.Draw(im)
-    pw, ph = s * 0.235 * scale, s * HEIGHT * scale
-    margin = s / 2 - s * 0.415 * scale
-    y = (s - ph) / 2
-    phone(d, margin, y, pw, ph)
-    phone(d, s - margin - pw, y, pw, ph)
-    tw, th = s * 0.20 * scale, s * 0.26 * scale
-    triangle(d, (s - tw) / 2, (s - th) / 2, tw, th)
+    pw, ph = s * PHONE_W * scale, s * PHONE_H * scale
+    tw, th = s * TRI_W * scale, s * TRI_H * scale
+    # Laid out left to right from the group's own width, so closing one gap
+    # moves the pieces and leaves the whole drawing centred.
+    total = (PHONE_W + GAP_LEFT + TRI_W + GAP_RIGHT + PHONE_W) * scale * s
+    x = (s - total) / 2
+    phone(d, x, (s - ph) / 2, pw, ph)
+    x += pw + s * GAP_LEFT * scale
+    triangle(d, x, (s - th) / 2, tw, th)
+    x += tw + s * GAP_RIGHT * scale
+    phone(d, x, (s - ph) / 2, pw, ph)
     return im.resize((SIZE, SIZE), Image.LANCZOS)
 
 
