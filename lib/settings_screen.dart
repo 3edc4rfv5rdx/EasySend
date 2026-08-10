@@ -270,10 +270,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 await androidService.sync();
                 // Doze still cuts connections on a long idle unless the app is
                 // exempt, so point the user at that setting once.
-                if (v)
+                if (v) {
                   okInfoBarBlue(
                     lw('Also exclude EasySend from battery optimisation'),
                   );
+                }
               },
             ),
           sectionTitle(lw('Application')),

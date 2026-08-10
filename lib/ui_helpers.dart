@@ -64,7 +64,8 @@ Future<T?> showFlatDialog<T>({
     barrierLabel: MaterialLocalizations.of(ctx).modalBarrierDismissLabel,
     barrierColor: Colors.black54,
     transitionDuration: Duration.zero,
-    pageBuilder: (BuildContext context, _, __) => builder(context),
+    pageBuilder: (BuildContext context, animation, secondaryAnimation) =>
+        builder(context),
   );
 }
 
@@ -104,7 +105,7 @@ Widget sectionTitle(String text, {Widget? trailing}) {
             ),
             // The button paints its own surface, so it hides the rule by itself
             // and ends at the screen margin, in line with the buttons above.
-            if (trailing != null) trailing,
+            ?trailing,
           ],
         ),
       ],
@@ -276,8 +277,9 @@ Future<(bool, bool)> showAcceptDialog({
     barrierDismissible: false,
     builder: (BuildContext dialogContext) {
       timer = Timer(const Duration(seconds: acceptTimeoutSec), () {
-        if (Navigator.canPop(dialogContext))
+        if (Navigator.canPop(dialogContext)) {
           Navigator.pop(dialogContext, (false, false));
+        }
       });
       return StatefulBuilder(
         builder: (context, setState) {

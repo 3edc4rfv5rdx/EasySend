@@ -127,8 +127,9 @@ Device? _validDevice(dynamic raw) {
       platform is! String) {
     return null;
   }
-  if (address.isNotEmpty && InternetAddress.tryParse(address) == null)
+  if (address.isNotEmpty && InternetAddress.tryParse(address) == null) {
     return null;
+  }
   return Device(
     id: id,
     name: name,
@@ -158,8 +159,9 @@ Future<void> loadSettings() async {
   }
   try {
     final dynamic decoded = json.decode(await f.readAsString());
-    if (decoded is! Map)
+    if (decoded is! Map) {
       throw const FormatException('settings root is not an object');
+    }
     final Map<String, dynamic> data = decoded.cast<String, dynamic>();
     final dynamic rawSettings = data['settings'];
     final Map<String, dynamic> stored = rawSettings is Map
@@ -218,7 +220,7 @@ Future<void> _saveSettingsNow() async {
     });
     final File destination = _settingsFile;
     temporary = File(
-      '${destination.path}.${pid}.${DateTime.now().microsecondsSinceEpoch}.${_saveSerial++}.tmp',
+      '${destination.path}.$pid.${DateTime.now().microsecondsSinceEpoch}.${_saveSerial++}.tmp',
     );
     final RandomAccessFile output = await temporary.open(mode: FileMode.write);
     try {
@@ -228,7 +230,7 @@ Future<void> _saveSettingsNow() async {
       await output.close();
     }
     try {
-      await temporary!.rename(destination.path);
+      await temporary.rename(destination.path);
       temporary = null;
     } on FileSystemException {
       // Windows cannot replace an existing file with rename. Keep a recovery

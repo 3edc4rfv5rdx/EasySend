@@ -210,8 +210,9 @@ Future<({List<FileItem> files, int missing})> restoreFileSnapshot(
 String? sanitizeRelPath(String raw) {
   if (raw.isEmpty || utf8.encode(raw).length > maxPathUtf8Bytes) return null;
   final String unified = raw.replaceAll(r'\', '/');
-  if (unified.startsWith('/') || RegExp(r'^[a-zA-Z]:').hasMatch(unified))
+  if (unified.startsWith('/') || RegExp(r'^[a-zA-Z]:').hasMatch(unified)) {
     return null;
+  }
 
   final List<String> parts = [];
   for (final String segment in unified.split('/')) {

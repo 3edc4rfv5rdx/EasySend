@@ -637,8 +637,9 @@ class _HomeScreenState extends State<HomeScreen>
   );
 
   Widget _buildSelectedList() {
-    if (_selected.isEmpty)
+    if (_selected.isEmpty) {
       return const SliverToBoxAdapter(child: SizedBox.shrink());
+    }
 
     // A folder full of files must not push the devices and the transfers off
     // the screen: the selection keeps to a third of the height and scrolls
