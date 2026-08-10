@@ -2,6 +2,7 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+- F: A trusted device shows its port when it is not the default one, and says so plainly when it has no address at all instead of leaving the line empty
 - F: A failed transfer says so in red under its bar, instead of putting the reason in the same ink as a normal status line
 - I: 14-MakeAppImage.sh packs the Linux release into one runnable AppImage, icon and desktop entry included, and leaves the version alone
 - E: The app no longer offers to send to itself: a transfer from a second copy of it running on the same machine used to be remembered as a device, and an address on the loopback — a neighbour on this machine, or an emulator behind NAT — is never kept, since dialling it reaches our own server; such entries are dropped at startup

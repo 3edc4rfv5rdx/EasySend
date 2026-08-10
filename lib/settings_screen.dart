@@ -320,7 +320,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   color: clText,
                 ),
                 title: Text(d.name, style: tsNormal),
-                subtitle: Text(d.address, style: tsSmall),
+                // Trust is bound to the id, not to the address, so a device can
+                // be trusted with nowhere to reach it — say that instead of
+                // leaving the line blank. The port is only worth the room when
+                // it is not the one every device is assumed to listen on.
+                subtitle: Text(
+                  d.address.isEmpty
+                      ? lw('Address unknown')
+                      : d.port == defaultPort
+                          ? d.address
+                          : '${d.address}:${d.port}',
+                  style: tsSmall,
+                ),
                 trailing: IconButton(
                   icon: Icon(Icons.close, color: clFrame, size: 20),
                   tooltip: lw('Revoke trust'),
