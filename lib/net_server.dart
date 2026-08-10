@@ -8,6 +8,15 @@ import 'package:uuid/uuid.dart';
 import 'android_helpers.dart';
 import 'globals.dart';
 
+enum _ReceivePhase {
+  ready,
+  uploading,
+  verifying,
+  awaitingVerification,
+  finishing,
+  cancelled,
+}
+
 // Receiving side of a transfer in flight.
 class _Incoming {
   final String sessionId;
@@ -17,6 +26,9 @@ class _Incoming {
   final Map<String, int> crc = {}; // fileId -> checksum computed here
   int settledBytes = 0; // bytes of files already finished
   bool cancelled = false; // set when the user stops the receive
+  _ReceivePhase phase = _ReceivePhase.ready;
+  String? activeFileId;
+  Completer<void>? activeOperation;
 
   _Incoming({
     required this.sessionId,
@@ -31,11 +43,13 @@ class _Incoming {
 class ReceiveServer {
   HttpServer? _http;
   _Incoming? _current;
+  bool _preparing = false;
 
   // Set when the port could not be taken, shown as a banner on the main screen.
   String? bindError;
 
   bool get running => _http != null;
+  int? get boundPort => _http?.port;
 
   Future<bool> start() async {
     await stop();
@@ -105,69 +119,75 @@ class ReceiveServer {
 
   Future<void> _prepare(HttpRequest req) async {
     // One session at a time: parallel writes into the same folder would race.
-    if (_current != null && _current!.transfer.isRunning) {
+    if (_preparing || _current != null) {
       return _json(req, {'reason': 'busy'}, status: HttpStatus.conflict);
     }
 
-    final Map<String, dynamic> body = json.decode(
-      await utf8.decoder.bind(req).join(),
-    );
-    final String senderId = body['senderId'] as String? ?? '';
-    final String senderName = body['senderName'] as String? ?? senderId;
-    final List<dynamic> rawFiles = body['files'] as List? ?? [];
-    if (senderId.isEmpty || rawFiles.isEmpty) {
-      return _status(req, HttpStatus.badRequest);
-    }
-
-    final List<FileItem> files = rawFiles
-        .map((f) => FileItem.fromJson((f as Map).cast<String, dynamic>()))
-        .toList();
-
-    // Resolve every destination before answering: a manifest that cannot be
-    // written safely is refused as a whole, not half-accepted.
-    final Map<String, String> finalPaths;
+    // Reserve the one receive slot before body parsing or the consent await.
+    _preparing = true;
     try {
-      finalPaths = await buildDestinationPlan(xvRecvDir, files);
-      for (final String dest in finalPaths.values) {
-        if (!await ensureSafeDestination(xvRecvDir, dest) ||
-            !await ensureSafeDestination(xvRecvDir, '$dest$partSuffix')) {
-          throw const DestinationPlanException('unsafe filesystem component');
-        }
+      final Map<String, dynamic> body = json.decode(
+        await utf8.decoder.bind(req).join(),
+      );
+      final String senderId = body['senderId'] as String? ?? '';
+      final String senderName = body['senderName'] as String? ?? senderId;
+      final List<dynamic> rawFiles = body['files'] as List? ?? [];
+      if (senderId.isEmpty || rawFiles.isEmpty) {
+        return _status(req, HttpStatus.badRequest);
       }
-    } on DestinationPlanException catch (e) {
-      myPrint('refused manifest: $e');
-      return _json(req, {'reason': e.reason}, status: HttpStatus.badRequest);
+
+      final List<FileItem> files = rawFiles
+          .map((f) => FileItem.fromJson((f as Map).cast<String, dynamic>()))
+          .toList();
+
+      // Resolve every destination before answering: a manifest that cannot be
+      // written safely is refused as a whole, not half-accepted.
+      final Map<String, String> finalPaths;
+      try {
+        finalPaths = await buildDestinationPlan(xvRecvDir, files);
+        for (final String dest in finalPaths.values) {
+          if (!await ensureSafeDestination(xvRecvDir, dest) ||
+              !await ensureSafeDestination(xvRecvDir, '$dest$partSuffix')) {
+            throw const DestinationPlanException('unsafe filesystem component');
+          }
+        }
+      } on DestinationPlanException catch (e) {
+        myPrint('refused manifest: $e');
+        return _json(req, {'reason': e.reason}, status: HttpStatus.badRequest);
+      }
+
+      final int totalBytes = files.fold(0, (sum, f) => sum + f.size);
+      if (!await _askAccept(
+        senderId,
+        senderName,
+        files.length,
+        totalBytes,
+        address: req.connectionInfo?.remoteAddress.address ?? '',
+        port: (body['senderPort'] as num?)?.toInt() ?? currentPort,
+      )) {
+        return _json(req, {'reason': 'declined'}, status: HttpStatus.forbidden);
+      }
+
+      final TransferSession transfer = TransferSession(
+        id: const Uuid().v4(),
+        incoming: true,
+        peerName: senderName,
+        files: files,
+      );
+      transfer.status = TransferStatus.active;
+      xvTransfers.add(transfer);
+      transfersChanged();
+
+      _current = _Incoming(
+        sessionId: transfer.id,
+        transfer: transfer,
+        byId: {for (final FileItem f in files) f.id: f},
+        finalPaths: finalPaths,
+      );
+      return _json(req, {'sessionId': transfer.id});
+    } finally {
+      _preparing = false;
     }
-
-    final int totalBytes = files.fold(0, (sum, f) => sum + f.size);
-    if (!await _askAccept(
-      senderId,
-      senderName,
-      files.length,
-      totalBytes,
-      address: req.connectionInfo?.remoteAddress.address ?? '',
-      port: (body['senderPort'] as num?)?.toInt() ?? currentPort,
-    )) {
-      return _json(req, {'reason': 'declined'}, status: HttpStatus.forbidden);
-    }
-
-    final TransferSession transfer = TransferSession(
-      id: const Uuid().v4(),
-      incoming: true,
-      peerName: senderName,
-      files: files,
-    );
-    transfer.status = TransferStatus.active;
-    xvTransfers.add(transfer);
-    transfersChanged();
-
-    _current = _Incoming(
-      sessionId: transfer.id,
-      transfer: transfer,
-      byId: {for (final FileItem f in files) f.id: f},
-      finalPaths: finalPaths,
-    );
-    return _json(req, {'sessionId': transfer.id});
   }
 
   // Trusted senders are accepted silently; an unknown one has to be confirmed,
@@ -254,66 +274,86 @@ class ReceiveServer {
     if (session == null || item == null) {
       return _status(req, HttpStatus.badRequest);
     }
-
-    final String dest = session.finalPaths[fileId]!;
-    final String partPath = '$dest$partSuffix';
-    if (!await ensureSafeDestination(xvRecvDir, dest, createParents: true) ||
-        !await ensureSafeDestination(
-          xvRecvDir,
-          partPath,
-          createParents: true,
-        )) {
-      return _status(req, HttpStatus.badRequest);
+    if (session.phase != _ReceivePhase.ready || item.done) {
+      return _json(req, {
+        'reason': 'out-of-order',
+      }, status: HttpStatus.conflict);
     }
-
-    final File part = File(partPath);
-    final IOSink sink = part.openWrite();
-    int written = 0;
-    int crc = 0;
-    DateTime lastTick = DateTime.now();
-    bool overflow = false;
+    session.phase = _ReceivePhase.uploading;
+    session.activeFileId = fileId;
+    session.activeOperation = Completer<void>();
+    session.transfer.currentIndex = session.transfer.files.indexOf(item);
+    transfersChanged();
 
     try {
-      await for (final List<int> chunk in req) {
-        if (session.cancelled) break;
-        written += chunk.length;
-        // Never write past the declared size: the manifest is the contract.
-        if (written > item.size) {
-          overflow = true;
-          break;
-        }
-        crc = getCrc32(chunk, crc);
-        sink.add(chunk);
-
-        final DateTime now = DateTime.now();
-        if (now.difference(lastTick).inMilliseconds >= 100) {
-          lastTick = now;
-          session.transfer.noteProgress(session.settledBytes + written);
-          transfersChanged();
-        }
+      final String dest = session.finalPaths[fileId]!;
+      final String partPath = '$dest$partSuffix';
+      if (!await ensureSafeDestination(xvRecvDir, dest, createParents: true) ||
+          !await ensureSafeDestination(
+            xvRecvDir,
+            partPath,
+            createParents: true,
+          )) {
+        session.phase = _ReceivePhase.ready;
+        return _status(req, HttpStatus.badRequest);
       }
-      await sink.flush();
+
+      final File part = File(partPath);
+      final IOSink sink = part.openWrite();
+      int written = 0;
+      int crc = 0;
+      DateTime lastTick = DateTime.now();
+      bool overflow = false;
+
+      try {
+        await for (final List<int> chunk in req) {
+          if (session.cancelled) break;
+          written += chunk.length;
+          // Never write past the declared size: the manifest is the contract.
+          if (written > item.size) {
+            overflow = true;
+            break;
+          }
+          crc = getCrc32(chunk, crc);
+          sink.add(chunk);
+
+          final DateTime now = DateTime.now();
+          if (now.difference(lastTick).inMilliseconds >= 100) {
+            lastTick = now;
+            session.transfer.noteProgress(session.settledBytes + written);
+            transfersChanged();
+          }
+        }
+        await sink.flush();
+      } finally {
+        await sink.close();
+      }
+
+      if (session.cancelled) {
+        await _deleteQuietly(part);
+        return _status(req, HttpStatus.conflict);
+      }
+
+      if (overflow || written != item.size) {
+        await _deleteQuietly(part);
+        myPrint(
+          'size mismatch for ${item.relativePath}: $written of ${item.size}',
+        );
+        session.phase = _ReceivePhase.ready;
+        return _status(req, HttpStatus.badRequest);
+      }
+
+      session.crc[fileId] = crc;
+      session.phase = _ReceivePhase.awaitingVerification;
+      session.transfer.noteProgress(session.settledBytes + written);
+      transfersChanged();
+      return _json(req, {'ok': true});
     } finally {
-      await sink.close();
-    }
-
-    if (session.cancelled) {
-      await _deleteQuietly(part);
-      return _status(req, HttpStatus.conflict);
-    }
-
-    if (overflow || written != item.size) {
-      await _deleteQuietly(part);
-      myPrint(
-        'size mismatch for ${item.relativePath}: $written of ${item.size}',
+      _endOperation(
+        session,
+        keepFile: session.phase == _ReceivePhase.awaitingVerification,
       );
-      return _status(req, HttpStatus.badRequest);
     }
-
-    session.crc[fileId] = crc;
-    session.transfer.noteProgress(session.settledBytes + written);
-    transfersChanged();
-    return _json(req, {'ok': true});
   }
 
   // The sender only knows its checksum once the file has been fully read, so
@@ -325,41 +365,66 @@ class ReceiveServer {
     if (session == null || item == null) {
       return _status(req, HttpStatus.badRequest);
     }
-
-    final int? theirs = int.tryParse(
-      req.uri.queryParameters['crc'] ?? '',
-      radix: 16,
-    );
-    final int? ours = session.crc[fileId];
-    final String dest = session.finalPaths[fileId]!;
-    final File part = File('$dest$partSuffix');
-
-    if (theirs == null || ours == null || theirs != ours) {
-      await _deleteQuietly(part);
-      session.crc.remove(fileId);
-      myPrint('checksum mismatch for ${item.relativePath}');
-      return _json(req, {'reason': 'crc'}, status: HttpStatus.conflict);
+    if (session.phase != _ReceivePhase.awaitingVerification ||
+        session.activeFileId != fileId ||
+        item.done) {
+      return _json(req, {
+        'reason': 'out-of-order',
+      }, status: HttpStatus.conflict);
     }
+    session.phase = _ReceivePhase.verifying;
+    session.activeOperation = Completer<void>();
 
-    // Only now does the file get its real name: a partial file must never look
-    // like a complete one.
-    if (!await ensureSafeDestination(xvRecvDir, dest) ||
-        !await ensureSafeDestination(xvRecvDir, part.path)) {
-      await _deleteQuietly(part);
-      return _status(req, HttpStatus.conflict);
+    try {
+      final int? theirs = int.tryParse(
+        req.uri.queryParameters['crc'] ?? '',
+        radix: 16,
+      );
+      final int? ours = session.crc[fileId];
+      final String dest = session.finalPaths[fileId]!;
+      final File part = File('$dest$partSuffix');
+
+      if (theirs == null || ours == null || theirs != ours) {
+        await _deleteQuietly(part);
+        session.crc.remove(fileId);
+        myPrint('checksum mismatch for ${item.relativePath}');
+        session.phase = _ReceivePhase.ready;
+        return _json(req, {'reason': 'crc'}, status: HttpStatus.conflict);
+      }
+
+      // Only now does the file get its real name: a partial file must never look
+      // like a complete one.
+      if (!await ensureSafeDestination(xvRecvDir, dest) ||
+          !await ensureSafeDestination(xvRecvDir, part.path)) {
+        await _deleteQuietly(part);
+        session.phase = _ReceivePhase.ready;
+        return _status(req, HttpStatus.conflict);
+      }
+      await part.rename(dest);
+      item.done = true;
+      item.failed = false;
+      session.settledBytes += item.size;
+      session.transfer.noteProgress(session.settledBytes);
+      session.phase = _ReceivePhase.ready;
+      transfersChanged();
+      return _json(req, {'ok': true});
+    } finally {
+      if (session.phase == _ReceivePhase.verifying) {
+        session.phase = _ReceivePhase.ready;
+      }
+      _endOperation(session);
     }
-    await part.rename(dest);
-    item.done = true;
-    item.failed = false;
-    session.settledBytes += item.size;
-    session.transfer.noteProgress(session.settledBytes);
-    transfersChanged();
-    return _json(req, {'ok': true});
   }
 
   Future<void> _finish(HttpRequest req) async {
     final _Incoming? session = _sessionOf(req);
     if (session == null) return _status(req, HttpStatus.badRequest);
+    if (session.phase != _ReceivePhase.ready) {
+      return _json(req, {
+        'reason': 'out-of-order',
+      }, status: HttpStatus.conflict);
+    }
+    session.phase = _ReceivePhase.finishing;
 
     final TransferSession transfer = session.transfer;
     for (final FileItem f in transfer.files) {
@@ -396,6 +461,15 @@ class ReceiveServer {
   }
 
   Future<void> _abort(_Incoming session, TransferStatus status) async {
+    if (session.cancelled &&
+        session.phase == _ReceivePhase.cancelled &&
+        _current != session) {
+      return;
+    }
+    session.cancelled = true;
+    session.phase = _ReceivePhase.cancelled;
+    final Future<void>? active = session.activeOperation?.future;
+    if (active != null) await active;
     session.transfer.status = status;
     await _cleanupParts(session);
     _current = null;
@@ -414,6 +488,17 @@ class ReceiveServer {
     final _Incoming? session = _current;
     if (session == null || session.sessionId != id) return null;
     return session;
+  }
+
+  void _endOperation(_Incoming session, {bool keepFile = false}) {
+    final Completer<void>? operation = session.activeOperation;
+    if (operation != null && !operation.isCompleted) operation.complete();
+    session.activeOperation = null;
+    if (!keepFile) session.activeFileId = null;
+    if (session.phase == _ReceivePhase.uploading ||
+        session.phase == _ReceivePhase.verifying) {
+      session.phase = _ReceivePhase.ready;
+    }
   }
 
   Future<void> _deleteQuietly(File file) async {
