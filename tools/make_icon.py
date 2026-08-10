@@ -48,7 +48,7 @@ GAP_RIGHT = 0.035
 
 DOC_W, DOC_H = 0.56, 0.44
 DOC_FOLD = 0.34  # the folded corner, as a fraction of the sheet's width
-DOC_GAP = 0.18  # how far the flap is pulled off the cut, as a fraction of it
+DOC_GAP = 0.28  # how far the flap is pulled off the cut, as a fraction of it
 
 # The round launcher mask leaves a 61% circle. The mark is wider on the left than
 # on the right, so the foreground is centred on its own bounding box first; this
