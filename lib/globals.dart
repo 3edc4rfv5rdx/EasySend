@@ -31,9 +31,9 @@ const String settFile = 'settings.json';
 // too long for its line.
 const String androidRoot = '/storage/emulated/0';
 
-// Network defaults. One number serves both the TCP receive server and UDP
-// discovery: TCP and UDP are separate port spaces, so they never collide.
+// UDP discovery is stable even when the user changes the HTTP transfer port.
 const int defaultPort = 15353;
+const int discoveryPort = 15353;
 const String apiPrefix = '/api/v1';
 // Announce every 5 s, forget a silent device after 20 s.
 const int announceIntervalSec = 5;

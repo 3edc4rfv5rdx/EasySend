@@ -4,6 +4,20 @@ import 'dart:io';
 
 import 'globals.dart';
 
+Map<String, dynamic> buildDiscoveryPayload({
+  required String type,
+  required String id,
+  required String name,
+  required String platform,
+  required int transferPort,
+}) => {
+  't': type,
+  'id': id,
+  'name': name,
+  'platform': platform,
+  'port': transferPort,
+};
+
 // UDP presence on the local subnet. Broadcast never crosses a router, so
 // devices behind one are added by hand instead (SPEC 5.2, 5.4).
 class DiscoveryService {
@@ -15,7 +29,7 @@ class DiscoveryService {
 
   Future<bool> start() async {
     await stop();
-    _port = currentPort;
+    _port = discoveryPort;
     try {
       _socket = await RawDatagramSocket.bind(
         InternetAddress.anyIPv4,
@@ -56,13 +70,13 @@ class DiscoveryService {
     devicesChanged();
   }
 
-  Map<String, dynamic> _payload(String type) => {
-        't': type,
-        'id': xvDeviceId,
-        'name': xvDeviceName,
-        'platform': xvPlatform,
-        'port': currentPort,
-      };
+  Map<String, dynamic> _payload(String type) => buildDiscoveryPayload(
+    type: type,
+    id: xvDeviceId,
+    name: xvDeviceName,
+    platform: xvPlatform,
+    transferPort: currentPort,
+  );
 
   void _broadcast(String type) {
     final RawDatagramSocket? socket = _socket;
@@ -102,7 +116,8 @@ class DiscoveryService {
       for (final NetworkInterface iface in interfaces) {
         for (final InternetAddress addr in iface.addresses) {
           final List<String> parts = addr.address.split('.');
-          if (parts.length == 4) targets.add('${parts[0]}.${parts[1]}.${parts[2]}.255');
+          if (parts.length == 4)
+            targets.add('${parts[0]}.${parts[1]}.${parts[2]}.255');
         }
       }
     } catch (e) {
@@ -134,7 +149,8 @@ class DiscoveryService {
 
       // Answer a newcomer at once so it does not wait for the next cycle.
       if (msg['t'] == 'query') {
-        _sendTo('announce', packet.address, msg['port'] as int? ?? _port);
+        // Reply to the UDP source port. The port inside the payload is HTTP.
+        _sendTo('announce', packet.address, packet.port);
       }
     } catch (e) {
       myPrint('bad discovery packet from ${packet.address.address}: $e');
@@ -150,14 +166,16 @@ class DiscoveryService {
   }) {
     final int index = xvDevices.indexWhere((d) => d.id == id);
     if (index < 0) {
-      xvDevices.add(Device(
-        id: id,
-        name: name,
-        platform: platform,
-        address: address,
-        port: port,
-        lastSeen: DateTime.now(),
-      ));
+      xvDevices.add(
+        Device(
+          id: id,
+          name: name,
+          platform: platform,
+          address: address,
+          port: port,
+          lastSeen: DateTime.now(),
+        ),
+      );
     } else {
       final Device device = xvDevices[index];
       device.name = name;
@@ -177,7 +195,8 @@ class DiscoveryService {
     xvDevices.removeWhere((d) {
       if (d.manual || d.trusted) return false;
       final DateTime? seen = d.lastSeen;
-      return seen == null || now.difference(seen).inSeconds > deviceTimeoutSec + 60;
+      return seen == null ||
+          now.difference(seen).inSeconds > deviceTimeoutSec + 60;
     });
     if (xvDevices.length != before) devicesChanged();
   }
@@ -195,7 +214,10 @@ class ManualPoller {
 
   void start() {
     stop();
-    _timer = Timer.periodic(const Duration(seconds: manualPollSec), (_) => _pollAll());
+    _timer = Timer.periodic(
+      const Duration(seconds: manualPollSec),
+      (_) => _pollAll(),
+    );
     _pollAll();
   }
 
@@ -206,7 +228,10 @@ class ManualPoller {
 
   Future<void> _pollAll() async {
     for (final Device device in xvDevices.where((d) => d.manual).toList()) {
-      final Map<String, dynamic>? info = await _ask(device.address, device.port);
+      final Map<String, dynamic>? info = await _ask(
+        device.address,
+        device.port,
+      );
       if (info == null) continue;
       device.name = info['name'] as String? ?? device.name;
       device.platform = info['platform'] as String? ?? device.platform;
@@ -219,7 +244,9 @@ class ManualPoller {
   Future<bool> addByAddress(String input) async {
     final int colon = input.lastIndexOf(':');
     final String host = colon < 0 ? input : input.substring(0, colon);
-    final int port = colon < 0 ? currentPort : int.tryParse(input.substring(colon + 1)) ?? currentPort;
+    final int port = colon < 0
+        ? currentPort
+        : int.tryParse(input.substring(colon + 1)) ?? currentPort;
 
     final Map<String, dynamic>? info = await _ask(host, port);
     if (info == null) return false;
@@ -234,15 +261,17 @@ class ManualPoller {
       device.manual = true;
       device.lastSeen = DateTime.now();
     } else {
-      xvDevices.add(Device(
-        id: id,
-        name: info['name'] as String? ?? host,
-        platform: info['platform'] as String? ?? '',
-        address: host,
-        port: port,
-        manual: true,
-        lastSeen: DateTime.now(),
-      ));
+      xvDevices.add(
+        Device(
+          id: id,
+          name: info['name'] as String? ?? host,
+          platform: info['platform'] as String? ?? '',
+          address: host,
+          port: port,
+          manual: true,
+          lastSeen: DateTime.now(),
+        ),
+      );
     }
     await saveSettings();
     devicesChanged();
@@ -255,13 +284,15 @@ class ManualPoller {
       final HttpClientRequest req = await _client
           .getUrl(Uri.http('$host:$port', '$apiPrefix/info'))
           .timeout(const Duration(seconds: manualPollTimeoutSec));
-      final HttpClientResponse resp =
-          await req.close().timeout(const Duration(seconds: manualPollTimeoutSec));
+      final HttpClientResponse resp = await req.close().timeout(
+        const Duration(seconds: manualPollTimeoutSec),
+      );
       if (resp.statusCode != HttpStatus.ok) {
         await resp.drain<void>();
         return null;
       }
-      return json.decode(await utf8.decoder.bind(resp).join()) as Map<String, dynamic>;
+      return json.decode(await utf8.decoder.bind(resp).join())
+          as Map<String, dynamic>;
     } catch (e) {
       myPrint('poll $host:$port failed: $e');
       return null;

@@ -108,15 +108,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Widget _aboutRow(String label, String value) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 3),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SizedBox(width: 110, child: Text('$label:', style: tsSmall)),
-            Expanded(child: Text(value, style: tsNormal)),
-          ],
-        ),
-      );
+    padding: const EdgeInsets.symmetric(vertical: 3),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(width: 110, child: Text('$label:', style: tsSmall)),
+        Expanded(child: Text(value, style: tsNormal)),
+      ],
+    ),
+  );
 
   Future<void> _apply(VoidCallback change) async {
     setState(change);
@@ -146,7 +146,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _editPort() async {
     final String? value = await showInputDialog(
-      title: lw('Port'),
+      title: lw('Transfer port'),
       initial: xdef['Port'],
       keyboardType: TextInputType.number,
     );
@@ -179,11 +179,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: options
-                .map((o) => RadioListTile<String>(
-                      value: o,
-                      fillColor: WidgetStatePropertyAll<Color>(clText),
-                      title: Text(labelOf?.call(o) ?? lw(o), style: tsNormal),
-                    ))
+                .map(
+                  (o) => RadioListTile<String>(
+                    value: o,
+                    fillColor: WidgetStatePropertyAll<Color>(clText),
+                    title: Text(labelOf?.call(o) ?? lw(o), style: tsNormal),
+                  ),
+                )
                 .toList(),
           ),
         ),
@@ -230,7 +232,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           sectionTitle(lw('Network')),
           _tile(
             icon: Icons.lan_outlined,
-            title: lw('Port'),
+            title: lw('Transfer port'),
             value: xdef['Port'],
             onTap: _editPort,
           ),
@@ -246,24 +248,34 @@ class _SettingsScreenState extends State<SettingsScreen> {
             SwitchListTile(
               dense: true,
               visualDensity: const VisualDensity(vertical: -2),
-              secondary: Icon(Icons.notifications_active_outlined, color: clText),
+              secondary: Icon(
+                Icons.notifications_active_outlined,
+                color: clText,
+              ),
               activeThumbColor: clAccent,
               value: xdef['Receive in background'] == 'true',
               title: Text(lw('Receive in background'), style: tsNormal),
-              subtitle: Text(lw('Keeps a notification and receives with the screen off'), style: tsSmall),
+              subtitle: Text(
+                lw('Keeps a notification and receives with the screen off'),
+                style: tsSmall,
+              ),
               onChanged: (v) async {
                 await _apply(() => xdef['Receive in background'] = '$v');
                 await androidService.sync();
                 // Doze still cuts connections on a long idle unless the app is
                 // exempt, so point the user at that setting once.
-                if (v) okInfoBarBlue(lw('Also exclude EasySend from battery optimisation'));
+                if (v)
+                  okInfoBarBlue(
+                    lw('Also exclude EasySend from battery optimisation'),
+                  );
               },
             ),
           sectionTitle(lw('Application')),
           _tile(
             icon: Icons.language,
             title: lw('Language'),
-            value: langNames[xdef['Program language']] ?? xdef['Program language'],
+            value:
+                langNames[xdef['Program language']] ?? xdef['Program language'],
             onTap: () => _pickFromList(
               title: lw('Language'),
               options: appLANGUAGES,
@@ -302,7 +314,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
             activeThumbColor: clAccent,
             value: xdef['Ask before exit'] == 'true',
             title: Text(lw('Ask before exit'), style: tsNormal),
-            subtitle: Text(lw('A running transfer is always asked about'), style: tsSmall),
+            subtitle: Text(
+              lw('A running transfer is always asked about'),
+              style: tsSmall,
+            ),
             onChanged: (v) => _apply(() => xdef['Ask before exit'] = '$v'),
           ),
           sectionTitle('${lw('Trusted devices')} (${trusted.length})'),
@@ -313,37 +328,40 @@ class _SettingsScreenState extends State<SettingsScreen> {
               padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
               child: Text(lw('No trusted devices'), style: tsSmall),
             ),
-          ...trusted.map((d) => ListTile(
-                dense: true,
-                leading: Icon(
-                  d.platform == 'android' ? Icons.smartphone : Icons.computer,
-                  color: clText,
-                ),
-                title: Text(d.name, style: tsNormal),
-                // Trust is bound to the id, not to the address, so a device can
-                // be trusted with nowhere to reach it — say that instead of
-                // leaving the line blank. The port is only worth the room when
-                // it is not the one every device is assumed to listen on.
-                subtitle: Text(
-                  d.address.isEmpty
-                      ? lw('Address unknown')
-                      : d.port == defaultPort
-                          ? d.address
-                          : '${d.address}:${d.port}',
-                  style: tsSmall,
-                ),
-                trailing: IconButton(
-                  icon: Icon(Icons.close, color: clFrame, size: 20),
-                  tooltip: lw('Revoke trust'),
-                  onPressed: () async {
-                    final bool yes = await okConfirm(
-                      title: lw('Revoke trust'),
-                      message: '${lw('Ask again before accepting from this device')}?\n${d.name}',
-                    );
-                    if (yes) await _apply(() => d.trusted = false);
-                  },
-                ),
-              )),
+          ...trusted.map(
+            (d) => ListTile(
+              dense: true,
+              leading: Icon(
+                d.platform == 'android' ? Icons.smartphone : Icons.computer,
+                color: clText,
+              ),
+              title: Text(d.name, style: tsNormal),
+              // Trust is bound to the id, not to the address, so a device can
+              // be trusted with nowhere to reach it — say that instead of
+              // leaving the line blank. The port is only worth the room when
+              // it is not the one every device is assumed to listen on.
+              subtitle: Text(
+                d.address.isEmpty
+                    ? lw('Address unknown')
+                    : d.port == defaultPort
+                    ? d.address
+                    : '${d.address}:${d.port}',
+                style: tsSmall,
+              ),
+              trailing: IconButton(
+                icon: Icon(Icons.close, color: clFrame, size: 20),
+                tooltip: lw('Revoke trust'),
+                onPressed: () async {
+                  final bool yes = await okConfirm(
+                    title: lw('Revoke trust'),
+                    message:
+                        '${lw('Ask again before accepting from this device')}?\n${d.name}',
+                  );
+                  if (yes) await _apply(() => d.trusted = false);
+                },
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -368,7 +386,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ? tailText(value)
           : Text(value, style: tsSmall, overflow: TextOverflow.ellipsis),
       onTap: onTap,
-      trailing: onTap == null ? null : Icon(Icons.chevron_right, color: clFrame),
+      trailing: onTap == null
+          ? null
+          : Icon(Icons.chevron_right, color: clFrame),
     );
   }
 }
