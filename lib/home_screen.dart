@@ -511,7 +511,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         ),
         child: Scrollbar(
           controller: _selectedScroll,
-          thumbVisibility: true,
+          // Left to appear on scrolling: pinned, it drew a bar beside two rows
+          // that had nowhere to scroll to.
           child: ListView.builder(
             controller: _selectedScroll,
             shrinkWrap: true,
