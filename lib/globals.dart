@@ -13,7 +13,8 @@ export 'settings_helpers.dart';
 export 'ui_helpers.dart';
 
 // Global key for accessing ScaffoldMessenger
-final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
+final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey =
+    GlobalKey<ScaffoldMessengerState>();
 // Global key for NavigatorState
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
@@ -44,6 +45,8 @@ const int manualPollTimeoutSec = 2;
 const String partSuffix = '.easysend-part';
 // Seconds the receiver waits for the user to accept an unknown sender.
 const int acceptTimeoutSec = 30;
+// Valid protocol progress refreshes this receiver-side inactivity deadline.
+const int receiveSessionTimeoutSec = 60;
 // Automatic re-sends of a file that failed its checksum.
 const int maxResendAttempts = 2;
 // Speed and ETA are averaged over this window; the instant value is unreadable.
@@ -114,17 +117,20 @@ Color clSnackAccent = const Color(0xFF37698C);
 // and the stadium a 40 px button would need: soft, without becoming a capsule.
 const double btnRadius = 14;
 
-const double fsSmall = 13;  // Small font size
+const double fsSmall = 13; // Small font size
 const double fsNormal = 15; // Main font size
-const double fsLarge = 18;  // Font size for headers
+const double fsLarge = 18; // Font size for headers
 
 const FontWeight fwBold = FontWeight.bold;
 const FontWeight fwNormal = FontWeight.normal;
 
 // Common text styles (non-const because colors change with theme)
-TextStyle get tsSmall => TextStyle(fontSize: fsSmall, fontWeight: fwNormal, color: clText);
-TextStyle get tsNormal => TextStyle(fontSize: fsNormal, fontWeight: fwNormal, color: clText);
-TextStyle get tsLarge => TextStyle(fontSize: fsLarge, fontWeight: fwNormal, color: clText);
+TextStyle get tsSmall =>
+    TextStyle(fontSize: fsSmall, fontWeight: fwNormal, color: clText);
+TextStyle get tsNormal =>
+    TextStyle(fontSize: fsNormal, fontWeight: fwNormal, color: clText);
+TextStyle get tsLarge =>
+    TextStyle(fontSize: fsLarge, fontWeight: fwNormal, color: clText);
 
 // Global Map for settings, persisted to settings.json. Keys starting with a dot
 // are internal and never shown in the settings screen.
@@ -199,7 +205,9 @@ Future<void> loadThemes() async {
     data.forEach((name, colors) {
       if (colors is Map) loadedThemes[name] = Map<String, String>.from(colors);
     });
-    myPrint('loaded ${loadedThemes.length} themes: ${loadedThemes.keys.join(', ')}');
+    myPrint(
+      'loaded ${loadedThemes.length} themes: ${loadedThemes.keys.join(', ')}',
+    );
     // The snack bar tones live outside the current theme, so they are read once
     // here rather than in applyTheme().
     final Map<String, String>? dark = loadedThemes[themeDark];
@@ -289,7 +297,9 @@ Future<void> initTranslations() async {
         _translationCache[key] = value[lang];
       }
     });
-    myPrint('initTranslations finished, loaded ${_translationCache.length} translations');
+    myPrint(
+      'initTranslations finished, loaded ${_translationCache.length} translations',
+    );
   } catch (e) {
     myPrint('Error initializing translations: $e');
     _translationCache.clear();
@@ -314,7 +324,9 @@ String formatBytes(int bytes) {
     value /= 1024;
     unit++;
   }
-  final String text = value >= 100 ? value.toStringAsFixed(0) : value.toStringAsFixed(1);
+  final String text = value >= 100
+      ? value.toStringAsFixed(0)
+      : value.toStringAsFixed(1);
   return '$text ${units[unit]}';
 }
 
@@ -324,7 +336,8 @@ String _two(int v) => v.toString().padLeft(2, '0');
 String formatDateTime(DateTime t) =>
     '${t.year}-${_two(t.month)}-${_two(t.day)} ${_two(t.hour)}:${_two(t.minute)}';
 
-String formatSpeed(double bytesPerSec) => '${formatBytes(bytesPerSec.round())}/s';
+String formatSpeed(double bytesPerSec) =>
+    '${formatBytes(bytesPerSec.round())}/s';
 
 // 95 -> '1:35'. Used for the remaining-time estimate.
 String formatDuration(int seconds) {

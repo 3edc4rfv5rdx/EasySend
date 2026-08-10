@@ -29,6 +29,7 @@ class _Incoming {
   _ReceivePhase phase = _ReceivePhase.ready;
   String? activeFileId;
   Completer<void>? activeOperation;
+  Timer? inactivityTimer;
 
   _Incoming({
     required this.sessionId,
@@ -41,6 +42,7 @@ class _Incoming {
 // HTTP receive server. Plain dart:io rather than shelf: six routes need no
 // router, and streaming bodies are easier to control directly.
 class ReceiveServer {
+  final Duration sessionTimeout;
   HttpServer? _http;
   _Incoming? _current;
   bool _preparing = false;
@@ -48,11 +50,17 @@ class ReceiveServer {
   // Set when the port could not be taken, shown as a banner on the main screen.
   String? bindError;
 
+  ReceiveServer({
+    this.sessionTimeout = const Duration(seconds: receiveSessionTimeoutSec),
+  });
+
   bool get running => _http != null;
   int? get boundPort => _http?.port;
 
   Future<bool> start() async {
     await stop();
+    await ensureRecvDir();
+    await cleanupOrphanParts(xvRecvDir);
     final int port = currentPort;
     try {
       _http = await HttpServer.bind(
@@ -76,8 +84,17 @@ class ReceiveServer {
   }
 
   Future<void> stop() async {
+    final _Incoming? session = _current;
+    if (session != null) {
+      session.cancelled = true;
+      session.phase = _ReceivePhase.cancelled;
+    }
     await _http?.close(force: true);
     _http = null;
+    if (session != null) {
+      await _abort(session, TransferStatus.cancelled);
+    }
+    _preparing = false;
     serverStateChanged();
   }
 
@@ -184,6 +201,7 @@ class ReceiveServer {
         byId: {for (final FileItem f in files) f.id: f},
         finalPaths: finalPaths,
       );
+      _touch(_current!);
       return _json(req, {'sessionId': transfer.id});
     } finally {
       _preparing = false;
@@ -316,6 +334,7 @@ class ReceiveServer {
           }
           crc = getCrc32(chunk, crc);
           sink.add(chunk);
+          _touch(session);
 
           final DateTime now = DateTime.now();
           if (now.difference(lastTick).inMilliseconds >= 100) {
@@ -344,6 +363,7 @@ class ReceiveServer {
       }
 
       session.crc[fileId] = crc;
+      _touch(session);
       session.phase = _ReceivePhase.awaitingVerification;
       session.transfer.noteProgress(session.settledBytes + written);
       transfersChanged();
@@ -405,6 +425,7 @@ class ReceiveServer {
       item.failed = false;
       session.settledBytes += item.size;
       session.transfer.noteProgress(session.settledBytes);
+      _touch(session);
       session.phase = _ReceivePhase.ready;
       transfersChanged();
       return _json(req, {'ok': true});
@@ -468,6 +489,7 @@ class ReceiveServer {
     }
     session.cancelled = true;
     session.phase = _ReceivePhase.cancelled;
+    session.inactivityTimer?.cancel();
     final Future<void>? active = session.activeOperation?.future;
     if (active != null) await active;
     session.transfer.status = status;
@@ -499,6 +521,15 @@ class ReceiveServer {
         session.phase == _ReceivePhase.verifying) {
       session.phase = _ReceivePhase.ready;
     }
+  }
+
+  void _touch(_Incoming session) {
+    session.inactivityTimer?.cancel();
+    session.inactivityTimer = Timer(sessionTimeout, () async {
+      if (_current != session || session.cancelled) return;
+      session.transfer.error = lw('Connection timed out');
+      await _abort(session, TransferStatus.failed);
+    });
   }
 
   Future<void> _deleteQuietly(File file) async {

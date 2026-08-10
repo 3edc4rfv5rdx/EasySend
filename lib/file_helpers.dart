@@ -316,6 +316,29 @@ Future<bool> ensureSafeDestination(
   return parent == root || p.isWithin(root, parent);
 }
 
+// Startup recovery removes only EasySend's exact temporary suffix and never
+// descends through links. Completed and unrelated user files are untouched.
+Future<void> cleanupOrphanParts(String baseDir) async {
+  final Directory root = Directory(baseDir);
+  if (!await root.exists()) return;
+  await for (final FileSystemEntity entity in root.list(
+    recursive: true,
+    followLinks: false,
+  )) {
+    final FileSystemEntityType type = await FileSystemEntity.type(
+      entity.path,
+      followLinks: false,
+    );
+    if (type == FileSystemEntityType.file && entity.path.endsWith(partSuffix)) {
+      try {
+        await File(entity.path).delete();
+      } catch (e) {
+        myPrint('cannot delete orphan ${entity.path}: $e');
+      }
+    }
+  }
+}
+
 // 'photo.jpg' -> 'photo (1).jpg' when taken. The .part twin counts as taken
 // too, so two transfers of the same name cannot collide mid-flight.
 Future<String> uniquePath(

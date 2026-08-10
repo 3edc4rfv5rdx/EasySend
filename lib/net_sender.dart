@@ -64,8 +64,10 @@ class SendService {
           : TransferStatus.partial;
     } on SocketException catch (e) {
       _fail(transfer, e.osError?.message ?? e.message);
+      await _cancelRemoteBestEffort(peer);
     } catch (e) {
       _fail(transfer, '$e');
+      await _cancelRemoteBestEffort(peer);
     } finally {
       _sessionId = null;
       transfersChanged();
@@ -83,14 +85,16 @@ class SendService {
   Future<String?> _prepare(Device peer, List<FileItem> files) async {
     final HttpClientRequest req = await _client.postUrl(_url(peer, 'prepare'));
     req.headers.contentType = ContentType.json;
-    req.write(json.encode({
-      'senderId': xvDeviceId,
-      'senderName': xvDeviceName,
-      // Where to reach us back: the receiver sees our address on the connection
-      // but has no way to know the port we listen on.
-      'senderPort': currentPort,
-      'files': files.map((f) => f.toJson()).toList(),
-    }));
+    req.write(
+      json.encode({
+        'senderId': xvDeviceId,
+        'senderName': xvDeviceName,
+        // Where to reach us back: the receiver sees our address on the connection
+        // but has no way to know the port we listen on.
+        'senderPort': currentPort,
+        'files': files.map((f) => f.toJson()).toList(),
+      }),
+    );
     final HttpClientResponse resp = await req.close();
     final String body = await utf8.decoder.bind(resp).join();
 
@@ -104,8 +108,8 @@ class SendService {
     transfer.error = resp.statusCode == HttpStatus.forbidden
         ? lw('Declined by receiver')
         : resp.statusCode == HttpStatus.conflict
-            ? lw('Receiver is busy')
-            : 'HTTP ${resp.statusCode}';
+        ? lw('Receiver is busy')
+        : 'HTTP ${resp.statusCode}';
     return null;
   }
 
@@ -137,7 +141,12 @@ class SendService {
   // Streams one file, then hands over the checksum computed while reading it.
   // addStream keeps the pipe under backpressure, so a huge file never lands in
   // memory as a whole.
-  Future<bool> _sendFile(Device peer, TransferSession transfer, FileItem item, int settled) async {
+  Future<bool> _sendFile(
+    Device peer,
+    TransferSession transfer,
+    FileItem item,
+    int settled,
+  ) async {
     final String? source = item.sourcePath;
     if (source == null) return false;
 
@@ -150,18 +159,20 @@ class SendService {
         _url(peer, 'upload', {'session': _sessionId!, 'file': item.id}),
       );
       req.contentLength = item.size;
-      await req.addStream(File(source).openRead().map((chunk) {
-        if (_cancelled) throw const _Cancelled();
-        crc = getCrc32(chunk, crc);
-        sent += chunk.length;
-        final DateTime now = DateTime.now();
-        if (now.difference(lastTick).inMilliseconds >= 100) {
-          lastTick = now;
-          transfer.noteProgress(settled + sent);
-          transfersChanged();
-        }
-        return chunk;
-      }));
+      await req.addStream(
+        File(source).openRead().map((chunk) {
+          if (_cancelled) throw const _Cancelled();
+          crc = getCrc32(chunk, crc);
+          sent += chunk.length;
+          final DateTime now = DateTime.now();
+          if (now.difference(lastTick).inMilliseconds >= 100) {
+            lastTick = now;
+            transfer.noteProgress(settled + sent);
+            transfersChanged();
+          }
+          return chunk;
+        }),
+      );
       final HttpClientResponse resp = await req.close();
       await resp.drain<void>();
       if (resp.statusCode != HttpStatus.ok) {
@@ -169,11 +180,13 @@ class SendService {
         return false;
       }
 
-      final HttpClientResponse verify = await _post(_url(peer, 'verify', {
-        'session': _sessionId!,
-        'file': item.id,
-        'crc': crc.toRadixString(16),
-      }));
+      final HttpClientResponse verify = await _post(
+        _url(peer, 'verify', {
+          'session': _sessionId!,
+          'file': item.id,
+          'crc': crc.toRadixString(16),
+        }),
+      );
       item.crc32 = crc;
       return verify.statusCode == HttpStatus.ok;
     } on _Cancelled {
@@ -193,6 +206,16 @@ class SendService {
     final HttpClientResponse resp = await req.close();
     await resp.drain<void>();
     return resp;
+  }
+
+  Future<void> _cancelRemoteBestEffort(Device peer) async {
+    final String? sessionId = _sessionId;
+    if (sessionId == null) return;
+    try {
+      await _post(_url(peer, 'cancel', {'session': sessionId}));
+    } catch (e) {
+      myPrint('terminal cancel notice failed: $e');
+    }
   }
 
   // Cancelling stops the stream here and tells the peer to drop its .part files.
