@@ -40,7 +40,7 @@ Future<String> _resolveConfigDir() async {
 // known folder on Windows), so a localized folder name is handled for us.
 Future<String> _resolveRecvDir() async {
   if (Platform.isAndroid) {
-    return p.join('/storage/emulated/0/Download', recvDirName);
+    return p.join(androidRoot, 'Download', recvDirName);
   }
   try {
     final Directory? downloads = await getDownloadsDirectory();

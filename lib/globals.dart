@@ -24,6 +24,11 @@ const String progAuthor = 'Eugen';
 const String langFile = 'assets/locales.json';
 const String settFile = 'settings.json';
 
+// Where Android puts the user's own storage. Every path the app shows or picks
+// on a phone starts here, so it is also the prefix worth hiding when a path is
+// too long for its line.
+const String androidRoot = '/storage/emulated/0';
+
 // Network defaults. One number serves both the TCP receive server and UDP
 // discovery: TCP and UDP are separate port spaces, so they never collide.
 const int defaultPort = 15353;

@@ -132,6 +132,59 @@ Widget sectionButton(IconData icon, {required String tooltip, required VoidCallb
   );
 }
 
+// A path as it is worth showing: on a phone every folder sits under
+// androidRoot, and repeating that prefix on each line only pushes the part
+// that differs off the screen. Off Android the path is left alone.
+String shortPath(String path) {
+  if (!path.startsWith(androidRoot)) return path;
+  final String rest = path.substring(androidRoot.length);
+  return rest.isEmpty ? path : rest.replaceFirst(RegExp(r'^/+'), '');
+}
+
+bool _isLowSurrogate(int unit) => unit >= 0xDC00 && unit <= 0xDFFF;
+
+// One line that keeps its end. A path is told apart by the folder it finishes
+// in, so when it does not fit, the head is what goes: the ellipsis moves to the
+// front instead of hiding the only part worth reading.
+Widget tailText(String text, {TextStyle? style}) {
+  return LayoutBuilder(
+    builder: (BuildContext context, BoxConstraints constraints) {
+      final TextStyle st = style ?? tsSmall;
+      final TextPainter painter = TextPainter(
+        textDirection: TextDirection.ltr,
+        textScaler: MediaQuery.textScalerOf(context),
+        maxLines: 1,
+      );
+      double widthOf(String s) {
+        painter.text = TextSpan(text: s, style: st);
+        painter.layout();
+        return painter.width;
+      }
+
+      String result = text;
+      if (widthOf(text) > constraints.maxWidth) {
+        // The longest tail that still fits behind the ellipsis, by halving.
+        int lo = 0;
+        int hi = text.length;
+        while (lo < hi) {
+          final int mid = (lo + hi) ~/ 2;
+          if (widthOf('…${text.substring(mid)}') > constraints.maxWidth) {
+            lo = mid + 1;
+          } else {
+            hi = mid;
+          }
+        }
+        // Dropping one unit more is always safe; keeping half a surrogate pair
+        // would draw a replacement glyph.
+        if (lo < text.length && _isLowSurrogate(text.codeUnitAt(lo))) lo++;
+        result = '…${text.substring(lo)}';
+      }
+      painter.dispose();
+      return Text(result, style: st, maxLines: 1);
+    },
+  );
+}
+
 Future<bool> okConfirm({
   required String title,
   required String message,
@@ -393,7 +446,7 @@ Future<String?> pickFolder({String? initialPath}) async {
   final BuildContext? context = navigatorKey.currentContext;
   if (context == null) return null;
 
-  const String root = '/storage/emulated/0';
+  const String root = androidRoot;
   String current = initialPath ?? root;
   // Checked synchronously: one stat() is cheap, and an await here would leave
   // the context behind an async gap.

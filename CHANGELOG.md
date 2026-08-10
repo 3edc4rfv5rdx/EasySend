@@ -2,6 +2,7 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+- F: The receive folder in the settings keeps its end: the phone storage prefix every path starts with is dropped, and what still does not fit loses its head to the ellipsis instead of the folder name
 - R: The Send button drops its disabled branch: a running transfer already turns it into Stop, so the greyed-out state and the _armed getter behind it could never be reached
 - F: Settings in the busy-port banner is a button and not a word: it inverts the banner, the ink becoming the surface and the error colour the label, so the only tappable thing in the strip looks tappable
 - F: A section heading is one rule across the row with the name and the button lying over it, instead of pieces of line fitted around them; nothing has to be measured, so no heading shortens itself while the row is half empty

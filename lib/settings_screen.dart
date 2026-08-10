@@ -218,7 +218,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _tile(
             icon: Icons.folder_outlined,
             title: lw('Receive folder'),
-            value: xdef['Receive folder'],
+            value: shortPath(xdef['Receive folder']),
+            keepTail: true,
             onTap: _editRecvFolder,
           ),
           _tile(
@@ -335,6 +336,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     required String title,
     required String value,
     VoidCallback? onTap,
+    // A path is read from its end; a name, a port or a theme from its start.
+    bool keepTail = false,
   }) {
     return ListTile(
       // Tighter than stock: every row here is two short lines, and the default
@@ -343,7 +346,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
       visualDensity: const VisualDensity(vertical: -2),
       leading: Icon(icon, color: clText),
       title: Text(title, style: tsNormal),
-      subtitle: Text(value, style: tsSmall, overflow: TextOverflow.ellipsis),
+      subtitle: keepTail
+          ? tailText(value)
+          : Text(value, style: tsSmall, overflow: TextOverflow.ellipsis),
       onTap: onTap,
       trailing: onTap == null ? null : Icon(Icons.chevron_right, color: clFrame),
     );
