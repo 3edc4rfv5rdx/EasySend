@@ -2,6 +2,7 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+- I: 22-RelUpload.sh puts the AppImage of the same build in the GitHub release beside the two APKs, and says which script to run when it is missing
 - I: A real README with two screenshots, what the app does, where files land, what the network does and does not protect, how to build it, and where the signing key has to be for the Android release to build at all
 - I: assets/icon-tb.png keeps the teal-on-black cut of the mark, the runner-up to the blue one, so it does not have to be drawn again to be looked at
 - F: The Linux window icon is the same mark as the launcher one, and the phone, monitor and arrow nobody drew any more are gone from tools/make_icon.py

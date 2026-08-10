@@ -4,6 +4,7 @@ set -e
 PROJECT="easysend"
 ROOT="$(git rev-parse --show-toplevel)"
 APK_DIR="$ROOT/build/app/outputs/flutter-apk"
+APPIMAGE_DIR="$ROOT/build/linux"
 CHANGELOG_SRC="$ROOT/CHANGELOG.md"
 NOTES_FILE="/tmp/release_notes_$$.md"
 
@@ -78,6 +79,9 @@ echo "--------------------------------------------------"
 SRC_APK_MAIN="app-release-${VERSION}-${BUILD}.apk"
 SRC_APK_ARM64="app-arm64-v8a-release-${VERSION}-${BUILD}.apk"
 
+# The Linux build of the same number, packed by 14-MakeAppImage.sh.
+SRC_APPIMAGE="EasySend-${VERSION}-${BUILD}-x86_64.AppImage"
+
 # ------------------------------------------------------------
 # SHA256 files we will generate locally
 # ------------------------------------------------------------
@@ -92,6 +96,8 @@ DST_SHA_MAIN="${PROJECT}-release.apk.sha256"
 
 DST_APK_ARM64="${PROJECT}-arm64-v8a-release-${VERSION}-${BUILD}.apk"
 DST_SHA_ARM64="${PROJECT}-arm64-v8a-release.apk.sha256"
+
+DST_APPIMAGE="${PROJECT}-${VERSION}-${BUILD}-x86_64.AppImage"
 
 # ------------------------------------------------------------
 # Check APK existence
@@ -122,24 +128,27 @@ done
 # )
 
 # ------------------------------------------------------------
-# Files to upload (source#destination)
+# Files to upload (full source path#destination name). The AppImage lives in
+# another directory than the APKs, so the source side is absolute.
 # ------------------------------------------------------------
 FILES=(
-    "$SRC_APK_MAIN#$DST_APK_MAIN"
-    "$SRC_APK_ARM64#$DST_APK_ARM64"
-#    "$SRC_SHA_MAIN#$DST_SHA_MAIN"
-#    "$SRC_SHA_ARM64#$DST_SHA_ARM64"
+    "$APK_DIR/$SRC_APK_MAIN#$DST_APK_MAIN"
+    "$APK_DIR/$SRC_APK_ARM64#$DST_APK_ARM64"
+    "$APPIMAGE_DIR/$SRC_APPIMAGE#$DST_APPIMAGE"
+#    "$APK_DIR/$SRC_SHA_MAIN#$DST_SHA_MAIN"
+#    "$APK_DIR/$SRC_SHA_ARM64#$DST_SHA_ARM64"
 )
 
 echo "=== Verifying generated files ==="
 
 for pair in "${FILES[@]}"; do
     SRC="${pair%%#*}"
-    if [[ ! -f "$APK_DIR/$SRC" ]]; then
-        echo "ERROR: File not found: $APK_DIR/$SRC"
+    if [[ ! -f "$SRC" ]]; then
+        echo "ERROR: File not found: $SRC"
+        [[ "$SRC" == *.AppImage ]] && echo "Run ./14-MakeAppImage.sh for build $BUILD first."
         exit 1
     fi
-    echo "OK: $SRC"
+    echo "OK: $(basename "$SRC")"
 done
 
 # ------------------------------------------------------------
@@ -164,8 +173,8 @@ echo "=== Uploading files to Release ==="
 for pair in "${FILES[@]}"; do
     SRC="${pair%%#*}"
     DST="${pair##*#}"
-    echo "Uploading: $SRC -> $DST"
-    gh release upload "$TAG" "$APK_DIR/$pair" --clobber
+    echo "Uploading: $(basename "$SRC") -> $DST"
+    gh release upload "$TAG" "$pair" --clobber
 done
 
 echo "=== Release upload completed successfully ==="
