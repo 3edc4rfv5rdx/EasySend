@@ -23,14 +23,20 @@ CREAM = (255, 247, 223)  # #FFF7DF, also adaptive_icon_background in pubspec.yam
 TEAL = (130, 211, 224)  # #82D3E0, the screens
 TRIANGLE = (1, 56, 163)  # #0138A3, 9.4:1 against the cream
 INK = (17, 17, 17)  # #111111, the phone bodies
+FOLD = (90, 130, 200)  # the turned-over corner of the sheet, a lighter blue
 
 # Everything below is a fraction of the canvas. The triangle narrows to a point,
 # so an equal gap on both sides of it reads as a hole on the right: the right one
 # is closed to about half.
-PHONE_W, PHONE_H = 0.235, 0.45
+PHONE_W, PHONE_H = 0.235, 0.40
 TRI_W, TRI_H = 0.20, 0.26
-GAP_LEFT = 0.08
-GAP_RIGHT = 0.05
+GAP_LEFT = 0.05
+GAP_RIGHT = 0.035
+
+# The sheet on the sender's screen, as a fraction of the screen it lies on. What
+# makes the picture a transfer and not two phones side by side.
+DOC_W, DOC_H = 0.56, 0.52
+DOC_FOLD = 0.34  # the folded corner, as a fraction of the sheet's width
 
 # The round launcher mask leaves a 61% circle. The far corner of the drawing has
 # to sit inside it, and this is the scale at which it does.
@@ -39,8 +45,20 @@ SAFE = 0.646
 ASSETS = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "assets")
 
 
-def phone(d, x, y, w, h):
-    """Ink body, rounded, with a screen, an earpiece slot and a home button."""
+def document(d, x, y, w, h):
+    """A sheet with its top-right corner turned over: the corner is cut on the
+    diagonal, and the turned part lies on top in a lighter blue."""
+    f = w * DOC_FOLD
+    d.polygon(
+        [(x, y), (x + w - f, y), (x + w, y + f), (x + w, y + h), (x, y + h)],
+        fill=TRIANGLE,
+    )
+    d.polygon([(x + w - f, y), (x + w, y + f), (x + w - f, y + f)], fill=FOLD)
+
+
+def phone(d, x, y, w, h, sheet=False):
+    """Ink body, rounded, with a screen, an earpiece slot and a home button.
+    With sheet, a document lies on the screen: this is the one sending."""
     r = w * 0.18
     d.rounded_rectangle([x, y, x + w, y + h], radius=r, fill=INK)
     bez_x, bez_top, bez_bot = w * 0.09, h * 0.10, h * 0.11
@@ -49,6 +67,10 @@ def phone(d, x, y, w, h):
         radius=r * 0.25,
         fill=TEAL,
     )
+    if sheet:
+        sw, sh = w - bez_x * 2, h - bez_top - bez_bot
+        dw, dh = sw * DOC_W, sh * DOC_H
+        document(d, x + bez_x + (sw - dw) / 2, y + bez_top + (sh - dh) / 2, dw, dh)
     ew, eh = w * 0.30, h * 0.022
     d.rounded_rectangle(
         [x + w / 2 - ew / 2, y + h * 0.045, x + w / 2 + ew / 2, y + h * 0.045 + eh],
@@ -99,7 +121,9 @@ def drawing(background, scale=1.0):
     # moves the pieces and leaves the whole drawing centred.
     total = (PHONE_W + GAP_LEFT + TRI_W + GAP_RIGHT + PHONE_W) * scale * s
     x = (s - total) / 2
-    phone(d, x, (s - ph) / 2, pw, ph)
+    # The sheet lies on the left screen and the right one is empty: that is what
+    # makes the pair a transfer rather than two phones standing side by side.
+    phone(d, x, (s - ph) / 2, pw, ph, sheet=True)
     x += pw + s * GAP_LEFT * scale
     triangle(d, x, (s - th) / 2, tw, th)
     x += tw + s * GAP_RIGHT * scale

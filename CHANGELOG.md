@@ -2,6 +2,7 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+- F: The icon says what the app does: a sheet lies on the sending phone's screen and the receiving one is empty, and the two phones are shorter and closer together
 - I: 00-MakeAll.sh runs the whole chain: the release APK, both installs and the AppImage; a failed build stops it, a device that is not plugged in does not
 - F: A trusted device shows its port when it is not the default one, and says so plainly when it has no address at all instead of leaving the line empty
 - F: A failed transfer says so in red under its bar, instead of putting the reason in the same ink as a normal status line
