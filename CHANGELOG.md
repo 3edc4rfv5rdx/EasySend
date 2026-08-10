@@ -2,6 +2,21 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+- E: Settings are validated field by field and saved through a flushed temporary file, so one bad value or an interrupted write no longer breaks startup
+- E: Android CPU and high-performance Wi-Fi locks now follow active-transfer mode, reacquire after timeout or service recreation, and are released while merely listening
+- E: Android network startup and shutdown are serialized across lifecycle changes, and the foreground-service listener is attached only once
+- N: Finished incoming transfers open their received file or folder, and failed outgoing transfers offer Retry against the peer's current address
+- E: Restore keeps every original relative path, including equal basenames in different subfolders, while refreshing file metadata and reporting missing files
+- E: A manually saved peer is marked online and used for sending only when `/info` still returns its original device ID
+- E: Discovery uses one-hop multicast on every active interface, so it no longer assumes that every LAN has a `/24` netmask
+- E: UDP discovery stays on well-known port 15353 while the advertised HTTP transfer port remains configurable, allowing peers with different transfer ports to find each other
+- E: Android notification Accept and Decline actions return to the UI isolate that owns the pending receive request, including from the lock screen
+- E: Sender cancellation aborts pending HTTP work but retains exclusive operation ownership until the cancelled future has fully unwound
+- E: Abandoned receive sessions expire and clean up, server stop aborts the active session, and startup removes only exact `.easysend-part` orphans without following links
+- E: Receive routes are an ordered single-session state machine, rejecting concurrent prepare, duplicate upload/verify, and finish or cancel races
+- E: A complete manifest reserves distinct destinations before consent, rejects duplicate IDs and file/directory conflicts, and sender selection no longer treats size as part of destination identity
+- E: Receive writes reject symlinked path components and revalidate containment immediately before opening or renaming a file
+- E: Transfer filenames reject lossy and Windows-invalid names, reserved device names, trailing dots or spaces, and excessive path lengths
 - I: The GNU GPL v3 as the project's licence
 - I: IDEAS.txt drops the duplicate-selection item, which is done, and records what today's work left open: background receiving on the desktop through a tray icon, the name, TLS, and why network errors stay in the system's own words
 
