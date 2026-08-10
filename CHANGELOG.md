@@ -2,6 +2,7 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+- R: The Send button drops its disabled branch: a running transfer already turns it into Stop, so the greyed-out state and the _armed getter behind it could never be reached
 - F: Settings in the busy-port banner is a button and not a word: it inverts the banner, the ink becoming the surface and the error colour the label, so the only tappable thing in the strip looks tappable
 - F: A section heading is one rule across the row with the name and the button lying over it, instead of pieces of line fitted around them; nothing has to be measured, so no heading shortens itself while the row is half empty
 - F: The buttons in the section headings match the rest: Add device and Open the receive folder are the same framed button on the button colour, instead of a filled black circle and a bare icon

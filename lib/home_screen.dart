@@ -152,10 +152,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   bool get _canSend => _selected.isNotEmpty && _target != null && !sender.busy;
 
-  // Pressable with a piece missing too, so the button can say which one it is
-  // instead of sitting there grey and mute.
-  bool get _armed => !sender.busy;
-
   Future<void> _pickFiles() async {
     final FilePickerResult? result = await FilePicker.platform.pickFiles(allowMultiple: true);
     if (result == null) return;
@@ -827,11 +823,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         child: SizedBox(
           width: double.infinity,
           child: ElevatedButton(
-            onPressed: stopping
-                ? _stop
-                : _armed
-                    ? _sendOrPickTarget
-                    : null,
+            // Never disabled: a transfer in flight has already turned this into
+            // Stop, and with a piece still missing the button says which one it
+            // is instead of sitting there grey and mute.
+            onPressed: stopping ? _stop : _sendOrPickTarget,
             style: ElevatedButton.styleFrom(
               // Grey while a target is still missing: pressing it then only
               // asks for one.
@@ -840,7 +835,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   : _canSend
                       ? clAccent
                       : clFrame.withValues(alpha: 0.3),
-              disabledBackgroundColor: clFrame.withValues(alpha: 0.3),
               padding: const EdgeInsets.symmetric(vertical: 12),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(btnRadius)),
             ),
