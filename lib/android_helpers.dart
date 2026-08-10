@@ -157,6 +157,7 @@ class AndroidService {
   bool _serviceUp = false;
   bool _screenHeld = false;
   bool _attached = false;
+  bool _transferMode = false;
   Future<void> _syncTail = Future<void>.value();
   DateTime _lastPush = DateTime.fromMillisecondsSinceEpoch(0);
   String _lastText = '';
@@ -195,6 +196,7 @@ class AndroidService {
     }
 
     if (active != null) {
+      final bool enteringTransfer = !_transferMode;
       await _keepScreenOn(true);
       final int percent = (active.progress * 100).round();
       final String title = active.incoming ? lw('Receiving') : lw('Sending');
@@ -204,7 +206,9 @@ class AndroidService {
         text: text,
         progress: percent,
         starting: !_serviceUp,
+        force: enteringTransfer,
       );
+      _transferMode = true;
       return;
     }
 
@@ -212,12 +216,15 @@ class AndroidService {
 
     // No transfer: keep listening only if the user asked for it.
     if (xdef['Receive in background'] == 'true') {
+      final bool leavingTransfer = _transferMode;
       await _push(
         title: 'EasySend',
         text: lw('Ready to receive'),
         progress: -1,
         starting: !_serviceUp,
+        force: leavingTransfer,
       );
+      _transferMode = false;
     } else {
       await _stop();
     }
@@ -230,10 +237,15 @@ class AndroidService {
     required String text,
     required int progress,
     required bool starting,
+    bool force = false,
   }) async {
     final DateTime now = DateTime.now();
-    if (!starting && text == _lastText) return;
-    if (!starting && now.difference(_lastPush).inMilliseconds < 1000) return;
+    if (!force && !starting && text == _lastText) return;
+    if (!force &&
+        !starting &&
+        now.difference(_lastPush).inMilliseconds < 1000) {
+      return;
+    }
     _lastPush = now;
     _lastText = text;
 
@@ -252,6 +264,7 @@ class AndroidService {
   Future<void> _stop() async {
     if (!_serviceUp) return;
     _serviceUp = false;
+    _transferMode = false;
     _lastText = '';
     try {
       await _serviceChannel.invokeMethod('stop');

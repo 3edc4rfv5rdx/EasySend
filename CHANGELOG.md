@@ -2,6 +2,7 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+- E: Android foreground-service mode transitions bypass notification throttling, so transfer locks are acquired and released immediately even when state changes within one second
 - I: Flutter analyze and the deterministic transfer-core test suite are the default local scripts and CI checks, with the analyzer clean
 - E: Connect, consent, response and per-progress upload timeouts turn dead peers into errors without imposing a whole-file deadline, while manual polling cannot overlap or read an endless body
 - N: First launch warns that transfers are unencrypted, system locale selects the initial language, desktop window bounds persist, and Android fallback identity survives in the receive folder
