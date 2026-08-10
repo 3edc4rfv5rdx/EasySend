@@ -55,7 +55,13 @@ class TransferService : Service() {
                 val text = intent?.getStringExtra(EXTRA_TEXT) ?: ""
                 val progress = intent?.getIntExtra(EXTRA_PROGRESS, -1) ?: -1
                 startForegroundWith(title, text, progress)
-                if (intent?.action == ACTION_START) acquireLocks()
+                // progress >= 0 is an active transfer. ACTION_UPDATE must be
+                // sufficient after an idle listener start or service recreation.
+                if (progress in 0..100) {
+                    acquireOrRefreshTransferLocks()
+                } else {
+                    releaseLocks()
+                }
             }
         }
         // Do not resurrect the service with a null intent: a transfer that died
@@ -114,21 +120,25 @@ class TransferService : Service() {
      * Partial wake lock keeps the CPU running with the screen off; the
      * high-performance Wi-Fi lock stops the radio from dozing between packets.
      */
-    private fun acquireLocks() {
+    private fun acquireOrRefreshTransferLocks() {
         if (wakeLock == null) {
             val power = getSystemService(Context.POWER_SERVICE) as PowerManager
             wakeLock = power.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "EasySend::transfer").apply {
                 setReferenceCounted(false)
-                acquire(TIMEOUT_MS)
             }
         }
+        // A timed wake lock may have expired during a very long transfer; each
+        // progress update re-enters here and reacquires it when necessary.
+        wakeLock?.let { if (!it.isHeld) it.acquire(TIMEOUT_MS) }
         if (wifiLock == null) {
             val wifi = applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
             wifiLock = wifi.createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "EasySend::wifi").apply {
                 setReferenceCounted(false)
-                acquire()
             }
         }
+        // High-performance Wi-Fi is held only in active mode, never by the
+        // idle background listener.
+        wifiLock?.let { if (!it.isHeld) it.acquire() }
     }
 
     private fun releaseLocks() {
