@@ -759,7 +759,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Wi
             ],
           ),
           const SizedBox(height: 4),
-          Text(_transferSubtitle(t, currentFile, eta), style: tsSmall),
+          // The bar already says red; the line under it says the same, so the
+          // reason is not read as an ordinary status.
+          Text(
+            _transferSubtitle(t, currentFile, eta),
+            style: t.status == TransferStatus.failed
+                ? tsSmall.copyWith(color: clError, fontWeight: fwBold)
+                : tsSmall,
+          ),
         ],
       ),
     );
