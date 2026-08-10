@@ -154,6 +154,8 @@ Map<String, dynamic> defaultSettings() => {
   '.Device id': '',
   '.First start': 'true',
   '.Prog version': progVersion,
+  '.Window bounds': '',
+  '.External id fallback': 'false',
 };
 
 Map<String, dynamic> xdef = defaultSettings();
@@ -198,6 +200,10 @@ bool isReachableAddress(String address) {
   final InternetAddress? ip = InternetAddress.tryParse(address);
   return ip != null && !ip.isLoopback;
 }
+
+bool isValidDeviceId(String value) => RegExp(
+  r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$',
+).hasMatch(value);
 
 // '#RRGGBB' or '#AARRGGBB' -> Color. Missing alpha means fully opaque.
 Color hexToColor(String hex) {

@@ -36,15 +36,19 @@ Future<void> main() async {
       DeviceOrientation.portraitDown,
     ]);
   } else {
+    final bounds = parseWindowBounds(xdef['.Window bounds'] as String? ?? '');
     await windowManager.ensureInitialized();
     await windowManager.waitUntilReadyToShow(
-      const WindowOptions(
-        size: _desktopSize,
+      WindowOptions(
+        size: bounds == null ? _desktopSize : Size(bounds.width, bounds.height),
         minimumSize: _desktopMinSize,
         title: 'EasySend',
-        center: true,
+        center: bounds == null,
       ),
       () async {
+        if (bounds != null) {
+          await windowManager.setPosition(Offset(bounds.x, bounds.y));
+        }
         await windowManager.show();
         await windowManager.focus();
       },

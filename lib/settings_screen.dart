@@ -244,6 +244,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 : '${_addresses.first}:$currentPort',
             onTap: _showMyAddresses,
           ),
+          _tile(
+            icon: Icons.security_outlined,
+            title: lw('Network safety'),
+            value: lw('Unencrypted local transfer'),
+            onTap: () => showNetworkSafetyWarning(context: context),
+          ),
           if (Platform.isAndroid)
             SwitchListTile(
               dense: true,

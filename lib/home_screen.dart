@@ -36,6 +36,7 @@ class _HomeScreenState extends State<HomeScreen>
   // The selection has its own scroll area, so it needs its own controller for
   // the scrollbar to attach to.
   final ScrollController _selectedScroll = ScrollController();
+  Timer? _windowSaveTimer;
 
   // One listenable for everything the screen mirrors.
   late final Listenable _netTicks = Listenable.merge([
@@ -62,6 +63,9 @@ class _HomeScreenState extends State<HomeScreen>
     androidService.attach();
     _startNetwork();
     _listenForShares();
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _showFirstStartWarning(),
+    );
   }
 
   // The picked list doubles as the queue: a file that arrived and passed its
@@ -142,6 +146,7 @@ class _HomeScreenState extends State<HomeScreen>
     transfersTick.removeListener(_pruneSentFiles);
     _shareSub?.cancel();
     _selectedScroll.dispose();
+    _windowSaveTimer?.cancel();
     androidService.detach();
     receiveServer.stop();
     discovery.stop();
@@ -322,6 +327,36 @@ class _HomeScreenState extends State<HomeScreen>
   // The close button on the window frame, prevented in main() so it lands here.
   @override
   void onWindowClose() => _exitApp();
+
+  @override
+  void onWindowMove() => _scheduleWindowSave();
+
+  @override
+  void onWindowResize() => _scheduleWindowSave();
+
+  void _scheduleWindowSave() {
+    if (Platform.isAndroid) return;
+    _windowSaveTimer?.cancel();
+    _windowSaveTimer = Timer(const Duration(milliseconds: 400), () async {
+      final Offset position = await windowManager.getPosition();
+      final Size size = await windowManager.getSize();
+      xdef['.Window bounds'] = encodeWindowBounds(
+        x: position.dx,
+        y: position.dy,
+        width: size.width,
+        height: size.height,
+      );
+      await saveSettings();
+    });
+  }
+
+  Future<void> _showFirstStartWarning() async {
+    if (!mounted || xdef['.First start'] != 'true') return;
+    final bool shown = await showNetworkSafetyWarning(context: context);
+    if (!mounted || !shown) return;
+    xdef['.First start'] = 'false';
+    await saveSettings();
+  }
 
   // Send with nothing chosen: one reachable device is no choice at all, so it
   // becomes the target and the transfer starts; with several, ask. An empty

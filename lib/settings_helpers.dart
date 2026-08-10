@@ -81,6 +81,7 @@ String? _validSetting(String key, dynamic value) {
     case 'Receive in background':
     case 'Ask before exit':
     case '.First start':
+    case '.External id fallback':
       return value == 'true' || value == 'false' ? value : null;
     case 'Device name':
       return value.length <= 128 && !value.contains(RegExp(r'[\x00-\x1f]'))
@@ -89,14 +90,11 @@ String? _validSetting(String key, dynamic value) {
     case 'Receive folder':
       return value.length <= 4096 && !value.contains('\u0000') ? value : null;
     case '.Device id':
-      return value.isEmpty ||
-              RegExp(
-                r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$',
-              ).hasMatch(value)
-          ? value
-          : null;
+      return value.isEmpty || isValidDeviceId(value) ? value : null;
     case '.Prog version':
       return RegExp(r'^\d+\.\d+\.\d+$').hasMatch(value) ? value : null;
+    case '.Window bounds':
+      return value.isEmpty || parseWindowBounds(value) != null ? value : null;
   }
   return null;
 }
@@ -154,7 +152,10 @@ Future<void> loadSettings() async {
       myPrint('cannot recover settings transaction: $e');
     }
   }
-  if (!await f.exists()) return;
+  if (!await f.exists()) {
+    xdef['Program language'] = initialLanguageForLocale(Platform.localeName);
+    return;
+  }
   try {
     final dynamic decoded = json.decode(await f.readAsString());
     if (decoded is! Map)
@@ -282,6 +283,11 @@ Future<String> _resolveDeviceId() async {
     } catch (e) {
       myPrint('ANDROID_ID unavailable: $e');
     }
+    xdef['.External id fallback'] = 'true';
+    final String? external = await readExternalDeviceId(
+      File(p.join(xvRecvDir, '.easysend-id')),
+    );
+    if (external != null) return external;
   }
   return const Uuid().v4();
 }
@@ -298,6 +304,12 @@ Future<void> initIdentity() async {
   xvDeviceId = await _resolveDeviceId();
   if (xdef['.Device id'] != xvDeviceId) {
     xdef['.Device id'] = xvDeviceId;
+  }
+  if (Platform.isAndroid && xdef['.External id fallback'] == 'true') {
+    await writeExternalDeviceIdIfAbsent(
+      File(p.join(xvRecvDir, '.easysend-id')),
+      xvDeviceId,
+    );
   }
 
   // Drop what can only lead back here: this device under its own id, and any
@@ -332,6 +344,58 @@ Future<void> initIdentity() async {
 
 int get currentPort =>
     int.tryParse(xdef['Port'] as String? ?? '') ?? defaultPort;
+
+String initialLanguageForLocale(String locale) {
+  String code = locale.split(RegExp('[-_]')).first.toLowerCase();
+  if (code == 'uk') code = 'ua';
+  return langNames.containsKey(code) ? code : 'en';
+}
+
+Future<String?> readExternalDeviceId(File file) async {
+  try {
+    if (!await file.exists()) return null;
+    final String value = (await file.readAsString()).trim();
+    return isValidDeviceId(value) ? value : null;
+  } catch (e) {
+    myPrint('cannot read ${file.path}: $e');
+    return null;
+  }
+}
+
+Future<bool> writeExternalDeviceIdIfAbsent(File file, String id) async {
+  if (!isValidDeviceId(id)) return false;
+  try {
+    if (await file.exists()) {
+      return await readExternalDeviceId(file) == id;
+    }
+    await file.parent.create(recursive: true);
+    await file.writeAsString('$id\n', flush: true);
+    return true;
+  } catch (e) {
+    myPrint('cannot write ${file.path}: $e');
+    return false;
+  }
+}
+
+({double x, double y, double width, double height})? parseWindowBounds(
+  String value,
+) {
+  final List<double?> fields = value.split(',').map(double.tryParse).toList();
+  if (fields.length != 4 || fields.any((field) => field == null)) return null;
+  final double width = fields[2]!;
+  final double height = fields[3]!;
+  if (width < 380 || height < 640 || width > 10000 || height > 10000) {
+    return null;
+  }
+  return (x: fields[0]!, y: fields[1]!, width: width, height: height);
+}
+
+String encodeWindowBounds({
+  required double x,
+  required double y,
+  required double width,
+  required double height,
+}) => '${x.round()},${y.round()},${width.round()},${height.round()}';
 
 // Addresses of this device, for typing into another one that cannot discover
 // us by broadcast. Loopback is useless to a peer, so it is left out.

@@ -94,7 +94,11 @@ Widget sectionTitle(String text, {Widget? trailing}) {
                 child: Text(
                   text,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: fsLarge, fontWeight: fwBold, color: clText),
+                  style: TextStyle(
+                    fontSize: fsLarge,
+                    fontWeight: fwBold,
+                    color: clText,
+                  ),
                 ),
               ),
             ),
@@ -111,7 +115,11 @@ Widget sectionTitle(String text, {Widget? trailing}) {
 // The button that rides inside a section heading. One shape for all of them:
 // a filled circle for one and a bare icon for the next read as two different
 // kinds of thing when they are the same kind of thing.
-Widget sectionButton(IconData icon, {required String tooltip, required VoidCallback onTap}) {
+Widget sectionButton(
+  IconData icon, {
+  required String tooltip,
+  required VoidCallback onTap,
+}) {
   return Tooltip(
     message: tooltip,
     child: InkWell(
@@ -268,7 +276,8 @@ Future<(bool, bool)> showAcceptDialog({
     barrierDismissible: false,
     builder: (BuildContext dialogContext) {
       timer = Timer(const Duration(seconds: acceptTimeoutSec), () {
-        if (Navigator.canPop(dialogContext)) Navigator.pop(dialogContext, (false, false));
+        if (Navigator.canPop(dialogContext))
+          Navigator.pop(dialogContext, (false, false));
       });
       return StatefulBuilder(
         builder: (context, setState) {
@@ -286,9 +295,19 @@ Future<(bool, bool)> showAcceptDialog({
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(senderName, style: TextStyle(fontSize: fsNormal, fontWeight: fwBold, color: clText)),
+                Text(
+                  senderName,
+                  style: TextStyle(
+                    fontSize: fsNormal,
+                    fontWeight: fwBold,
+                    color: clText,
+                  ),
+                ),
                 const SizedBox(height: 4),
-                Text('$fileCount — ${formatBytes(totalBytes)}', style: tsNormal),
+                Text(
+                  '$fileCount — ${formatBytes(totalBytes)}',
+                  style: tsNormal,
+                ),
                 const SizedBox(height: 8),
                 CheckboxListTile(
                   dense: true,
@@ -346,8 +365,12 @@ Future<String?> showInputDialog({
           decoration: InputDecoration(
             hintText: hint,
             hintStyle: TextStyle(color: clFrame),
-            enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: clFrame)),
-            focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: clAccent)),
+            enabledBorder: OutlineInputBorder(
+              borderSide: BorderSide(color: clFrame),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderSide: BorderSide(color: clAccent),
+            ),
           ),
         ),
         actions: [
@@ -369,10 +392,65 @@ Future<String?> showInputDialog({
   return result;
 }
 
-void okInfo(String message) => showCustomDialog(title: lw('Info'), message: message, color: clInfo, icon: Icons.info_outline);
-void okErr(String message) => showCustomDialog(title: lw('Error'), message: message, color: clError, icon: Icons.error_outline);
-void okWarning(String message) => showCustomDialog(title: lw('Warning'), message: message, color: clWarning, icon: Icons.warning_amber_outlined);
-void okSuccess(String message) => showCustomDialog(title: lw('Success'), message: message, color: clSuccess, icon: Icons.check_circle_outline);
+void okInfo(String message) => showCustomDialog(
+  title: lw('Info'),
+  message: message,
+  color: clInfo,
+  icon: Icons.info_outline,
+);
+void okErr(String message) => showCustomDialog(
+  title: lw('Error'),
+  message: message,
+  color: clError,
+  icon: Icons.error_outline,
+);
+void okWarning(String message) => showCustomDialog(
+  title: lw('Warning'),
+  message: message,
+  color: clWarning,
+  icon: Icons.warning_amber_outlined,
+);
+void okSuccess(String message) => showCustomDialog(
+  title: lw('Success'),
+  message: message,
+  color: clSuccess,
+  icon: Icons.check_circle_outline,
+);
+
+Future<bool> showNetworkSafetyWarning({BuildContext? context}) async {
+  final bool? acknowledged = await showFlatDialog<bool>(
+    context: context,
+    barrierDismissible: false,
+    builder: (dialogContext) => PopScope(
+      canPop: false,
+      child: AlertDialog(
+        backgroundColor: clFill,
+        shape: dialogShape,
+        title: Row(
+          children: [
+            Icon(Icons.warning_amber_outlined, color: clWarning),
+            const SizedBox(width: 8),
+            Expanded(child: Text(lw('Network safety'), style: tsLarge)),
+          ],
+        ),
+        content: Text(
+          lw(
+            'Transfers are unencrypted. Use EasySend only on private networks you trust, not on public or guest Wi-Fi.',
+          ),
+          style: tsNormal,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            style: dialogButtonStyle,
+            child: Text(lw('I understand')),
+          ),
+        ],
+      ),
+    ),
+  );
+  return acknowledged ?? false;
+}
 
 // Black or white, whichever actually contrasts better — compared by WCAG ratio
 // rather than by a brightness threshold. Halfway-bright colours like amber are
@@ -385,7 +463,8 @@ Color onColor(Color background) {
 }
 
 // Core SnackBar function
-void okInfoBar(String message, {
+void okInfoBar(
+  String message, {
   Color? bgColor,
   Color? textColor,
   Duration? duration,
@@ -417,10 +496,27 @@ void okInfoBar(String message, {
 // SnackBar shortcuts, named after what they mean rather than the hue they used
 // to be. The tones come from the Dark palette in every theme: a strip floating
 // over the page is its own surface, not part of the one behind it.
-void okInfoBarBlue(String message) => okInfoBar(message, bgColor: clSnackInfo, duration: const Duration(seconds: 6));
-void okInfoBarRed(String message, {Duration? duration}) => okInfoBar(message, bgColor: clSnackError, duration: duration ?? const Duration(seconds: 7), dismissDirection: DismissDirection.none);
-void okInfoBarOrange(String message) => okInfoBar(message, bgColor: clSnackWarning, duration: const Duration(seconds: 6));
-void okInfoBarGreen(String message, {Duration? duration}) => okInfoBar(message, bgColor: clSnackSuccess, duration: duration ?? const Duration(seconds: 4));
+void okInfoBarBlue(String message) => okInfoBar(
+  message,
+  bgColor: clSnackInfo,
+  duration: const Duration(seconds: 6),
+);
+void okInfoBarRed(String message, {Duration? duration}) => okInfoBar(
+  message,
+  bgColor: clSnackError,
+  duration: duration ?? const Duration(seconds: 7),
+  dismissDirection: DismissDirection.none,
+);
+void okInfoBarOrange(String message) => okInfoBar(
+  message,
+  bgColor: clSnackWarning,
+  duration: const Duration(seconds: 6),
+);
+void okInfoBarGreen(String message, {Duration? duration}) => okInfoBar(
+  message,
+  bgColor: clSnackSuccess,
+  duration: duration ?? const Duration(seconds: 4),
+);
 void okInfoBarPurple(String message) => okInfoBar(
   message,
   bgColor: clSnackAccent,
@@ -498,18 +594,25 @@ Future<String?> pickFolder({String? initialPath}) async {
                             if (!atRoot && index == 0) {
                               return ListTile(
                                 dense: true,
-                                leading: Icon(Icons.arrow_upward, color: clText),
+                                leading: Icon(
+                                  Icons.arrow_upward,
+                                  color: clText,
+                                ),
                                 title: Text('..', style: tsNormal),
                                 onTap: () => setState(
                                   () => current = p.dirname(current),
                                 ),
                               );
                             }
-                            final Directory dir = dirs[index - (atRoot ? 0 : 1)];
+                            final Directory dir =
+                                dirs[index - (atRoot ? 0 : 1)];
                             return ListTile(
                               dense: true,
                               leading: Icon(Icons.folder, color: clAccent),
-                              title: Text(p.basename(dir.path), style: tsNormal),
+                              title: Text(
+                                p.basename(dir.path),
+                                style: tsNormal,
+                              ),
                               onTap: () => setState(() => current = dir.path),
                             );
                           },
@@ -576,7 +679,12 @@ Future<List<Directory>> _subDirectories(String path) async {
         .where((e) => e is Directory && !p.basename(e.path).startsWith('.'))
         .cast<Directory>()
         .toList();
-    dirs.sort((a, b) => p.basename(a.path).toLowerCase().compareTo(p.basename(b.path).toLowerCase()));
+    dirs.sort(
+      (a, b) => p
+          .basename(a.path)
+          .toLowerCase()
+          .compareTo(p.basename(b.path).toLowerCase()),
+    );
     return dirs;
   } catch (e) {
     myPrint('cannot list $path: $e');
