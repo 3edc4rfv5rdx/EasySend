@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:archive/archive.dart';
-import 'package:path/path.dart' as p;
 import 'package:uuid/uuid.dart';
 
 import 'android_helpers.dart';
@@ -15,9 +14,9 @@ class _Incoming {
   final TransferSession transfer;
   final Map<String, FileItem> byId;
   final Map<String, String> finalPaths; // fileId -> destination path
-  final Map<String, int> crc = {};      // fileId -> checksum computed here
-  int settledBytes = 0;                 // bytes of files already finished
-  bool cancelled = false;               // set when the user stops the receive
+  final Map<String, int> crc = {}; // fileId -> checksum computed here
+  int settledBytes = 0; // bytes of files already finished
+  bool cancelled = false; // set when the user stops the receive
 
   _Incoming({
     required this.sessionId,
@@ -42,7 +41,11 @@ class ReceiveServer {
     await stop();
     final int port = currentPort;
     try {
-      _http = await HttpServer.bind(InternetAddress.anyIPv4, port, shared: false);
+      _http = await HttpServer.bind(
+        InternetAddress.anyIPv4,
+        port,
+        shared: false,
+      );
       bindError = null;
     } on SocketException catch (e) {
       // Busy port must be visible, not a silent failure to receive.
@@ -106,7 +109,9 @@ class ReceiveServer {
       return _json(req, {'reason': 'busy'}, status: HttpStatus.conflict);
     }
 
-    final Map<String, dynamic> body = json.decode(await utf8.decoder.bind(req).join());
+    final Map<String, dynamic> body = json.decode(
+      await utf8.decoder.bind(req).join(),
+    );
     final String senderId = body['senderId'] as String? ?? '';
     final String senderName = body['senderName'] as String? ?? senderId;
     final List<dynamic> rawFiles = body['files'] as List? ?? [];
@@ -123,7 +128,10 @@ class ReceiveServer {
     final Map<String, String> finalPaths = {};
     for (final FileItem f in files) {
       final String? dest = await resolveInside(xvRecvDir, f.relativePath);
-      if (dest == null || f.size < 0) {
+      if (dest == null ||
+          f.size < 0 ||
+          !await ensureSafeDestination(xvRecvDir, dest) ||
+          !await ensureSafeDestination(xvRecvDir, '$dest$partSuffix')) {
         myPrint('refused unsafe path: ${f.relativePath}');
         return _status(req, HttpStatus.badRequest);
       }
@@ -218,17 +226,19 @@ class ReceiveServer {
       if (known >= 0) {
         xvDevices[known].trusted = true;
       } else {
-        xvDevices.add(Device(
-          id: senderId,
-          name: senderName,
-          address: reachable ? address : '',
-          port: port,
-          // Nothing announced this one to us, so only an HTTP poll can keep it
-          // in the list — which is what manual means here.
-          manual: reachable,
-          trusted: true,
-          lastSeen: DateTime.now(),
-        ));
+        xvDevices.add(
+          Device(
+            id: senderId,
+            name: senderName,
+            address: reachable ? address : '',
+            port: port,
+            // Nothing announced this one to us, so only an HTTP poll can keep it
+            // in the list — which is what manual means here.
+            manual: reachable,
+            trusted: true,
+            lastSeen: DateTime.now(),
+          ),
+        );
       }
       await saveSettings();
       devicesChanged();
@@ -246,7 +256,14 @@ class ReceiveServer {
 
     final String dest = session.finalPaths[fileId]!;
     final String partPath = '$dest$partSuffix';
-    await Directory(p.dirname(dest)).create(recursive: true);
+    if (!await ensureSafeDestination(xvRecvDir, dest, createParents: true) ||
+        !await ensureSafeDestination(
+          xvRecvDir,
+          partPath,
+          createParents: true,
+        )) {
+      return _status(req, HttpStatus.badRequest);
+    }
 
     final File part = File(partPath);
     final IOSink sink = part.openWrite();
@@ -286,7 +303,9 @@ class ReceiveServer {
 
     if (overflow || written != item.size) {
       await _deleteQuietly(part);
-      myPrint('size mismatch for ${item.relativePath}: $written of ${item.size}');
+      myPrint(
+        'size mismatch for ${item.relativePath}: $written of ${item.size}',
+      );
       return _status(req, HttpStatus.badRequest);
     }
 
@@ -306,7 +325,10 @@ class ReceiveServer {
       return _status(req, HttpStatus.badRequest);
     }
 
-    final int? theirs = int.tryParse(req.uri.queryParameters['crc'] ?? '', radix: 16);
+    final int? theirs = int.tryParse(
+      req.uri.queryParameters['crc'] ?? '',
+      radix: 16,
+    );
     final int? ours = session.crc[fileId];
     final String dest = session.finalPaths[fileId]!;
     final File part = File('$dest$partSuffix');
@@ -320,6 +342,11 @@ class ReceiveServer {
 
     // Only now does the file get its real name: a partial file must never look
     // like a complete one.
+    if (!await ensureSafeDestination(xvRecvDir, dest) ||
+        !await ensureSafeDestination(xvRecvDir, part.path)) {
+      await _deleteQuietly(part);
+      return _status(req, HttpStatus.conflict);
+    }
     await part.rename(dest);
     item.done = true;
     item.failed = false;
@@ -340,9 +367,11 @@ class ReceiveServer {
     transfer.status = transfer.failedCount == 0
         ? TransferStatus.done
         : TransferStatus.partial;
-    await notifyTransferFinished(transfer.failedCount == 0
-        ? '${lw('Received')}: ${transfer.doneCount} — ${formatBytes(transfer.bytesTotal)}'
-        : '${lw('Received')} ${transfer.doneCount}/${transfer.files.length}, ${lw('failed')}: ${transfer.failedCount}');
+    await notifyTransferFinished(
+      transfer.failedCount == 0
+          ? '${lw('Received')}: ${transfer.doneCount} — ${formatBytes(transfer.bytesTotal)}'
+          : '${lw('Received')} ${transfer.doneCount}/${transfer.files.length}, ${lw('failed')}: ${transfer.failedCount}',
+    );
     await _cleanupParts(session);
     _current = null;
     transfersChanged();
@@ -394,7 +423,11 @@ class ReceiveServer {
     }
   }
 
-  Future<void> _json(HttpRequest req, Map<String, dynamic> body, {int status = HttpStatus.ok}) async {
+  Future<void> _json(
+    HttpRequest req,
+    Map<String, dynamic> body, {
+    int status = HttpStatus.ok,
+  }) async {
     req.response.statusCode = status;
     req.response.headers.contentType = ContentType.json;
     req.response.write(json.encode(body));

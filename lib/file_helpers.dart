@@ -186,8 +186,8 @@ String? sanitizeRelPath(String raw) {
   return parts.isEmpty ? null : parts.join('/');
 }
 
-// Full destination path for a manifest entry, refusing anything that would
-// escape the receive folder. Checked after canonicalization, not by string.
+// Full lexical destination for a manifest entry. Filesystem containment is
+// checked separately immediately before any directory/file operation.
 Future<String?> resolveInside(String baseDir, String relPath) async {
   final String? safe = sanitizeRelPath(relPath);
   if (safe == null) return null;
@@ -195,6 +195,62 @@ Future<String?> resolveInside(String baseDir, String relPath) async {
   final String base = p.normalize(baseDir);
   if (!p.isWithin(base, full)) return null;
   return full;
+}
+
+// Reject links below the configured root and verify the resolved parent stays
+// inside it. Dart has no portable atomic O_NOFOLLOW open; callers therefore
+// invoke this at prepare and immediately before open/rename. A hostile local
+// process can still race those calls on platforms without a no-follow API.
+Future<bool> ensureSafeDestination(
+  String baseDir,
+  String destination, {
+  bool createParents = false,
+}) async {
+  await Directory(baseDir).create(recursive: true);
+  final String root = await Directory(baseDir).resolveSymbolicLinks();
+  final String relative = p.relative(destination, from: baseDir);
+  if (relative == '.' ||
+      p.isAbsolute(relative) ||
+      relative == '..' ||
+      relative.startsWith('..${p.separator}')) {
+    return false;
+  }
+
+  String cursor = root;
+  final List<String> components = p.split(relative);
+  for (int i = 0; i < components.length - 1; i++) {
+    cursor = p.join(cursor, components[i]);
+    FileSystemEntityType type = await FileSystemEntity.type(
+      cursor,
+      followLinks: false,
+    );
+    if (type == FileSystemEntityType.link ||
+        type == FileSystemEntityType.file) {
+      return false;
+    }
+    if (type == FileSystemEntityType.notFound) {
+      if (!createParents) return true;
+      await Directory(cursor).create();
+      type = await FileSystemEntity.type(cursor, followLinks: false);
+      if (type != FileSystemEntityType.directory) return false;
+    }
+    final String resolved = await Directory(cursor).resolveSymbolicLinks();
+    if (resolved != root && !p.isWithin(root, resolved)) return false;
+  }
+
+  final String finalPath = p.join(root, components.last);
+  final FileSystemEntityType finalType = await FileSystemEntity.type(
+    finalPath,
+    followLinks: false,
+  );
+  if (finalType == FileSystemEntityType.link ||
+      finalType == FileSystemEntityType.directory) {
+    return false;
+  }
+  final String parent = await Directory(
+    p.dirname(finalPath),
+  ).resolveSymbolicLinks();
+  return parent == root || p.isWithin(root, parent);
 }
 
 // 'photo.jpg' -> 'photo (1).jpg' when taken. The .part twin counts as taken
