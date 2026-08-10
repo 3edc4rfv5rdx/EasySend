@@ -118,7 +118,16 @@ rm -f "$IMAGE"
 # there to mount it.
 APPIMAGE_EXTRACT_AND_RUN=1 ARCH=x86_64 "$APPIMAGETOOL" "$APPDIR" "$IMAGE"
 
+# Three images are enough to fall back on; each one is some 40 MB.
+KEEP=3
+ls -t "$OUT_DIR/$PROJ_TITLE"-*-x86_64.AppImage 2>/dev/null | tail -n +$((KEEP + 1)) | while read -r old; do
+    echo "Removing older image: $(basename "$old")"
+    rm -f "$old"
+done
+
 echo
 echo "Version: $VERSION+$BUILD"
 echo "Image:   $(du -sh "$IMAGE" | cut -f1)  $IMAGE"
 echo "Run:     ./$IMAGE"
+echo "Kept:"
+ls -1t "$OUT_DIR/$PROJ_TITLE"-*-x86_64.AppImage 2>/dev/null | sed 's/^/  /'
