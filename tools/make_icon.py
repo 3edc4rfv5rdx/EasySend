@@ -138,7 +138,9 @@ def desktop_drawing(background):
     im = Image.new("RGBA", (s, s), background)
     d = ImageDraw.Draw(im)
     pw, ph = s * 0.19, s * 0.40
-    phone(d, s * 0.07, (s - ph) / 2, pw, ph)
+    # The sheet sits on the phone here too: the desktop build is the receiving
+    # end of the same story.
+    phone(d, s * 0.07, (s - ph) / 2, pw, ph, sheet=True)
     tw, th = s * 0.13, s * 0.19
     triangle(d, s * 0.325, (s - th) / 2, tw, th)
     mw, mh = s * 0.40, s * 0.30
