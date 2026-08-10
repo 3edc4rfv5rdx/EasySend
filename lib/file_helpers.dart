@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/services.dart';
@@ -8,6 +9,11 @@ import 'android_helpers.dart';
 import 'globals.dart';
 
 const Uuid _uuid = Uuid();
+
+const int maxPathUtf8Bytes = 4096;
+const int maxPathDepth = 64;
+const int maxPathComponentUtf8Bytes = 255;
+final RegExp _windowsForbidden = RegExp(r'[<>:"|?*\x00-\x1f]');
 
 // The same channel the foreground service talks over.
 const MethodChannel _androidChannel = MethodChannel('easysend/service');
@@ -37,11 +43,12 @@ Future<bool> openRecvFolder() async {
 
   String path = xvRecvDir;
   while (path.isNotEmpty) {
-    if (await Directory(path).exists() && await openExternally(path, folder: true)) {
+    if (await Directory(path).exists() &&
+        await openExternally(path, folder: true)) {
       return true;
     }
     final String parent = p.dirname(path);
-    if (parent == path) return false;   // reached the root and it would not open
+    if (parent == path) return false; // reached the root and it would not open
     path = parent;
   }
   return false;
@@ -79,9 +86,28 @@ Future<bool> openExternally(String path, {bool folder = false}) async {
 // Windows device names are unusable as file names even on other platforms,
 // because the transfer may land on Windows.
 const Set<String> _reservedNames = {
-  'con', 'prn', 'aux', 'nul',
-  'com1', 'com2', 'com3', 'com4', 'com5', 'com6', 'com7', 'com8', 'com9',
-  'lpt1', 'lpt2', 'lpt3', 'lpt4', 'lpt5', 'lpt6', 'lpt7', 'lpt8', 'lpt9',
+  'con',
+  'prn',
+  'aux',
+  'nul',
+  'com1',
+  'com2',
+  'com3',
+  'com4',
+  'com5',
+  'com6',
+  'com7',
+  'com8',
+  'com9',
+  'lpt1',
+  'lpt2',
+  'lpt3',
+  'lpt4',
+  'lpt5',
+  'lpt6',
+  'lpt7',
+  'lpt8',
+  'lpt9',
 };
 
 // Build the transfer manifest out of picked files and folders. A folder keeps
@@ -93,28 +119,35 @@ Future<List<FileItem>> collectFiles(List<String> paths) async {
     if (type == FileSystemEntityType.file) {
       final File f = File(path);
       final FileStat stat = await f.stat();
-      items.add(FileItem(
-        id: _uuid.v4(),
-        relativePath: p.basename(path),
-        size: stat.size,
-        sourcePath: path,
-        modified: stat.modified,
-      ));
+      items.add(
+        FileItem(
+          id: _uuid.v4(),
+          relativePath: p.basename(path),
+          size: stat.size,
+          sourcePath: path,
+          modified: stat.modified,
+        ),
+      );
     } else if (type == FileSystemEntityType.directory) {
       final String parent = p.dirname(path);
-      await for (final FileSystemEntity entity
-          in Directory(path).list(recursive: true, followLinks: false)) {
+      await for (final FileSystemEntity entity in Directory(
+        path,
+      ).list(recursive: true, followLinks: false)) {
         if (entity is! File) continue;
         try {
           final FileStat stat = await entity.stat();
-          items.add(FileItem(
-            id: _uuid.v4(),
-            // Relative to the folder's parent, so the folder itself is included.
-            relativePath: p.relative(entity.path, from: parent).replaceAll(r'\', '/'),
-            size: stat.size,
-            sourcePath: entity.path,
-            modified: stat.modified,
-          ));
+          items.add(
+            FileItem(
+              id: _uuid.v4(),
+              // Relative to the folder's parent, so the folder itself is included.
+              relativePath: p
+                  .relative(entity.path, from: parent)
+                  .replaceAll(r'\', '/'),
+              size: stat.size,
+              sourcePath: entity.path,
+              modified: stat.modified,
+            ),
+          );
         } catch (e) {
           myPrint('skipping unreadable ${entity.path}: $e');
         }
@@ -128,21 +161,27 @@ Future<List<FileItem>> collectFiles(List<String> paths) async {
 // trusted at all — absolute paths and any '..' are refused outright rather than
 // stripped, because a mangled path is a broken transfer, not a fixed one.
 String? sanitizeRelPath(String raw) {
-  if (raw.isEmpty) return null;
+  if (raw.isEmpty || utf8.encode(raw).length > maxPathUtf8Bytes) return null;
   final String unified = raw.replaceAll(r'\', '/');
-  if (unified.startsWith('/') || RegExp(r'^[a-zA-Z]:').hasMatch(unified)) return null;
+  if (unified.startsWith('/') || RegExp(r'^[a-zA-Z]:').hasMatch(unified))
+    return null;
 
   final List<String> parts = [];
   for (final String segment in unified.split('/')) {
     if (segment.isEmpty || segment == '.') continue;
     if (segment == '..') return null;
-    if (segment.contains(':')) return null;
-    // Trailing dots and spaces are silently dropped by Windows.
-    final String cleaned = segment.replaceAll(RegExp(r'[\x00-\x1f]'), '').trimRight();
-    if (cleaned.isEmpty || cleaned.endsWith('.')) return null;
-    final String base = cleaned.split('.').first.toLowerCase();
+    // Reject lossy or non-portable names instead of silently mapping two
+    // different manifest entries onto the same destination.
+    if (_windowsForbidden.hasMatch(segment) ||
+        segment.endsWith('.') ||
+        segment.endsWith(' ') ||
+        utf8.encode(segment).length > maxPathComponentUtf8Bytes) {
+      return null;
+    }
+    final String base = segment.split('.').first.toLowerCase();
     if (_reservedNames.contains(base)) return null;
-    parts.add(cleaned);
+    parts.add(segment);
+    if (parts.length > maxPathDepth) return null;
   }
   return parts.isEmpty ? null : parts.join('/');
 }
