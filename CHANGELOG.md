@@ -2,6 +2,7 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+- F: The Linux window icon is the same mark as the launcher one, and the phone, monitor and arrow nobody drew any more are gone from tools/make_icon.py
 - F: A wider gap around the folded corner, so the flap reads as turned over and not as part of the sheet
 - N: A new launcher icon, one mark on a solid blue ground: a device in outline with a page stepping out through a gap in its wall, no arrow — an arrow out of a frame is what every system means by 'log out'
 - F: A proper arrow in the icon instead of a bare triangle that read as a play button, and a slightly shorter sheet on the screen
