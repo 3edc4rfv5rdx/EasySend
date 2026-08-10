@@ -2,6 +2,7 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+- N: A new launcher icon, one mark on a solid blue ground: a device in outline with a page stepping out through a gap in its wall, no arrow — an arrow out of a frame is what every system means by 'log out'
 - F: A proper arrow in the icon instead of a bare triangle that read as a play button, and a slightly shorter sheet on the screen
 - I: 14-MakeAppImage.sh keeps the three newest images and removes the ones behind them
 - F: The fold on the sheet is cut out of the corner with the flap sitting inside it, a gap of screen showing all round, instead of being told apart by shade alone
