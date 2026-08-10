@@ -90,9 +90,13 @@ class MainActivity : FlutterActivity() {
             EXTERNAL_STORAGE_AUTHORITY,
             if (relative.isEmpty()) "primary:" else "primary:$relative",
         )
+        // No FLAG_GRANT_READ_URI_PERMISSION here: that flag hands the receiver a
+        // URI of ours, and this one belongs to the storage provider. Offering
+        // what we do not hold makes ActivityManager refuse the start outright
+        // (SecurityException on One UI), so the folder never opens.
         val view = Intent(Intent.ACTION_VIEW).apply {
             setDataAndType(uri, DocumentsContract.Document.MIME_TYPE_DIR)
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
         if (launch(view)) return true
 
@@ -104,10 +108,14 @@ class MainActivity : FlutterActivity() {
         return launch(files)
     }
 
+    // A refused intent is one way in that did not work, not the end of the call:
+    // both refusals answer false so the caller can try the next one.
     private fun launch(intent: Intent): Boolean = try {
         startActivity(intent)
         true
     } catch (e: ActivityNotFoundException) {
+        false
+    } catch (e: SecurityException) {
         false
     }
 }
