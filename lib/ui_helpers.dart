@@ -31,6 +31,18 @@ ButtonStyle get dialogCancelStyle => TextButton.styleFrom(
   minimumSize: const Size(60, 40),
 );
 
+// The button inside the port banner. It stands on a filled error strip, where
+// the app's own button colour would disappear, so it inverts the banner: the
+// banner's ink becomes the surface and the error colour becomes the label.
+ButtonStyle get bannerButtonStyle => TextButton.styleFrom(
+  backgroundColor: onColor(clError),
+  foregroundColor: clError,
+  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(btnRadius)),
+  minimumSize: const Size(60, 32),
+  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+);
+
 RoundedRectangleBorder get dialogShape => RoundedRectangleBorder(
   side: BorderSide(color: clAccent, width: 3.0),
   borderRadius: BorderRadius.circular(btnRadius),

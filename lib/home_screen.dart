@@ -387,7 +387,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               await _restartNetwork();
               if (mounted) setState(() {});
             },
-            child: Text(lw('Settings'), style: TextStyle(color: onColor(clError), fontSize: fsSmall)),
+            style: bannerButtonStyle,
+            child: Text(lw('Settings'), style: const TextStyle(fontSize: fsSmall)),
           ),
         ],
       ),
