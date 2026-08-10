@@ -11,7 +11,8 @@ import 'globals.dart';
 
 const MethodChannel _serviceChannel = MethodChannel('easysend/service');
 
-final FlutterLocalNotificationsPlugin _notifications = FlutterLocalNotificationsPlugin();
+final FlutterLocalNotificationsPlugin _notifications =
+    FlutterLocalNotificationsPlugin();
 
 const String _askChannelId = 'easysend_ask';
 const String _doneChannelId = 'easysend_done';
@@ -72,16 +73,29 @@ Future<bool> askAcceptViaNotification({
         priority: Priority.high,
         ongoing: true,
         actions: <AndroidNotificationAction>[
-          AndroidNotificationAction(_declineAction, lw('Decline')),
-          AndroidNotificationAction(_acceptAction, lw('Accept')),
+          // The pending receive session and its completer live on the main
+          // isolate. Opening the UI makes the plugin deliver both actions to
+          // onDidReceiveNotificationResponse instead of a background engine.
+          AndroidNotificationAction(
+            _declineAction,
+            lw('Decline'),
+            showsUserInterface: true,
+          ),
+          AndroidNotificationAction(
+            _acceptAction,
+            lw('Accept'),
+            showsUserInterface: true,
+          ),
         ],
       ),
     ),
   );
 
   // Same deadline as the dialog: an unanswered request must not hold the sender.
-  final bool accepted = await completer.future
-      .timeout(const Duration(seconds: acceptTimeoutSec), onTimeout: () => false);
+  final bool accepted = await completer.future.timeout(
+    const Duration(seconds: acceptTimeoutSec),
+    onTimeout: () => false,
+  );
   _askCompleter = null;
   await _notifications.cancel(_askNotificationId);
   return accepted;
@@ -161,7 +175,12 @@ class AndroidService {
       final int percent = (active.progress * 100).round();
       final String title = active.incoming ? lw('Receiving') : lw('Sending');
       final String text = '${active.peerName} — $percent%';
-      await _push(title: title, text: text, progress: percent, starting: !_serviceUp);
+      await _push(
+        title: title,
+        text: text,
+        progress: percent,
+        starting: !_serviceUp,
+      );
       return;
     }
 
