@@ -126,7 +126,9 @@ Widget sectionButton(IconData icon, {required String tooltip, required VoidCallb
           border: Border.all(color: clFrame),
           borderRadius: BorderRadius.circular(btnRadius),
         ),
-        child: Icon(icon, color: clText, size: 18),
+        // 22 in a 26 px button: MaterialIcons is not a variable font, so the
+        // only way to a heavier stroke is a bigger glyph.
+        child: Icon(icon, color: clText, size: 22),
       ),
     ),
   );
