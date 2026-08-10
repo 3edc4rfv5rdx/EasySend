@@ -157,6 +157,53 @@ Future<List<FileItem>> collectFiles(List<String> paths) async {
   return items;
 }
 
+class FileSnapshot {
+  final String sourcePath;
+  final String relativePath;
+
+  const FileSnapshot({required this.sourcePath, required this.relativePath});
+}
+
+List<FileSnapshot> snapshotFiles(Iterable<FileItem> files) => files
+    .where((file) => file.sourcePath != null)
+    .map(
+      (file) => FileSnapshot(
+        sourcePath: file.sourcePath!,
+        relativePath: file.relativePath,
+      ),
+    )
+    .toList(growable: false);
+
+Future<({List<FileItem> files, int missing})> restoreFileSnapshot(
+  Iterable<FileSnapshot> snapshot,
+) async {
+  final List<FileItem> restored = [];
+  int missing = 0;
+  for (final FileSnapshot saved in snapshot) {
+    final File file = File(saved.sourcePath);
+    try {
+      final FileStat stat = await file.stat();
+      if (stat.type != FileSystemEntityType.file) {
+        missing++;
+        continue;
+      }
+      restored.add(
+        FileItem(
+          id: _uuid.v4(),
+          relativePath: saved.relativePath,
+          size: stat.size,
+          sourcePath: saved.sourcePath,
+          modified: stat.modified,
+        ),
+      );
+    } catch (e) {
+      missing++;
+      myPrint('cannot restore ${saved.sourcePath}: $e');
+    }
+  }
+  return (files: restored, missing: missing);
+}
+
 // Make a manifest path safe to write. Returns null when the path cannot be
 // trusted at all — absolute paths and any '..' are refused outright rather than
 // stripped, because a mangled path is a broken transfer, not a fixed one.

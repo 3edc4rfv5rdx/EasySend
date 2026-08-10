@@ -24,12 +24,12 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, WindowListener {
+class _HomeScreenState extends State<HomeScreen>
+    with WidgetsBindingObserver, WindowListener {
   final List<FileItem> _selected = [];
-  // Paths of the last batch handed to the sender, so the list can be brought
-  // back after it emptied itself. Only paths: the files are re-read on restore,
-  // so sizes and dates are current and vanished ones simply drop out.
-  List<String> _lastSentPaths = [];
+  // Immutable source/relative-path pairs preserve folder structure while
+  // current size/date are re-read when the batch is restored.
+  List<FileSnapshot> _lastSent = [];
   Device? _target;
   // True while something is being dragged over the drop zone.
   bool _dragOver = false;
@@ -38,7 +38,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Wi
   final ScrollController _selectedScroll = ScrollController();
 
   // One listenable for everything the screen mirrors.
-  late final Listenable _netTicks = Listenable.merge([devicesTick, transfersTick, serverTick]);
+  late final Listenable _netTicks = Listenable.merge([
+    devicesTick,
+    transfersTick,
+    serverTick,
+  ]);
 
   StreamSubscription<List<SharedMediaFile>>? _shareSub;
 
@@ -157,9 +161,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Wi
   bool get _canSend => _selected.isNotEmpty && _target != null && !sender.busy;
 
   Future<void> _pickFiles() async {
-    final FilePickerResult? result = await FilePicker.platform.pickFiles(allowMultiple: true);
+    final FilePickerResult? result = await FilePicker.platform.pickFiles(
+      allowMultiple: true,
+    );
     if (result == null) return;
-    final List<String> paths = result.files.map((f) => f.path).whereType<String>().toList();
+    final List<String> paths = result.files
+        .map((f) => f.path)
+        .whereType<String>()
+        .toList();
     await _addPaths(paths);
   }
 
@@ -176,8 +185,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Wi
     // files that would land on the same place at the far end. The second one
     // catches a file added on its own and again inside its folder, which the
     // receiver would otherwise unpack as 'photo (1).jpg'.
-    final Set<String> knownSources =
-        _selected.map((f) => f.sourcePath).whereType<String>().toSet();
+    final Set<String> knownSources = _selected
+        .map((f) => f.sourcePath)
+        .whereType<String>()
+        .toSet();
     final Set<String> knownTargets = _selected.map(_targetKey).toSet();
     final List<FileItem> fresh = items.where((f) {
       final String? source = f.sourcePath;
@@ -199,9 +210,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Wi
 
   // Clear resets the whole choice, files and target alike.
   void _clear() => setState(() {
-        _selected.clear();
-        _target = null;
-      });
+    _selected.clear();
+    _target = null;
+  });
 
   void _remove(FileItem item) => setState(() => _selected.remove(item));
 
@@ -262,9 +273,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Wi
     if (_selected.isEmpty) {
       // With neither piece in place, naming only the files would leave the
       // second step to be discovered on the next press.
-      okInfoBarOrange(lw(_target == null
-          ? 'Add files and pick a device'
-          : 'Add files or folders to send'));
+      okInfoBarOrange(
+        lw(
+          _target == null
+              ? 'Add files and pick a device'
+              : 'Add files or folders to send',
+        ),
+      );
       return;
     }
     if (_target == null) {
@@ -283,7 +298,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Wi
     if (target == null || _selected.isEmpty) return;
     final List<FileItem> batch = List<FileItem>.of(_selected);
     setState(() {
-      _lastSentPaths = batch.map((f) => f.sourcePath).whereType<String>().toList();
+      _lastSent = snapshotFiles(batch);
     });
     // Files leave the list one by one as they land, via _pruneSentFiles.
     final TransferStatus status = await sender.send(peer: target, files: batch);
@@ -296,8 +311,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Wi
 
   // Bring the last batch back into the list, re-reading it from disk.
   Future<void> _restoreLastBatch() async {
-    if (_lastSentPaths.isEmpty) return;
-    final List<FileItem> items = await collectFiles(_lastSentPaths);
+    if (_lastSent.isEmpty) return;
+    final restored = await restoreFileSnapshot(_lastSent);
+    final List<FileItem> items = restored.files;
     if (!mounted) return;
     if (items.isEmpty) {
       okInfoBarRed(lw('Files are no longer there'));
@@ -308,7 +324,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Wi
         ..clear()
         ..addAll(items);
     });
-    if (items.length != _lastSentPaths.length) {
+    if (restored.missing > 0) {
       okInfoBarOrange(lw('Some files are no longer there'));
     }
   }
@@ -327,8 +343,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Wi
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Text('EasySend', style: TextStyle(fontSize: fsLarge, fontWeight: fwBold)),
-            Text(xvDeviceName, style: TextStyle(fontSize: fsSmall, color: clUpBarText)),
+            const Text(
+              'EasySend',
+              style: TextStyle(fontSize: fsLarge, fontWeight: fwBold),
+            ),
+            Text(
+              xvDeviceName,
+              style: TextStyle(fontSize: fsSmall, color: clUpBarText),
+            ),
           ],
         ),
         actions: [
@@ -397,7 +419,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Wi
               if (mounted) setState(() {});
             },
             style: bannerButtonStyle,
-            child: Text(lw('Settings'), style: const TextStyle(fontSize: fsSmall)),
+            child: Text(
+              lw('Settings'),
+              style: const TextStyle(fontSize: fsSmall),
+            ),
           ),
         ],
       ),
@@ -407,15 +432,26 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Wi
   Widget _buildPickRow() {
     final Widget buttons = Row(
       children: [
-        Expanded(child: _pickButton(Icons.insert_drive_file_outlined, lw('File'), _pickFiles)),
+        Expanded(
+          child: _pickButton(
+            Icons.insert_drive_file_outlined,
+            lw('File'),
+            _pickFiles,
+          ),
+        ),
         const SizedBox(width: 8),
-        Expanded(child: _pickButton(Icons.folder_open, lw('Folder'), _pickFolder)),
+        Expanded(
+          child: _pickButton(Icons.folder_open, lw('Folder'), _pickFolder),
+        ),
       ],
     );
 
     // Android has no pointer to drag with; there the share menu does this job.
     if (Platform.isAndroid) {
-      return Padding(padding: const EdgeInsets.fromLTRB(12, 12, 12, 4), child: buttons);
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
+        child: buttons,
+      );
     }
 
     return Padding(
@@ -461,7 +497,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Wi
         side: BorderSide(color: clFrame),
         // Material 3 would make this a stadium; every button in the app is the
         // same rounded rectangle instead.
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(btnRadius)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(btnRadius),
+        ),
         padding: const EdgeInsets.symmetric(vertical: 6),
       ),
     );
@@ -476,7 +514,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Wi
         : '${lw('Selected')}: ${_selected.length} — ${formatBytes(_totalBytes)}';
 
     Widget? trailing;
-    if (empty && _lastSentPaths.isNotEmpty) {
+    if (empty && _lastSent.isNotEmpty) {
       trailing = TextButton.icon(
         onPressed: _restoreLastBatch,
         icon: Icon(Icons.restore, size: 16, color: clText),
@@ -495,19 +533,20 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Wi
   }
 
   ButtonStyle get _headerButtonStyle => TextButton.styleFrom(
-        foregroundColor: clText,
-        backgroundColor: clButton,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-        minimumSize: Size.zero,
-        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(btnRadius),
-          side: BorderSide(color: clFrame),
-        ),
-      );
+    foregroundColor: clText,
+    backgroundColor: clButton,
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+    minimumSize: Size.zero,
+    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(btnRadius),
+      side: BorderSide(color: clFrame),
+    ),
+  );
 
   Widget _buildSelectedList() {
-    if (_selected.isEmpty) return const SliverToBoxAdapter(child: SizedBox.shrink());
+    if (_selected.isEmpty)
+      return const SliverToBoxAdapter(child: SizedBox.shrink());
 
     // A folder full of files must not push the devices and the transfers off
     // the screen: the selection keeps to a third of the height and scrolls
@@ -536,7 +575,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Wi
               return ListTile(
                 dense: true,
                 visualDensity: VisualDensity.compact,
-                title: Text(item.relativePath, style: tsNormal, overflow: TextOverflow.ellipsis),
+                title: Text(
+                  item.relativePath,
+                  style: tsNormal,
+                  overflow: TextOverflow.ellipsis,
+                ),
                 subtitle: Text(
                   item.modified == null
                       ? formatBytes(item.size)
@@ -655,7 +698,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Wi
           // A tap only selects, never sends: an accidental touch must not start
           // a transfer. Tapping the selected device again clears the choice.
           onTap: device.online
-              ? () => setState(() => _target = _target?.id == device.id ? null : device)
+              ? () => setState(
+                  () => _target = _target?.id == device.id ? null : device,
+                )
               : null,
         );
       },
@@ -663,8 +708,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Wi
   }
 
   Widget _deviceIcon(Device device, bool isTarget) {
-    final IconData icon =
-        device.platform == 'android' ? Icons.smartphone : Icons.computer;
+    final IconData icon = device.platform == 'android'
+        ? Icons.smartphone
+        : Icons.computer;
     if (!device.online) {
       return Icon(icon, color: clFrame);
     }
@@ -711,8 +757,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Wi
   }
 
   Widget _buildTransferTile(TransferSession t) {
-    final FileItem? currentFile =
-        t.currentIndex < t.files.length ? t.files[t.currentIndex] : null;
+    final FileItem? currentFile = t.currentIndex < t.files.length
+        ? t.files[t.currentIndex]
+        : null;
     final int? eta = t.etaSeconds;
 
     return Padding(
@@ -722,9 +769,19 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Wi
         children: [
           Row(
             children: [
-              Icon(t.incoming ? Icons.download : Icons.upload, size: 18, color: clText),
+              Icon(
+                t.incoming ? Icons.download : Icons.upload,
+                size: 18,
+                color: clText,
+              ),
               const SizedBox(width: 6),
-              Expanded(child: Text(t.peerName, style: tsNormal, overflow: TextOverflow.ellipsis)),
+              Expanded(
+                child: Text(
+                  t.peerName,
+                  style: tsNormal,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
             ],
           ),
           Row(
@@ -749,7 +806,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Wi
                     ? null
                     : IconButton(
                         padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints.tightFor(width: 32, height: 24),
+                        constraints: const BoxConstraints.tightFor(
+                          width: 32,
+                          height: 24,
+                        ),
                         icon: Icon(Icons.close, color: clFrame, size: 20),
                         tooltip: lw('Remove'),
                         onPressed: () {
@@ -836,8 +896,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Wi
     final String label = stopping
         ? lw('Stop')
         : _selected.isEmpty
-            ? lw('Send')
-            : '${lw('Send')}  ${_selected.length} — ${formatBytes(_totalBytes)}';
+        ? lw('Send')
+        : '${lw('Send')}  ${_selected.length} — ${formatBytes(_totalBytes)}';
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(48, 6, 48, 10),
@@ -854,10 +914,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Wi
               backgroundColor: stopping
                   ? clError
                   : _canSend
-                      ? clAccent
-                      : clFrame.withValues(alpha: 0.3),
+                  ? clAccent
+                  : clFrame.withValues(alpha: 0.3),
               padding: const EdgeInsets.symmetric(vertical: 12),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(btnRadius)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(btnRadius),
+              ),
             ),
             child: Text(
               label,
@@ -868,8 +930,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Wi
                 color: stopping
                     ? onColor(clError)
                     : _canSend
-                        ? onColor(clAccent)
-                        : clText,
+                    ? onColor(clAccent)
+                    : clText,
               ),
             ),
           ),
