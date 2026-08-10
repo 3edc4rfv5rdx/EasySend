@@ -2,6 +2,7 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+- N: A new app icon: two phones and a deep blue triangle on cream, drawn as geometry by tools/make_icon.py instead of a recoloured stock bitmap
 - F: The receive folder sits under Device, where a place on the disk belongs, and not under Network
 - F: The settings are grouped under Device, Network and Application headings, the same rule the home screen uses, instead of one flat list
 - F: A heavier + and folder icon in the section headings, 22 px instead of 18 in the same button

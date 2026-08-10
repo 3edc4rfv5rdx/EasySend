@@ -4,7 +4,7 @@ publish_to: 'none'
 
 # The build number lives in two places that must stay in sync: `version:` here
 # and progVersion / buildNumber in lib/globals.dart.
-version: 0.1.260810+51
+version: 0.1.260810+52
 
 environment:
   sdk: ^3.11.5
@@ -59,12 +59,12 @@ flutter_launcher_icons:
   android: true
   ios: false
   min_sdk_android: 21
-  # icon.png is the master: a solid blue square. The launcher needs it split in
-  # two, or the inset shows the square's own edges inside the round mask — the
-  # background is the blue on its own, the foreground only the drawing.
-  # icon_small.png is the same drawing over a full-bleed blue square, for the
-  # launchers that mask a plain icon themselves.
+  # icon.png is the master: two phones and a blue triangle on cream, drawn as
+  # geometry by tools/make_icon.py. icon_small.png is the same square, for the
+  # launchers that mask a plain icon themselves; icon_fg.png is the drawing on
+  # nothing, already scaled to sit inside the round mask, so no inset is added
+  # on top of it.
   image_path: "assets/icon_small.png"
-  adaptive_icon_background: "#0138A3"
+  adaptive_icon_background: "#FFF7DF"
   adaptive_icon_foreground: "assets/icon_fg.png"
-  adaptive_icon_foreground_inset: 26
+  adaptive_icon_foreground_inset: 0
