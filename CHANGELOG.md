@@ -2,6 +2,7 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+- F: The Linux window icon is redrawn in the same hand: a phone, the blue triangle and a monitor on cream, from the same tools/make_icon.py
 - N: A new app icon: two phones and a deep blue triangle on cream, drawn as geometry by tools/make_icon.py instead of a recoloured stock bitmap
 - F: The receive folder sits under Device, where a place on the disk belongs, and not under Network
 - F: The settings are grouped under Device, Network and Application headings, the same rule the home screen uses, instead of one flat list

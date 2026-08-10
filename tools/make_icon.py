@@ -56,6 +56,31 @@ def phone(d, x, y, w, h):
     )
 
 
+def monitor(d, x, y, w, h):
+    """Ink body with a teal screen, on a neck and a foot. h is the body alone;
+    the stand hangs below it."""
+    r = w * 0.05
+    d.rounded_rectangle([x, y, x + w, y + h], radius=r, fill=INK)
+    bez = w * 0.045
+    d.rounded_rectangle(
+        [x + bez, y + bez, x + w - bez, y + h - bez * 1.6],
+        radius=r * 0.5,
+        fill=TEAL,
+    )
+    nw, nh = w * 0.13, h * 0.20
+    d.rectangle([x + w / 2 - nw / 2, y + h, x + w / 2 + nw / 2, y + h + nh], fill=INK)
+    fw, fh = w * 0.44, h * 0.09
+    d.rounded_rectangle(
+        [x + w / 2 - fw / 2, y + h + nh, x + w / 2 + fw / 2, y + h + nh + fh],
+        radius=fh / 2,
+        fill=INK,
+    )
+
+
+def triangle(d, x, y, w, h):
+    d.polygon([(x, y), (x + w, y + h / 2), (x, y + h)], fill=TRIANGLE)
+
+
 def drawing(background, scale=1.0):
     """The whole icon on the given background, scaled around the centre."""
     s = SIZE * SS
@@ -67,18 +92,34 @@ def drawing(background, scale=1.0):
     phone(d, margin, y, pw, ph)
     phone(d, s - margin - pw, y, pw, ph)
     tw, th = s * 0.20 * scale, s * 0.26 * scale
-    x0, y0 = (s - tw) / 2, (s - th) / 2
-    d.polygon([(x0, y0), (x0 + tw, y0 + th / 2), (x0, y0 + th)], fill=TRIANGLE)
+    triangle(d, (s - tw) / 2, (s - th) / 2, tw, th)
+    return im.resize((SIZE, SIZE), Image.LANCZOS)
+
+
+def desktop_drawing(background):
+    """The window icon of the desktop build: a phone sending to a monitor. The
+    same hand as the launcher icon, the same two devices it has always shown."""
+    s = SIZE * SS
+    im = Image.new("RGBA", (s, s), background)
+    d = ImageDraw.Draw(im)
+    pw, ph = s * 0.19, s * 0.40
+    phone(d, s * 0.07, (s - ph) / 2, pw, ph)
+    tw, th = s * 0.13, s * 0.19
+    triangle(d, s * 0.325, (s - th) / 2, tw, th)
+    mw, mh = s * 0.40, s * 0.30
+    stand = mh * 0.29  # neck plus foot, so the whole thing can be centred
+    monitor(d, s * 0.51, (s - mh - stand) / 2, mw, mh)
     return im.resize((SIZE, SIZE), Image.LANCZOS)
 
 
 def main():
     square = drawing(CREAM).convert("RGB")
     # The master and the square the plain-icon launchers mask themselves.
-    # icon2.png is not written here: the Linux window icon is its own drawing,
-    # a phone and a monitor, and it is not this one.
     for name in ("icon.png", "icon_small.png"):
         square.save(os.path.join(ASSETS, name))
+    # The window icon the Linux runner loads from the bundle: its own drawing,
+    # a phone sending to a monitor, because that build runs on the monitor.
+    desktop_drawing(CREAM).convert("RGB").save(os.path.join(ASSETS, "icon2.png"))
     # The adaptive foreground: the drawing on nothing, already inset to the safe
     # circle, which is why pubspec.yaml adds no inset of its own.
     drawing((0, 0, 0, 0), SAFE).save(os.path.join(ASSETS, "icon_fg.png"))
