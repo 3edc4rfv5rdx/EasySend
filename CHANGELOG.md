@@ -2,6 +2,8 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+
+## v0.1.260810+64
 - I: 77-MakeMyKey.sh writes the signing keystore and its properties file, refuses to touch either one if it is already there, and carries no execute bit so it cannot be run by habit
 - I: 22-RelUpload.sh puts the AppImage of the same build in the GitHub release beside the two APKs, and says which script to run when it is missing
 - I: A real README with two screenshots, what the app does, where files land, what the network does and does not protect, how to build it, and where the signing key has to be for the Android release to build at all
