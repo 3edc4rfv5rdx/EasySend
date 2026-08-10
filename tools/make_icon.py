@@ -29,13 +29,17 @@ FOLD = (90, 130, 200)  # the turned-over corner of the sheet, a lighter blue
 # so an equal gap on both sides of it reads as a hole on the right: the right one
 # is closed to about half.
 PHONE_W, PHONE_H = 0.235, 0.40
-TRI_W, TRI_H = 0.20, 0.26
+ARROW_W, ARROW_H = 0.20, 0.26
+# The arrow's own proportions: where the head's base stands across the width,
+# and how tall the shaft behind it is. Both as fractions of the arrow itself.
+ARROW_BASE = 0.28
+ARROW_SHAFT = 0.42
 GAP_LEFT = 0.05
 GAP_RIGHT = 0.035
 
 # The sheet on the sender's screen, as a fraction of the screen it lies on. What
 # makes the picture a transfer and not two phones side by side.
-DOC_W, DOC_H = 0.56, 0.52
+DOC_W, DOC_H = 0.56, 0.44
 DOC_FOLD = 0.34  # the folded corner, as a fraction of the sheet's width
 DOC_GAP = 0.18  # how far the flap is pulled off the cut, as a fraction of it
 
@@ -121,8 +125,24 @@ def monitor(d, x, y, w, h):
     )
 
 
-def triangle(d, x, y, w, h):
-    d.polygon([(x, y), (x + w, y + h / 2), (x, y + h)], fill=TRIANGLE)
+def arrow(d, x, y, w, h):
+    """A thick arrow: a short shaft, then a head whose base is the full height.
+    A bare triangle read as a play button; this one reads as movement."""
+    base = x + w * ARROW_BASE
+    shaft = h * ARROW_SHAFT
+    top = y + (h - shaft) / 2
+    d.polygon(
+        [
+            (x, top),
+            (base, top),
+            (base, y),
+            (x + w, y + h / 2),
+            (base, y + h),
+            (base, top + shaft),
+            (x, top + shaft),
+        ],
+        fill=TRIANGLE,
+    )
 
 
 def drawing(background, scale=1.0):
@@ -131,17 +151,17 @@ def drawing(background, scale=1.0):
     im = Image.new("RGBA", (s, s), background)
     d = ImageDraw.Draw(im)
     pw, ph = s * PHONE_W * scale, s * PHONE_H * scale
-    tw, th = s * TRI_W * scale, s * TRI_H * scale
+    aw, ah = s * ARROW_W * scale, s * ARROW_H * scale
     # Laid out left to right from the group's own width, so closing one gap
     # moves the pieces and leaves the whole drawing centred.
-    total = (PHONE_W + GAP_LEFT + TRI_W + GAP_RIGHT + PHONE_W) * scale * s
+    total = (PHONE_W + GAP_LEFT + ARROW_W + GAP_RIGHT + PHONE_W) * scale * s
     x = (s - total) / 2
     # The sheet lies on the left screen and the right one is empty: that is what
     # makes the pair a transfer rather than two phones standing side by side.
     phone(d, x, (s - ph) / 2, pw, ph, sheet=True)
     x += pw + s * GAP_LEFT * scale
-    triangle(d, x, (s - th) / 2, tw, th)
-    x += tw + s * GAP_RIGHT * scale
+    arrow(d, x, (s - ah) / 2, aw, ah)
+    x += aw + s * GAP_RIGHT * scale
     phone(d, x, (s - ph) / 2, pw, ph)
     return im.resize((SIZE, SIZE), Image.LANCZOS)
 
@@ -156,8 +176,8 @@ def desktop_drawing(background):
     # The sheet sits on the phone here too: the desktop build is the receiving
     # end of the same story.
     phone(d, s * 0.07, (s - ph) / 2, pw, ph, sheet=True)
-    tw, th = s * 0.13, s * 0.19
-    triangle(d, s * 0.325, (s - th) / 2, tw, th)
+    aw, ah = s * 0.14, s * 0.19
+    arrow(d, s * 0.32, (s - ah) / 2, aw, ah)
     mw, mh = s * 0.40, s * 0.30
     stand = mh * 0.29  # neck plus foot, so the whole thing can be centred
     monitor(d, s * 0.51, (s - mh - stand) / 2, mw, mh)
