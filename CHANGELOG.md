@@ -2,6 +2,7 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+- F: The fold on the sheet is cut out of the corner with the flap sitting inside it, a gap of screen showing all round, instead of being told apart by shade alone
 - F: The Linux window icon carries the sheet as well, so the phone is sending something to the monitor and not just standing beside it
 - F: The icon says what the app does: a sheet lies on the sending phone's screen and the receiving one is empty, and the two phones are shorter and closer together
 - I: 00-MakeAll.sh runs the whole chain: the release APK, both installs and the AppImage; a failed build stops it, a device that is not plugged in does not

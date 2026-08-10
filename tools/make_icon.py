@@ -37,6 +37,7 @@ GAP_RIGHT = 0.035
 # makes the picture a transfer and not two phones side by side.
 DOC_W, DOC_H = 0.56, 0.52
 DOC_FOLD = 0.34  # the folded corner, as a fraction of the sheet's width
+DOC_GAP = 0.18  # how far the flap is pulled off the cut, as a fraction of it
 
 # The round launcher mask leaves a 61% circle. The far corner of the drawing has
 # to sit inside it, and this is the scale at which it does.
@@ -46,14 +47,28 @@ ASSETS = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))
 
 
 def document(d, x, y, w, h):
-    """A sheet with its top-right corner turned over: the corner is cut on the
-    diagonal, and the turned part lies on top in a lighter blue."""
+    """A sheet with its top-right corner turned back. The corner is cut out
+    square, so the screen shows through it, and the turned flap lies inside the
+    cut with a gap all round: a fold reads as two shapes, not as two shades."""
     f = w * DOC_FOLD
     d.polygon(
-        [(x, y), (x + w - f, y), (x + w, y + f), (x + w, y + h), (x, y + h)],
+        [
+            (x, y),
+            (x + w - f, y),
+            (x + w - f, y + f),
+            (x + w, y + f),
+            (x + w, y + h),
+            (x, y + h),
+        ],
         fill=TRIANGLE,
     )
-    d.polygon([(x + w - f, y), (x + w, y + f), (x + w - f, y + f)], fill=FOLD)
+    # The flap fills the lower half of the cut, pulled towards its own middle so
+    # the gap appears on every side of it at once.
+    corners = [(x + w - f, y), (x + w, y + f), (x + w - f, y + f)]
+    cx = sum(p[0] for p in corners) / 3
+    cy = sum(p[1] for p in corners) / 3
+    k = 1 - DOC_GAP
+    d.polygon([(cx + (px - cx) * k, cy + (py - cy) * k) for px, py in corners], fill=FOLD)
 
 
 def phone(d, x, y, w, h, sheet=False):
