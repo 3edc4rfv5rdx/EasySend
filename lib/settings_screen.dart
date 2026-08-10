@@ -209,12 +209,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
       body: ListView(
         children: [
+          // Four groups under the same rule-heading the home screen uses: the
+          // flat list gave a port and a colour theme the same weight.
+          sectionTitle(lw('Device')),
           _tile(
             icon: Icons.badge_outlined,
             title: lw('Device name'),
             value: xdef['Device name'],
             onTap: _editDeviceName,
           ),
+          sectionTitle(lw('Network')),
           _tile(
             icon: Icons.folder_outlined,
             title: lw('Receive folder'),
@@ -236,6 +240,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 : '${_addresses.first}:$currentPort',
             onTap: _showMyAddresses,
           ),
+          if (Platform.isAndroid)
+            SwitchListTile(
+              dense: true,
+              visualDensity: const VisualDensity(vertical: -2),
+              secondary: Icon(Icons.notifications_active_outlined, color: clText),
+              activeThumbColor: clAccent,
+              value: xdef['Receive in background'] == 'true',
+              title: Text(lw('Receive in background'), style: tsNormal),
+              subtitle: Text(lw('Keeps a notification and receives with the screen off'), style: tsSmall),
+              onChanged: (v) async {
+                await _apply(() => xdef['Receive in background'] = '$v');
+                await androidService.sync();
+                // Doze still cuts connections on a long idle unless the app is
+                // exempt, so point the user at that setting once.
+                if (v) okInfoBarBlue(lw('Also exclude EasySend from battery optimisation'));
+              },
+            ),
+          sectionTitle(lw('Application')),
           _tile(
             icon: Icons.language,
             title: lw('Language'),
@@ -271,23 +293,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
               },
             ),
           ),
-          if (Platform.isAndroid)
-            SwitchListTile(
-              dense: true,
-              visualDensity: const VisualDensity(vertical: -2),
-              secondary: Icon(Icons.notifications_active_outlined, color: clText),
-              activeThumbColor: clAccent,
-              value: xdef['Receive in background'] == 'true',
-              title: Text(lw('Receive in background'), style: tsNormal),
-              subtitle: Text(lw('Keeps a notification and receives with the screen off'), style: tsSmall),
-              onChanged: (v) async {
-                await _apply(() => xdef['Receive in background'] = '$v');
-                await androidService.sync();
-                // Doze still cuts connections on a long idle unless the app is
-                // exempt, so point the user at that setting once.
-                if (v) okInfoBarBlue(lw('Also exclude EasySend from battery optimisation'));
-              },
-            ),
           SwitchListTile(
             dense: true,
             visualDensity: const VisualDensity(vertical: -2),

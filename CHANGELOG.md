@@ -2,6 +2,7 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+- F: The settings are grouped under Device, Network and Application headings, the same rule the home screen uses, instead of one flat list
 - F: A heavier + and folder icon in the section headings, 22 px instead of 18 in the same button
 - F: The selection list shows its scrollbar while scrolling instead of pinning it beside a list of two rows
 - F: The receive folder in the settings keeps its end: the phone storage prefix every path starts with is dropped, and what still does not fit loses its head to the ellipsis instead of the folder name
