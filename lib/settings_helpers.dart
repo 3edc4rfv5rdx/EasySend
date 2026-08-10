@@ -48,7 +48,8 @@ Future<String> _resolveRecvDir() async {
   } catch (e) {
     myPrint('getDownloadsDirectory failed: $e');
   }
-  final String home = Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'] ?? '';
+  final String home =
+      Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'] ?? '';
   if (home.isNotEmpty) return p.join(home, 'Downloads', recvDirName);
   final Directory dir = await getApplicationSupportDirectory();
   return p.join(dir.path, recvDirName);
@@ -62,47 +63,190 @@ Future<void> initPaths() async {
 }
 
 File get _settingsFile => File(p.join(xvConfigDir, settFile));
+Future<void> _saveTail = Future<void>.value();
+int _saveSerial = 0;
+
+String? _validSetting(String key, dynamic value) {
+  if (value is! String) return null;
+  switch (key) {
+    case 'Program language':
+      return langNames.containsKey(value) ? value : null;
+    case 'Color theme':
+      return value == themeSystem || loadedThemes.containsKey(value)
+          ? value
+          : null;
+    case 'Port':
+      final int? port = int.tryParse(value);
+      return port != null && port >= 1024 && port <= 65535 ? '$port' : null;
+    case 'Receive in background':
+    case 'Ask before exit':
+    case '.First start':
+      return value == 'true' || value == 'false' ? value : null;
+    case 'Device name':
+      return value.length <= 128 && !value.contains(RegExp(r'[\x00-\x1f]'))
+          ? value
+          : null;
+    case 'Receive folder':
+      return value.length <= 4096 && !value.contains('\u0000') ? value : null;
+    case '.Device id':
+      return value.isEmpty ||
+              RegExp(
+                r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$',
+              ).hasMatch(value)
+          ? value
+          : null;
+    case '.Prog version':
+      return RegExp(r'^\d+\.\d+\.\d+$').hasMatch(value) ? value : null;
+  }
+  return null;
+}
+
+Device? _validDevice(dynamic raw) {
+  if (raw is! Map) return null;
+  final Map<String, dynamic> data;
+  try {
+    data = raw.cast<String, dynamic>();
+  } catch (_) {
+    return null;
+  }
+  final dynamic id = data['id'];
+  final dynamic name = data['name'];
+  final dynamic address = data['address'];
+  final dynamic port = data['port'];
+  final dynamic trusted = data['trusted'];
+  final dynamic manual = data['manual'];
+  final dynamic platform = data['platform'];
+  if (id is! String ||
+      id.isEmpty ||
+      name is! String ||
+      name.isEmpty ||
+      address is! String ||
+      port is! int ||
+      port < 1 ||
+      port > 65535 ||
+      trusted is! bool ||
+      manual is! bool ||
+      platform is! String) {
+    return null;
+  }
+  if (address.isNotEmpty && InternetAddress.tryParse(address) == null)
+    return null;
+  return Device(
+    id: id,
+    name: name,
+    platform: platform,
+    address: address,
+    port: port,
+    trusted: trusted,
+    manual: manual,
+  );
+}
 
 // Load settings and the persisted device list. A damaged file is renamed rather
 // than silently overwritten, so nothing is lost without a trace.
 Future<void> loadSettings() async {
   final File f = _settingsFile;
+  final File recovery = File('${f.path}.old');
+  if (!await f.exists() && await recovery.exists()) {
+    try {
+      await recovery.rename(f.path);
+    } catch (e) {
+      myPrint('cannot recover settings transaction: $e');
+    }
+  }
   if (!await f.exists()) return;
   try {
-    final Map<String, dynamic> data = json.decode(await f.readAsString());
-    final Map<String, dynamic> stored = (data['settings'] as Map?)?.cast<String, dynamic>() ?? {};
+    final dynamic decoded = json.decode(await f.readAsString());
+    if (decoded is! Map)
+      throw const FormatException('settings root is not an object');
+    final Map<String, dynamic> data = decoded.cast<String, dynamic>();
+    final dynamic rawSettings = data['settings'];
+    final Map<String, dynamic> stored = rawSettings is Map
+        ? rawSettings.cast<String, dynamic>()
+        : const {};
     // Only keys we know about: an old file must not resurrect dropped options.
     for (final String key in xdef.keys.toList()) {
-      if (stored.containsKey(key)) xdef[key] = stored[key];
+      if (!stored.containsKey(key)) continue;
+      final String? valid = _validSetting(key, stored[key]);
+      if (valid != null) {
+        xdef[key] = valid;
+      } else {
+        myPrint('invalid setting $key, using default');
+      }
     }
-    final List<dynamic> devices = data['devices'] as List? ?? [];
-    xvDevices = devices
-        .map((d) => Device.fromJson((d as Map).cast<String, dynamic>()))
-        .where((d) => d.id.isNotEmpty)
-        .toList();
+    final dynamic rawDevices = data['devices'];
+    final List<dynamic> devices = rawDevices is List ? rawDevices : const [];
+    final Map<String, Device> unique = {};
+    for (final dynamic raw in devices) {
+      final Device? device = _validDevice(raw);
+      if (device != null) unique.putIfAbsent(device.id, () => device);
+    }
+    xvDevices = unique.values.toList();
     myPrint('loadSettings: ${xvDevices.length} stored devices');
   } catch (e) {
     myPrint('loadSettings failed: $e');
     try {
-      await f.rename('${f.path}.bad');
+      final String stamp = DateTime.now().toUtc().toIso8601String().replaceAll(
+        ':',
+        '-',
+      );
+      await f.rename('${f.path}.$stamp.bad');
     } catch (e2) {
       myPrint('cannot rename damaged settings: $e2');
     }
   }
 }
 
-Future<void> saveSettings() async {
+Future<void> saveSettings() {
+  _saveTail = _saveTail.then((_) => _saveSettingsNow());
+  return _saveTail;
+}
+
+Future<void> _saveSettingsNow() async {
+  File? temporary;
   try {
     await Directory(xvConfigDir).create(recursive: true);
     // Discovered-only devices are transient; persist the ones worth remembering.
-    final List<Device> keep = xvDevices.where((d) => d.manual || d.trusted).toList();
+    final List<Device> keep = xvDevices
+        .where((d) => d.manual || d.trusted)
+        .toList();
     const JsonEncoder encoder = JsonEncoder.withIndent('  ');
-    await _settingsFile.writeAsString(encoder.convert({
+    final String contents = encoder.convert({
       'settings': xdef,
       'devices': keep.map((d) => d.toJson()).toList(),
-    }));
+    });
+    final File destination = _settingsFile;
+    temporary = File(
+      '${destination.path}.${pid}.${DateTime.now().microsecondsSinceEpoch}.${_saveSerial++}.tmp',
+    );
+    final RandomAccessFile output = await temporary.open(mode: FileMode.write);
+    try {
+      await output.writeString(contents);
+      await output.flush();
+    } finally {
+      await output.close();
+    }
+    try {
+      await temporary!.rename(destination.path);
+      temporary = null;
+    } on FileSystemException {
+      // Windows cannot replace an existing file with rename. Keep a recovery
+      // copy so interruption between the two renames is repaired on load.
+      final File old = File('${destination.path}.old');
+      if (await old.exists()) await old.delete();
+      if (await destination.exists()) await destination.rename(old.path);
+      await temporary!.rename(destination.path);
+      temporary = null;
+      if (await old.exists()) await old.delete();
+    }
   } catch (e) {
     myPrint('saveSettings failed: $e');
+  } finally {
+    if (temporary != null && await temporary.exists()) {
+      try {
+        await temporary.delete();
+      } catch (_) {}
+    }
   }
 }
 
@@ -146,10 +290,10 @@ Future<void> initIdentity() async {
   xvPlatform = Platform.isAndroid
       ? 'android'
       : Platform.isWindows
-          ? 'windows'
-          : Platform.isLinux
-              ? 'linux'
-              : Platform.operatingSystem;
+      ? 'windows'
+      : Platform.isLinux
+      ? 'linux'
+      : Platform.operatingSystem;
 
   xvDeviceId = await _resolveDeviceId();
   if (xdef['.Device id'] != xvDeviceId) {
@@ -161,10 +305,14 @@ Future<void> initIdentity() async {
   // and would offer to send a transfer to ourselves.
   final int before = xvDevices.length;
   xvDevices.removeWhere(
-    (d) => d.id == xvDeviceId || (d.address.isNotEmpty && !isReachableAddress(d.address)),
+    (d) =>
+        d.id == xvDeviceId ||
+        (d.address.isNotEmpty && !isReachableAddress(d.address)),
   );
   if (xvDevices.length != before) {
-    myPrint('dropped ${before - xvDevices.length} devices pointing at ourselves');
+    myPrint(
+      'dropped ${before - xvDevices.length} devices pointing at ourselves',
+    );
   }
 
   if ((xdef['Device name'] as String).isEmpty) {
@@ -182,7 +330,8 @@ Future<void> initIdentity() async {
   myPrint('identity: $xvDeviceName [$xvPlatform] $xvDeviceId');
 }
 
-int get currentPort => int.tryParse(xdef['Port'] as String? ?? '') ?? defaultPort;
+int get currentPort =>
+    int.tryParse(xdef['Port'] as String? ?? '') ?? defaultPort;
 
 // Addresses of this device, for typing into another one that cannot discover
 // us by broadcast. Loopback is useless to a peer, so it is left out.

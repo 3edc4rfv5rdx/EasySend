@@ -17,16 +17,16 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await initPaths();
+  await loadThemes();
+  await loadLanguageNames();
   await loadSettings();
   await initIdentity();
-  await loadThemes();
   // A palette dropped from colors.json must not linger in the settings as a
   // name nothing answers to.
   if (xdef['Color theme'] != themeSystem &&
       !loadedThemes.containsKey(xdef['Color theme'])) {
     xdef['Color theme'] = themeSystem;
   }
-  await loadLanguageNames();
   await initTranslations();
   await initNotifications();
 
@@ -123,11 +123,11 @@ class _PlainScroll extends MaterialScrollBehavior {
     BuildContext context,
     Widget child,
     ScrollableDetails details,
-  ) =>
-      child;
+  ) => child;
 
   @override
-  ScrollPhysics getScrollPhysics(BuildContext context) => const ClampingScrollPhysics();
+  ScrollPhysics getScrollPhysics(BuildContext context) =>
+      const ClampingScrollPhysics();
 }
 
 // Screens replace each other outright: no slide, no fade, on any platform.
@@ -141,8 +141,7 @@ class _NoPageTransition extends PageTransitionsBuilder {
     Animation<double> animation,
     Animation<double> secondaryAnimation,
     Widget child,
-  ) =>
-      child;
+  ) => child;
 }
 
 // Material theme built from the same color globals the screens use, so stock

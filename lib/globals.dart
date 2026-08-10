@@ -135,7 +135,7 @@ TextStyle get tsLarge =>
 
 // Global Map for settings, persisted to settings.json. Keys starting with a dot
 // are internal and never shown in the settings screen.
-Map<String, dynamic> xdef = {
+Map<String, dynamic> defaultSettings() => {
   'Program language': 'en',
   'Color theme': 'System',
   'Device name': '',
@@ -147,6 +147,8 @@ Map<String, dynamic> xdef = {
   '.First start': 'true',
   '.Prog version': progVersion,
 };
+
+Map<String, dynamic> xdef = defaultSettings();
 
 bool xvDebug = true;
 // Resolved at startup in initPaths()
