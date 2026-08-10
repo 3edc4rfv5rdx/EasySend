@@ -120,6 +120,9 @@ class DiscoveryService {
       final String id = msg['id'] as String? ?? '';
       // Our own broadcast comes back to us; ignore it.
       if (id.isEmpty || id == xvDeviceId) return;
+      // A neighbour on this same machine would be listed at an address that
+      // points back here, so there is nothing to remember about it.
+      if (!isReachableAddress(packet.address.address)) return;
 
       _touchDevice(
         id: id,

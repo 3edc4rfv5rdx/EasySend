@@ -171,7 +171,12 @@ class ReceiveServer {
     required String address,
     required int port,
   }) async {
-    final int known = xvDevices.indexWhere((d) => d.id == senderId);
+    // A sender carrying our own id is this machine talking to itself: a second
+    // copy of the app started alongside the first. The transfer is still worth
+    // accepting, but nothing about it belongs in the list of other devices.
+    final bool self = senderId == xvDeviceId;
+    final bool reachable = !self && isReachableAddress(address);
+    final int known = self ? -1 : xvDevices.indexWhere((d) => d.id == senderId);
     // Whoever just connected has told us where to reach them. Behind a router
     // nothing else ever will: broadcast does not cross it, so a trusted device
     // remembered without an address can never be sent to.
@@ -180,7 +185,7 @@ class ReceiveServer {
       // Silent until it knocked on the door: discovery is not reaching it, so
       // only a poll will keep it in the list once the transfer is over.
       final bool wasOnline = device.online;
-      if (address.isNotEmpty) {
+      if (reachable) {
         device.address = address;
         device.port = port;
         if (!wasOnline) device.manual = true;
@@ -209,18 +214,18 @@ class ReceiveServer {
         totalBytes: bytes,
       );
     }
-    if (accepted && trust) {
+    if (accepted && trust && !self) {
       if (known >= 0) {
         xvDevices[known].trusted = true;
       } else {
         xvDevices.add(Device(
           id: senderId,
           name: senderName,
-          address: address,
+          address: reachable ? address : '',
           port: port,
           // Nothing announced this one to us, so only an HTTP poll can keep it
           // in the list — which is what manual means here.
-          manual: address.isNotEmpty,
+          manual: reachable,
           trusted: true,
           lastSeen: DateTime.now(),
         ));

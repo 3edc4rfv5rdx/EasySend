@@ -156,6 +156,17 @@ Future<void> initIdentity() async {
     xdef['.Device id'] = xvDeviceId;
   }
 
+  // Drop what can only lead back here: this device under its own id, and any
+  // peer remembered at a loopback address. Both were written by an older build
+  // and would offer to send a transfer to ourselves.
+  final int before = xvDevices.length;
+  xvDevices.removeWhere(
+    (d) => d.id == xvDeviceId || (d.address.isNotEmpty && !isReachableAddress(d.address)),
+  );
+  if (xvDevices.length != before) {
+    myPrint('dropped ${before - xvDevices.length} devices pointing at ourselves');
+  }
+
   if ((xdef['Device name'] as String).isEmpty) {
     xdef['Device name'] = await _defaultDeviceName();
   }

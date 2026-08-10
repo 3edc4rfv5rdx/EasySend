@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io' show InternetAddress;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 
@@ -18,7 +19,7 @@ final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 const String prgName = 'easysend';
 const String progVersion = '0.1.260810';
-const int buildNumber = 57;
+const int buildNumber = 58;
 const String progAuthor = 'Eugen';
 
 const String langFile = 'assets/locales.json';
@@ -171,6 +172,15 @@ void serverStateChanged() => serverTick.value++;
 // Transfers in both directions. Finished ones stay until restart so the user
 // can open what arrived; no history is kept between runs.
 List<TransferSession> xvTransfers = [];
+
+// An address learned over the wire is worth keeping only if we could dial it
+// back. A loopback source means the sender runs on this very machine — a second
+// copy of the app, or an emulator whose packets arrive through NAT — and
+// dialling 127.0.0.1 would reach our own server instead of it.
+bool isReachableAddress(String address) {
+  final InternetAddress? ip = InternetAddress.tryParse(address);
+  return ip != null && !ip.isLoopback;
+}
 
 // '#RRGGBB' or '#AARRGGBB' -> Color. Missing alpha means fully opaque.
 Color hexToColor(String hex) {
