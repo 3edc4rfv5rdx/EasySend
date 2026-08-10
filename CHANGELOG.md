@@ -2,6 +2,7 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+- E: The release script derives the product line from the validated current version, refuses drift, supports dry-run computation, and rolls version files back when a build fails
 - E: Public protocol JSON is streamed through byte and time limits and validated by shape, field length, file count and declared sizes before any consent prompt or allocation
 - E: Settings are validated field by field and saved through a flushed temporary file, so one bad value or an interrupted write no longer breaks startup
 - E: Android CPU and high-performance Wi-Fi locks now follow active-transfer mode, reacquire after timeout or service recreation, and are released while merely listening

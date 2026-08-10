@@ -13,22 +13,66 @@ cd "$(dirname "$0")"
 
 PROJ_NAME="easysend"
 PROJ_TITLE="EasySend"
-GLOBVERS="0.1"
-
 PUB_FILE="pubspec.yaml"
 GLOB_FILE="lib/globals.dart"
 APK_PATH="build/app/outputs/flutter-apk"
+
+compute_next_version() {
+    local current="$1"
+    local date_part="$2"
+    if [[ ! "$current" =~ ^([0-9]+)\.([0-9]+)\.([0-9]{6})\+([0-9]+)$ ]]; then
+        echo "Malformed version: $current" >&2
+        return 1
+    fi
+    local line="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}"
+    local next_build=$((BASH_REMATCH[4] + 1))
+    echo "$line.$date_part+$next_build"
+}
 
 if [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
     sed -n '2,10p' "$0"
     exit 0
 fi
 
+if [ "$1" = "--compute" ]; then
+    compute_next_version "$2" "$3"
+    exit
+fi
+
 # ---------- version ----------
-OLD_CODE=$(grep -oP '^version:\s*[0-9.]+\+\K[0-9]+' "$PUB_FILE")
-BUILD=$(( ${OLD_CODE:-0} + 1 ))
-VERSION="${GLOBVERS}.$(date +%y%m%d)"
-FULL_VER="${VERSION}+${BUILD}"
+CURRENT_FULL=$(sed -n 's/^version: //p' "$PUB_FILE")
+CURRENT_VERSION=${CURRENT_FULL%+*}
+CURRENT_BUILD=${CURRENT_FULL##*+}
+GLOBAL_VERSION=$(sed -n "s/^const String progVersion = '\([^']*\)';/\1/p" "$GLOB_FILE")
+GLOBAL_BUILD=$(sed -n 's/^const int buildNumber = \([0-9]*\);/\1/p' "$GLOB_FILE")
+if [ "$CURRENT_VERSION" != "$GLOBAL_VERSION" ] || [ "$CURRENT_BUILD" != "$GLOBAL_BUILD" ]; then
+    echo "Version sources disagree: $CURRENT_FULL vs $GLOBAL_VERSION+$GLOBAL_BUILD" >&2
+    exit 1
+fi
+FULL_VER=$(compute_next_version "$CURRENT_FULL" "$(date +%y%m%d)")
+VERSION=${FULL_VER%+*}
+BUILD=${FULL_VER##*+}
+
+if [ "$1" = "--dry-run" ]; then
+    echo "$FULL_VER"
+    exit
+fi
+
+VERSION_BACKUP=$(mktemp -d)
+cp "$PUB_FILE" "$VERSION_BACKUP/pubspec.yaml"
+cp "$GLOB_FILE" "$VERSION_BACKUP/globals.dart"
+BUILD_SUCCEEDED=false
+OLD_DEBUG=$(grep -oP 'bool xvDebug\s*=\s*\K[^;]+' "$GLOB_FILE")
+cleanup_release() {
+    sed -i "s/bool xvDebug\s*=\s*[^;]*;/bool xvDebug = $OLD_DEBUG;/" "$GLOB_FILE"
+    if [ "$BUILD_SUCCEEDED" != true ]; then
+        cp "$VERSION_BACKUP/pubspec.yaml" "$PUB_FILE"
+        cp "$VERSION_BACKUP/globals.dart" "$GLOB_FILE"
+    fi
+    rm -f "$VERSION_BACKUP/pubspec.yaml" "$VERSION_BACKUP/globals.dart"
+    rmdir "$VERSION_BACKUP"
+}
+trap cleanup_release EXIT
 
 # The number lives in two places that must not drift apart: pubspec.yaml feeds
 # the APK, globals.dart feeds the About screen.
@@ -44,19 +88,14 @@ flutter pub get
 dart run flutter_launcher_icons
 
 # Release builds ship without the debug log; restore whatever was there after.
-OLD_DEBUG=$(grep -oP 'bool xvDebug\s*=\s*\K[^;]+' "$GLOB_FILE")
 sed -i "s/bool xvDebug\s*=\s*[^;]*;/bool xvDebug = false;/" "$GLOB_FILE"
-restore_debug() {
-    sed -i "s/bool xvDebug\s*=\s*[^;]*;/bool xvDebug = $OLD_DEBUG;/" "$GLOB_FILE"
-}
-trap restore_debug EXIT
 
 # 64-bit only, no armeabi-v7a.
 flutter build apk --release --target-platform android-arm64,android-x64
 flutter build apk --release --split-per-abi --target-platform android-arm64,android-x64
 
-restore_debug
-trap - EXIT
+sed -i "s/bool xvDebug\s*=\s*[^;]*;/bool xvDebug = $OLD_DEBUG;/" "$GLOB_FILE"
+BUILD_SUCCEEDED=true
 
 # ---------- collect ----------
 for abi in "" "-arm64-v8a" "-x86_64"; do
@@ -86,5 +125,8 @@ if git rev-parse --verify HEAD >/dev/null 2>&1; then
         echo ">>> Other changes present; version bump left uncommitted."
     fi
 fi
+
+cleanup_release
+trap - EXIT
 
 sleep 2
