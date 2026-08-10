@@ -17,12 +17,25 @@ class _Cancelled implements Exception {
 
 // Sending side. One transfer at a time, files strictly in sequence.
 class SendService {
+  final Duration connectTimeout;
+  final Duration headerTimeout;
+  final Duration idleTimeout;
+  final Duration prepareTimeout;
   HttpClient? _client;
   TransferSession? _current;
   String? _sessionId;
   Device? _peer;
   bool _cancelled = false;
   bool _inFlight = false;
+
+  SendService({
+    this.connectTimeout = const Duration(seconds: networkConnectTimeoutSec),
+    this.headerTimeout = const Duration(seconds: networkHeaderTimeoutSec),
+    this.idleTimeout = const Duration(seconds: networkIdleTimeoutSec),
+    this.prepareTimeout = const Duration(
+      seconds: acceptTimeoutSec + consentTransportMarginSec,
+    ),
+  });
 
   TransferSession? get current => _current;
   bool get busy => _inFlight;
@@ -40,7 +53,7 @@ class SendService {
     _inFlight = true;
     _cancelled = false;
     _peer = peer;
-    _client = HttpClient();
+    _client = HttpClient()..connectionTimeout = connectTimeout;
 
     final TransferSession transfer = TransferSession(
       id: const Uuid().v4(),
@@ -80,7 +93,7 @@ class SendService {
       }
     } catch (e) {
       if (!_cancelled) {
-        _fail(transfer, '$e');
+        _fail(transfer, _describeError(e));
         await _cancelRemoteBestEffort(peer);
       }
     } finally {
@@ -100,9 +113,19 @@ class SendService {
     myPrint('send failed: $message');
   }
 
+  String _describeError(Object error) {
+    if (error is TimeoutException) {
+      final String detail = error.message == null ? '' : ': ${error.message}';
+      return '${lw('Connection timed out')}$detail';
+    }
+    return '$error';
+  }
+
   // Ask permission first: nothing is streamed until the peer said yes.
   Future<String?> _prepare(Device peer, List<FileItem> files) async {
-    final HttpClientRequest req = await _client!.postUrl(_url(peer, 'prepare'));
+    final HttpClientRequest req = await _client!
+        .postUrl(_url(peer, 'prepare'))
+        .timeout(connectTimeout);
     req.headers.contentType = ContentType.json;
     req.write(
       json.encode({
@@ -114,8 +137,8 @@ class SendService {
         'files': files.map((f) => f.toJson()).toList(),
       }),
     );
-    final HttpClientResponse resp = await req.close();
-    final String body = await utf8.decoder.bind(resp).join();
+    final HttpClientResponse resp = await req.close().timeout(prepareTimeout);
+    final String body = await _readSmallBody(resp, timeout: headerTimeout);
 
     if (resp.statusCode == HttpStatus.ok) {
       return (json.decode(body) as Map)['sessionId'] as String?;
@@ -174,26 +197,29 @@ class SendService {
     DateTime lastTick = DateTime.now();
 
     try {
-      final HttpClientRequest req = await _client!.postUrl(
-        _url(peer, 'upload', {'session': _sessionId!, 'file': item.id}),
-      );
+      final HttpClientRequest req = await _client!
+          .postUrl(
+            _url(peer, 'upload', {'session': _sessionId!, 'file': item.id}),
+          )
+          .timeout(connectTimeout);
       req.contentLength = item.size;
-      await req.addStream(
-        File(source).openRead().map((chunk) {
-          if (_cancelled) throw const _Cancelled();
-          crc = getCrc32(chunk, crc);
-          sent += chunk.length;
-          final DateTime now = DateTime.now();
-          if (now.difference(lastTick).inMilliseconds >= 100) {
-            lastTick = now;
-            transfer.noteProgress(settled + sent);
-            transfersChanged();
-          }
-          return chunk;
-        }),
-      );
-      final HttpClientResponse resp = await req.close();
-      await resp.drain<void>();
+      await for (final List<int> chunk in File(source).openRead()) {
+        if (_cancelled) throw const _Cancelled();
+        crc = getCrc32(chunk, crc);
+        sent += chunk.length;
+        req.add(chunk);
+        // Flush is the per-progress inactivity boundary. It resets for every
+        // chunk, so a healthy multi-gigabyte file has no whole-file deadline.
+        await req.flush().timeout(idleTimeout);
+        final DateTime now = DateTime.now();
+        if (now.difference(lastTick).inMilliseconds >= 100) {
+          lastTick = now;
+          transfer.noteProgress(settled + sent);
+          transfersChanged();
+        }
+      }
+      final HttpClientResponse resp = await req.close().timeout(headerTimeout);
+      await _drainWithTimeout(resp);
       if (resp.statusCode != HttpStatus.ok) {
         myPrint('upload of ${item.relativePath} returned ${resp.statusCode}');
         return false;
@@ -220,24 +246,46 @@ class SendService {
   }
 
   Future<HttpClientResponse> _post(Uri uri) async {
-    final HttpClientRequest req = await _client!.postUrl(uri);
+    final HttpClientRequest req = await _client!
+        .postUrl(uri)
+        .timeout(connectTimeout);
     req.contentLength = 0;
-    final HttpClientResponse resp = await req.close();
-    await resp.drain<void>();
+    final HttpClientResponse resp = await req.close().timeout(headerTimeout);
+    await _drainWithTimeout(resp);
     return resp;
+  }
+
+  Future<void> _drainWithTimeout(HttpClientResponse response) async {
+    await response.drain<void>().timeout(headerTimeout);
+  }
+
+  Future<String> _readSmallBody(
+    HttpClientResponse response, {
+    required Duration timeout,
+  }) async {
+    final List<int> bytes = [];
+    await for (final List<int> chunk in response.timeout(timeout)) {
+      if (bytes.length + chunk.length > maxInfoBodyBytes) {
+        throw const FormatException('response body too large');
+      }
+      bytes.addAll(chunk);
+    }
+    return utf8.decode(bytes, allowMalformed: false);
   }
 
   Future<void> _cancelRemoteBestEffort(Device peer) async {
     final String? sessionId = _sessionId;
     if (sessionId == null) return;
-    final HttpClient client = HttpClient();
+    final HttpClient client = HttpClient()..connectionTimeout = connectTimeout;
     try {
-      final HttpClientRequest req = await client.postUrl(
-        _url(peer, 'cancel', {'session': sessionId}),
-      );
+      final HttpClientRequest req = await client
+          .postUrl(_url(peer, 'cancel', {'session': sessionId}))
+          .timeout(connectTimeout);
       req.contentLength = 0;
-      final HttpClientResponse response = await req.close();
-      await response.drain<void>();
+      final HttpClientResponse response = await req.close().timeout(
+        headerTimeout,
+      );
+      await response.drain<void>().timeout(headerTimeout);
     } catch (e) {
       myPrint('terminal cancel notice failed: $e');
     } finally {

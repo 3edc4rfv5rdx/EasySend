@@ -56,6 +56,10 @@ const int maxDeclaredFileBytes = 16 * 1024 * 1024 * 1024 * 1024;
 const int maxDeclaredTransferBytes = 64 * 1024 * 1024 * 1024 * 1024;
 const int maxInfoBodyBytes = 64 * 1024;
 const int protocolBodyTimeoutSec = 5;
+const int networkConnectTimeoutSec = 3;
+const int networkHeaderTimeoutSec = 5;
+const int networkIdleTimeoutSec = 10;
+const int consentTransportMarginSec = 3;
 // Automatic re-sends of a file that failed its checksum.
 const int maxResendAttempts = 2;
 // Speed and ETA are averaged over this window; the instant value is unreadable.

@@ -2,6 +2,7 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+- E: Connect, consent, response and per-progress upload timeouts turn dead peers into errors without imposing a whole-file deadline, while manual polling cannot overlap or read an endless body
 - N: First launch warns that transfers are unencrypted, system locale selects the initial language, desktop window bounds persist, and Android fallback identity survives in the receive folder
 - E: The release script derives the product line from the validated current version, refuses drift, supports dry-run computation, and rolls version files back when a build fails
 - E: Public protocol JSON is streamed through byte and time limits and validated by shape, field length, file count and declared sizes before any consent prompt or allocation

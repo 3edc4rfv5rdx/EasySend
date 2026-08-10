@@ -226,9 +226,16 @@ final DiscoveryService discovery = DiscoveryService();
 // their reachability is probed over HTTP instead — the very channel the files
 // will take, firewalls included (SPEC 5.4).
 class ManualPoller {
+  final Duration timeout;
   Timer? _timer;
-  final HttpClient _client = HttpClient()
-    ..connectionTimeout = const Duration(seconds: manualPollTimeoutSec);
+  late final HttpClient _client;
+  bool _polling = false;
+
+  ManualPoller({this.timeout = const Duration(seconds: manualPollTimeoutSec)}) {
+    _client = HttpClient()..connectionTimeout = timeout;
+  }
+
+  bool get polling => _polling;
 
   void start() {
     stop();
@@ -245,24 +252,30 @@ class ManualPoller {
   }
 
   Future<void> _pollAll() async {
-    for (final Device device in xvDevices.where((d) => d.manual).toList()) {
-      final Map<String, dynamic>? info = await _ask(
-        device.address,
-        device.port,
-      );
-      if (info == null) continue;
-      final String id = info['id'] as String? ?? '';
-      if (id.isEmpty || id != device.id) {
-        // DHCP may have handed the saved address to somebody else. Keep the
-        // original identity/trust record but never mark it reachable.
-        device.lastSeen = null;
+    if (_polling) return;
+    _polling = true;
+    try {
+      for (final Device device in xvDevices.where((d) => d.manual).toList()) {
+        final Map<String, dynamic>? info = await _ask(
+          device.address,
+          device.port,
+        );
+        if (info == null) continue;
+        final String id = info['id'] as String? ?? '';
+        if (id.isEmpty || id != device.id) {
+          // DHCP may have handed the saved address to somebody else. Keep the
+          // original identity/trust record but never mark it reachable.
+          device.lastSeen = null;
+          devicesChanged();
+          continue;
+        }
+        device.name = info['name'] as String? ?? device.name;
+        device.platform = info['platform'] as String? ?? device.platform;
+        device.lastSeen = DateTime.now();
         devicesChanged();
-        continue;
       }
-      device.name = info['name'] as String? ?? device.name;
-      device.platform = info['platform'] as String? ?? device.platform;
-      device.lastSeen = DateTime.now();
-      devicesChanged();
+    } finally {
+      _polling = false;
     }
   }
 
@@ -331,18 +344,14 @@ class ManualPoller {
     try {
       final HttpClientRequest req = await _client
           .getUrl(Uri.http('$host:$port', '$apiPrefix/info'))
-          .timeout(const Duration(seconds: manualPollTimeoutSec));
-      final HttpClientResponse resp = await req.close().timeout(
-        const Duration(seconds: manualPollTimeoutSec),
-      );
+          .timeout(timeout);
+      final HttpClientResponse resp = await req.close().timeout(timeout);
       if (resp.statusCode != HttpStatus.ok) {
         await resp.drain<void>();
         return null;
       }
       final List<int> bytes = [];
-      await for (final List<int> chunk in resp.timeout(
-        const Duration(seconds: manualPollTimeoutSec),
-      )) {
+      await for (final List<int> chunk in resp.timeout(timeout)) {
         if (bytes.length + chunk.length > maxInfoBodyBytes) return null;
         bytes.addAll(chunk);
       }

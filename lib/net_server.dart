@@ -49,6 +49,7 @@ class _Incoming {
 // router, and streaming bodies are easier to control directly.
 class ReceiveServer {
   final Duration sessionTimeout;
+  final Duration uploadIdleTimeout;
   HttpServer? _http;
   _Incoming? _current;
   bool _preparing = false;
@@ -58,6 +59,7 @@ class ReceiveServer {
 
   ReceiveServer({
     this.sessionTimeout = const Duration(seconds: receiveSessionTimeoutSec),
+    this.uploadIdleTimeout = const Duration(seconds: networkIdleTimeoutSec),
   });
 
   bool get running => _http != null;
@@ -369,6 +371,7 @@ class ReceiveServer {
     session.transfer.currentIndex = session.transfer.files.indexOf(item);
     transfersChanged();
 
+    File? part;
     try {
       final String dest = session.finalPaths[fileId]!;
       final String partPath = '$dest$partSuffix';
@@ -382,7 +385,7 @@ class ReceiveServer {
         return _status(req, HttpStatus.badRequest);
       }
 
-      final File part = File(partPath);
+      part = File(partPath);
       final IOSink sink = part.openWrite();
       int written = 0;
       int crc = 0;
@@ -390,7 +393,12 @@ class ReceiveServer {
       bool overflow = false;
 
       try {
-        await for (final List<int> chunk in req) {
+        await for (final List<int> chunk in req.timeout(
+          uploadIdleTimeout,
+          onTimeout: (sink) => sink.addError(
+            TimeoutException('upload made no progress', uploadIdleTimeout),
+          ),
+        )) {
           if (session.cancelled) break;
           written += chunk.length;
           // Never write past the declared size: the manifest is the contract.
@@ -434,6 +442,12 @@ class ReceiveServer {
       session.transfer.noteProgress(session.settledBytes + written);
       transfersChanged();
       return _json(req, {'ok': true});
+    } on TimeoutException {
+      if (part != null) await _deleteQuietly(part);
+      session.phase = _ReceivePhase.ready;
+      return _json(req, {
+        'reason': 'upload-timeout',
+      }, status: HttpStatus.requestTimeout);
     } finally {
       _endOperation(
         session,
