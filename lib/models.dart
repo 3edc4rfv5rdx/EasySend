@@ -61,6 +61,7 @@ class FileItem {
   final String? sourcePath; // local path, sender side only
   final int size;
   final DateTime? modified; // shown next to the size in the picked list
+  String? destinationPath; // receiver-side verified path, never sent on wire
   int? crc32; // computed on the fly, known once the file ends
   bool done = false;
   bool failed = false;
@@ -71,6 +72,7 @@ class FileItem {
     required this.size,
     this.sourcePath,
     this.modified,
+    this.destinationPath,
   });
 
   String get name {

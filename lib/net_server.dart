@@ -191,6 +191,9 @@ class ReceiveServer {
         peerName: senderName,
         files: files,
       );
+      for (final FileItem file in files) {
+        file.destinationPath = finalPaths[file.id];
+      }
       transfer.status = TransferStatus.active;
       xvTransfers.add(transfer);
       transfersChanged();

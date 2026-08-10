@@ -762,76 +762,128 @@ class _HomeScreenState extends State<HomeScreen>
         : null;
     final int? eta = t.etaSeconds;
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(
-                t.incoming ? Icons.download : Icons.upload,
-                size: 18,
-                color: clText,
-              ),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  t.peerName,
-                  style: tsNormal,
-                  overflow: TextOverflow.ellipsis,
+    return InkWell(
+      onTap: _canOpenTransfer(t) ? () => _openTransfer(t) : null,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  t.incoming ? Icons.download : Icons.upload,
+                  size: 18,
+                  color: clText,
                 ),
-              ),
-            ],
-          ),
-          Row(
-            children: [
-              // One bar for the whole transfer, counted in bytes (SPEC 3.3).
-              // Thick and bright on purpose: readable across the room.
-              Expanded(
-                child: LinearProgressIndicator(
-                  value: t.progress,
-                  minHeight: 12,
-                  borderRadius: BorderRadius.circular(6),
-                  backgroundColor: clFrame.withValues(alpha: 0.3),
-                  color: _progressColor(t),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    t.peerName,
+                    style: tsNormal,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
-              ),
-              // The slot is always there, empty while the transfer runs, so the
-              // bar keeps its width and nothing jumps when it finishes.
-              SizedBox(
-                width: 32,
-                height: 24,
-                child: t.isRunning
-                    ? null
-                    : IconButton(
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints.tightFor(
-                          width: 32,
-                          height: 24,
+              ],
+            ),
+            Row(
+              children: [
+                // One bar for the whole transfer, counted in bytes (SPEC 3.3).
+                // Thick and bright on purpose: readable across the room.
+                Expanded(
+                  child: LinearProgressIndicator(
+                    value: t.progress,
+                    minHeight: 12,
+                    borderRadius: BorderRadius.circular(6),
+                    backgroundColor: clFrame.withValues(alpha: 0.3),
+                    color: _progressColor(t),
+                  ),
+                ),
+                // The slot is always there, empty while the transfer runs, so the
+                // bar keeps its width and nothing jumps when it finishes.
+                SizedBox(
+                  width: 32,
+                  height: 24,
+                  child: t.isRunning
+                      ? null
+                      : IconButton(
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints.tightFor(
+                            width: 32,
+                            height: 24,
+                          ),
+                          icon: Icon(Icons.close, color: clFrame, size: 20),
+                          tooltip: lw('Remove'),
+                          onPressed: () {
+                            xvTransfers.remove(t);
+                            transfersChanged();
+                          },
                         ),
-                        icon: Icon(Icons.close, color: clFrame, size: 20),
-                        tooltip: lw('Remove'),
-                        onPressed: () {
-                          xvTransfers.remove(t);
-                          transfersChanged();
-                        },
-                      ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          // The bar already says red; the line under it says the same, so the
-          // reason is not read as an ordinary status.
-          Text(
-            _transferSubtitle(t, currentFile, eta),
-            style: t.status == TransferStatus.failed
-                ? tsSmall.copyWith(color: clError, fontWeight: fwBold)
-                : tsSmall,
-          ),
-        ],
+                ),
+                if (_canRetry(t))
+                  TextButton(
+                    onPressed: sender.busy ? null : () => _retryTransfer(t),
+                    child: Text(lw('Retry')),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            // The bar already says red; the line under it says the same, so the
+            // reason is not read as an ordinary status.
+            Text(
+              _transferSubtitle(t, currentFile, eta),
+              style: t.status == TransferStatus.failed
+                  ? tsSmall.copyWith(color: clError, fontWeight: fwBold)
+                  : tsSmall,
+            ),
+          ],
+        ),
       ),
     );
+  }
+
+  bool _canRetry(TransferSession transfer) =>
+      !transfer.incoming &&
+      (transfer.status == TransferStatus.partial ||
+          transfer.status == TransferStatus.failed) &&
+      transfer.files.any((file) => !file.done && file.sourcePath != null);
+
+  Future<void> _retryTransfer(TransferSession transfer) async {
+    final int peerIndex = xvDevices.indexWhere(
+      (device) => device.id == transfer.peerId,
+    );
+    if (peerIndex < 0 || !xvDevices[peerIndex].online) {
+      okInfoBarRed(lw('Device is offline'));
+      return;
+    }
+    final snapshots = snapshotFiles(transfer.files.where((file) => !file.done));
+    final restored = await restoreFileSnapshot(snapshots);
+    if (!mounted) return;
+    if (restored.files.isEmpty) {
+      okInfoBarRed(lw('Files are no longer there'));
+      return;
+    }
+    if (restored.missing > 0) {
+      okInfoBarOrange(lw('Some files are no longer there'));
+    }
+    await sender.send(peer: xvDevices[peerIndex], files: restored.files);
+  }
+
+  bool _canOpenTransfer(TransferSession transfer) =>
+      transfer.incoming &&
+      !transfer.isRunning &&
+      transfer.files.any(
+        (file) => file.done && file.destinationPath?.isNotEmpty == true,
+      );
+
+  Future<void> _openTransfer(TransferSession transfer) async {
+    final List<FileItem> received = transfer.files
+        .where((file) => file.done && file.destinationPath != null)
+        .toList();
+    final bool opened = received.length == 1
+        ? await openExternally(received.single.destinationPath!)
+        : await openRecvFolder();
+    if (!opened) okInfoBarRed(lw('Nothing can open this'));
   }
 
   // The bar carries the outcome at a glance: red went wrong, grey was stopped
@@ -856,7 +908,8 @@ class _HomeScreenState extends State<HomeScreen>
       case TransferStatus.done:
         return '${lw('Done')}: ${t.doneCount} — ${formatBytes(t.bytesTotal)}';
       case TransferStatus.partial:
-        return '${lw('Received')} ${t.doneCount}/${t.files.length}, ${lw('failed')}: ${t.failedCount}';
+        final String direction = t.incoming ? lw('Received') : lw('Sent');
+        return '$direction ${t.doneCount}/${t.files.length}, ${lw('failed')}: ${t.failedCount}';
       case TransferStatus.cancelled:
         return lw('Cancelled');
       case TransferStatus.failed:
