@@ -2,6 +2,7 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+- I: The GNU GPL v3 as the project's licence
 - I: IDEAS.txt drops the duplicate-selection item, which is done, and records what today's work left open: background receiving on the desktop through a tray icon, the name, TLS, and why network errors stay in the system's own words
 
 ## v0.1.260810+64
