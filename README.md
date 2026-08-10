@@ -77,6 +77,25 @@ Flutter, one codebase for Android and desktop. The numbered scripts do the work:
 The Linux build needs `clang cmake ninja-build pkg-config libgtk-3-dev` and a linker
 beside clang (`lld`); `13-MakeLinux.sh` checks for both and says what is missing.
 
+### Signing
+
+The Android release is signed with a key kept outside the repository:
+`~/.my-safe/key.properties`, read by `android/app/build.gradle.kts` at configuration
+time. It is an ordinary Gradle properties file:
+
+```properties
+storeFile=/home/you/.my-safe/upload-keystore.jks
+storePassword=…
+keyAlias=…
+keyPassword=…
+```
+
+Without that file the release build stops before it starts. To build with your own key,
+create the keystore (`keytool -genkey -v -keystore upload-keystore.jks -keyalg RSA
+-keysize 2048 -validity 10000 -alias upload`) and point the properties at it; to build
+without signing at all, drop the `signingConfigs` block and the `signingConfig` line from
+`android/app/build.gradle.kts`. The Linux build needs none of this.
+
 ## Note
 
 This codebase was developed with the help of artificial intelligence tools.
