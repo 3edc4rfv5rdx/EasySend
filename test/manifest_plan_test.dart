@@ -65,4 +65,21 @@ void main() {
       throwsA(isA<DestinationPlanException>()),
     );
   });
+
+  // The check compares manifest paths, which always carry '/', instead of host
+  // paths: on Windows those would be normalized to '\' and never match.
+  test('rejects prefix conflicts that only Windows folds together', () async {
+    await expectLater(
+      buildDestinationPlan(root.path, [
+        item('1', 'Photos'),
+        item('2', 'photos/a.txt'),
+      ], windows: true),
+      throwsA(isA<DestinationPlanException>()),
+    );
+    final plan = await buildDestinationPlan(root.path, [
+      item('1', 'Photos'),
+      item('2', 'photos/a.txt'),
+    ], windows: false);
+    expect(plan.length, 2);
+  });
 }

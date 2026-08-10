@@ -280,12 +280,15 @@ Future<Map<String, String>> buildDestinationPlan(
     safePaths.add(safe);
   }
 
-  // A file cannot also be the directory required by another entry.
+  // A file cannot also be the directory required by another entry. Manifest
+  // paths always carry '/', so the comparison must not go through the host's
+  // separator: normalizing them would give '\' on Windows and match nothing.
+  final bool foldCase = windows ?? Platform.isWindows;
   for (int i = 0; i < safePaths.length; i++) {
-    final String key = pathEqualityKey(safePaths[i], windows: windows);
+    final String key = foldCase ? safePaths[i].toLowerCase() : safePaths[i];
     for (int j = 0; j < safePaths.length; j++) {
       if (i == j) continue;
-      final String other = pathEqualityKey(safePaths[j], windows: windows);
+      final String other = foldCase ? safePaths[j].toLowerCase() : safePaths[j];
       if (other.startsWith('$key/')) {
         throw const DestinationPlanException('file/directory path conflict');
       }

@@ -2,6 +2,7 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+- E: The file-versus-directory conflict in a manifest is found on Windows too, where the check used to compare paths that had already been normalized to backslashes
 - E: The final path component of a nested destination is checked where it lands, so a symlink planted deeper than the receive folder's top level can no longer be written through
 - E: Android foreground-service mode transitions bypass notification throttling, so transfer locks are acquired and released immediately even when state changes within one second
 - I: Flutter analyze and the deterministic transfer-core test suite are the default local scripts and CI checks, with the analyzer clean
