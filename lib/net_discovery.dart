@@ -251,6 +251,14 @@ class ManualPoller {
         device.port,
       );
       if (info == null) continue;
+      final String id = info['id'] as String? ?? '';
+      if (id.isEmpty || id != device.id) {
+        // DHCP may have handed the saved address to somebody else. Keep the
+        // original identity/trust record but never mark it reachable.
+        device.lastSeen = null;
+        devicesChanged();
+        continue;
+      }
       device.name = info['name'] as String? ?? device.name;
       device.platform = info['platform'] as String? ?? device.platform;
       device.lastSeen = DateTime.now();
@@ -258,13 +266,35 @@ class ManualPoller {
     }
   }
 
+  Future<void> pollNow() => _pollAll();
+
+  Future<bool> verifyIdentity(Device device) async {
+    final Map<String, dynamic>? info = await _ask(device.address, device.port);
+    final String id = info?['id'] as String? ?? '';
+    if (id.isEmpty || id != device.id) {
+      device.lastSeen = null;
+      devicesChanged();
+      return false;
+    }
+    device.lastSeen = DateTime.now();
+    return true;
+  }
+
   // '192.168.1.10' or '192.168.1.10:15353'
   Future<bool> addByAddress(String input) async {
-    final int colon = input.lastIndexOf(':');
-    final String host = colon < 0 ? input : input.substring(0, colon);
-    final int port = colon < 0
-        ? currentPort
-        : int.tryParse(input.substring(colon + 1)) ?? currentPort;
+    final String value = input.trim();
+    final int colon = value.lastIndexOf(':');
+    final String host = (colon < 0 ? value : value.substring(0, colon)).trim();
+    final int? explicitPort = colon < 0
+        ? null
+        : int.tryParse(value.substring(colon + 1));
+    if (host.isEmpty ||
+        InternetAddress.tryParse(host) == null ||
+        (explicitPort != null && (explicitPort < 1 || explicitPort > 65535)) ||
+        (colon >= 0 && explicitPort == null)) {
+      return false;
+    }
+    final int port = explicitPort ?? currentPort;
 
     final Map<String, dynamic>? info = await _ask(host, port);
     if (info == null) return false;

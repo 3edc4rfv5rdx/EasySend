@@ -6,6 +6,7 @@ import 'package:archive/archive.dart';
 import 'package:uuid/uuid.dart';
 
 import 'globals.dart';
+import 'net_discovery.dart';
 
 // Thrown from inside the upload stream to stop it mid-file. Cancelling has to
 // break the stream itself: a flag checked between files lets the current one
@@ -53,6 +54,10 @@ class SendService {
     transfersChanged();
 
     try {
+      if (peer.manual && !await manualPoller.verifyIdentity(peer)) {
+        _fail(transfer, lw('Device identity changed'));
+        return transfer.status;
+      }
       final String? sessionId = await _prepare(peer, files);
       if (sessionId == null) return transfer.status;
       if (_cancelled) return transfer.status;
