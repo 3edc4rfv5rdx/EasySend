@@ -125,17 +125,18 @@ class ReceiveServer {
 
     // Resolve every destination before answering: a manifest that cannot be
     // written safely is refused as a whole, not half-accepted.
-    final Map<String, String> finalPaths = {};
-    for (final FileItem f in files) {
-      final String? dest = await resolveInside(xvRecvDir, f.relativePath);
-      if (dest == null ||
-          f.size < 0 ||
-          !await ensureSafeDestination(xvRecvDir, dest) ||
-          !await ensureSafeDestination(xvRecvDir, '$dest$partSuffix')) {
-        myPrint('refused unsafe path: ${f.relativePath}');
-        return _status(req, HttpStatus.badRequest);
+    final Map<String, String> finalPaths;
+    try {
+      finalPaths = await buildDestinationPlan(xvRecvDir, files);
+      for (final String dest in finalPaths.values) {
+        if (!await ensureSafeDestination(xvRecvDir, dest) ||
+            !await ensureSafeDestination(xvRecvDir, '$dest$partSuffix')) {
+          throw const DestinationPlanException('unsafe filesystem component');
+        }
       }
-      finalPaths[f.id] = await uniquePath(dest);
+    } on DestinationPlanException catch (e) {
+      myPrint('refused manifest: $e');
+      return _json(req, {'reason': e.reason}, status: HttpStatus.badRequest);
     }
 
     final int totalBytes = files.fold(0, (sum, f) => sum + f.size);

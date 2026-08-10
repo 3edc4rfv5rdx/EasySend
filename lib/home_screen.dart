@@ -192,8 +192,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, Wi
     if (skipped > 0) okInfoBarOrange('${lw('Duplicates skipped')}: $skipped');
   }
 
-  // What the receiver will see: same place, same size means the same file.
-  static String _targetKey(FileItem f) => '${f.relativePath}|${f.size}';
+  // A receiver destination may only occur once. Case folding also prevents a
+  // selection that would collapse when the peer runs Windows.
+  static String _targetKey(FileItem f) =>
+      f.relativePath.replaceAll(r'\', '/').toLowerCase();
 
   // Clear resets the whole choice, files and target alike.
   void _clear() => setState(() {

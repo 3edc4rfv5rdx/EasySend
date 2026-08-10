@@ -197,6 +197,69 @@ Future<String?> resolveInside(String baseDir, String relPath) async {
   return full;
 }
 
+String pathEqualityKey(String path, {bool? windows}) {
+  final String normalized = p.normalize(path);
+  return (windows ?? Platform.isWindows)
+      ? normalized.toLowerCase()
+      : normalized;
+}
+
+class DestinationPlanException implements Exception {
+  final String reason;
+  const DestinationPlanException(this.reason);
+
+  @override
+  String toString() => reason;
+}
+
+// Reserve every destination before consent. Names already on disk and names
+// allocated earlier in this same manifest participate in one collision set.
+Future<Map<String, String>> buildDestinationPlan(
+  String baseDir,
+  List<FileItem> files, {
+  bool? windows,
+}) async {
+  final Set<String> ids = {};
+  final List<String> safePaths = [];
+  for (final FileItem file in files) {
+    if (file.id.isEmpty || !ids.add(file.id)) {
+      throw const DestinationPlanException('duplicate or empty file id');
+    }
+    final String? safe = sanitizeRelPath(file.relativePath);
+    if (safe == null || file.size < 0) {
+      throw const DestinationPlanException('invalid file path or size');
+    }
+    safePaths.add(safe);
+  }
+
+  // A file cannot also be the directory required by another entry.
+  for (int i = 0; i < safePaths.length; i++) {
+    final String key = pathEqualityKey(safePaths[i], windows: windows);
+    for (int j = 0; j < safePaths.length; j++) {
+      if (i == j) continue;
+      final String other = pathEqualityKey(safePaths[j], windows: windows);
+      if (other.startsWith('$key/')) {
+        throw const DestinationPlanException('file/directory path conflict');
+      }
+    }
+  }
+
+  final Set<String> reserved = {};
+  final Map<String, String> result = {};
+  for (int i = 0; i < files.length; i++) {
+    final String? full = await resolveInside(baseDir, safePaths[i]);
+    if (full == null) {
+      throw const DestinationPlanException('path escapes receive directory');
+    }
+    result[files[i].id] = await uniquePath(
+      full,
+      reserved: reserved,
+      windows: windows,
+    );
+  }
+  return result;
+}
+
 // Reject links below the configured root and verify the resolved parent stays
 // inside it. Dart has no portable atomic O_NOFOLLOW open; callers therefore
 // invoke this at prepare and immediately before open/rename. A hostile local
@@ -255,14 +318,29 @@ Future<bool> ensureSafeDestination(
 
 // 'photo.jpg' -> 'photo (1).jpg' when taken. The .part twin counts as taken
 // too, so two transfers of the same name cannot collide mid-flight.
-Future<String> uniquePath(String fullPath) async {
-  if (!await _taken(fullPath)) return fullPath;
+Future<String> uniquePath(
+  String fullPath, {
+  Set<String>? reserved,
+  bool? windows,
+}) async {
+  Future<bool> unavailable(String candidate) async {
+    final String key = pathEqualityKey(candidate, windows: windows);
+    return (reserved?.contains(key) ?? false) || await _taken(candidate);
+  }
+
+  if (!await unavailable(fullPath)) {
+    reserved?.add(pathEqualityKey(fullPath, windows: windows));
+    return fullPath;
+  }
   final String dir = p.dirname(fullPath);
   final String ext = p.extension(fullPath);
   final String stem = p.basenameWithoutExtension(fullPath);
   for (int i = 1; i < 10000; i++) {
     final String candidate = p.join(dir, '$stem ($i)$ext');
-    if (!await _taken(candidate)) return candidate;
+    if (!await unavailable(candidate)) {
+      reserved?.add(pathEqualityKey(candidate, windows: windows));
+      return candidate;
+    }
   }
   return p.join(dir, '$stem ${DateTime.now().millisecondsSinceEpoch}$ext');
 }
