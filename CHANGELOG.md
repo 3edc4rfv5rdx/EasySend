@@ -2,6 +2,7 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+- I: IDEAS.txt drops the duplicate-selection item, which is done, and records what today's work left open: background receiving on the desktop through a tray icon, the name, TLS, and why network errors stay in the system's own words
 
 ## v0.1.260810+64
 - I: 77-MakeMyKey.sh writes the signing keystore and its properties file, refuses to touch either one if it is already there, and carries no execute bit so it cannot be run by habit
