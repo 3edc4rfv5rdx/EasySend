@@ -2,7 +2,7 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
-- I: 10-MakeRelease.sh builds one APK for both 64-bit ABIs instead of a split per ABI, so the version code on the device is the build number and not abi * 1000 + build
+- I: A split APK carries the build number as its version code again, instead of the abi * 1000 + build the Flutter plugin writes for stores
 - E: The receive folder opens on Samsung again: the intent offered the file manager a URI the app does not own, and Android refused to start it at all; a refused intent now also falls through to the next way in instead of ending the call
 - E: The desktop build quits without the abort in the engine's GTK teardown: the services are stopped and the process ends, instead of handing the window back to a compositor cleanup with no GL context left
 - F: The close button on the desktop window frame asks the same question as the one in the bar and stops the server, announcing and polling on the way out, instead of closing behind the app's back

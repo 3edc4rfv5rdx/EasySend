@@ -51,21 +51,23 @@ restore_debug() {
 }
 trap restore_debug EXIT
 
-# 64-bit only, no armeabi-v7a. One APK for both: --split-per-abi would make the
-# Flutter plugin rewrite the version code as abi * 1000 + build (2055 on arm64,
-# 4055 on x86_64), which a store needs and a hand-installed build only obscures.
+# 64-bit only, no armeabi-v7a.
 flutter build apk --release --target-platform android-arm64,android-x64
+flutter build apk --release --split-per-abi --target-platform android-arm64,android-x64
 
 restore_debug
 trap - EXIT
 
 # ---------- collect ----------
-mv "$APK_PATH/app-release.apk" "$APK_PATH/app-release-$VERSION-$BUILD.apk"
+for abi in "" "-arm64-v8a" "-x86_64"; do
+    SRC="$APK_PATH/app${abi}-release.apk"
+    [ -f "$SRC" ] && mv "$SRC" "$APK_PATH/app${abi}-release-$VERSION-$BUILD.apk"
+done
 rm -f "$APK_PATH/"*.sha1
 
 echo
-echo "Release APK:"
-ls -1 "$APK_PATH/app-release-$VERSION-$BUILD.apk"
+echo "Release APKs:"
+ls -1 "$APK_PATH"/*-"$VERSION"-"$BUILD".apk 2>/dev/null
 
 # ---------- version bump in git ----------
 # Fold the bump into the previous commit when that is safe. Safe = HEAD is not
