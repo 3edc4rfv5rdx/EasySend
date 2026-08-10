@@ -84,17 +84,18 @@ The Android release is signed with a key kept outside the repository:
 time. It is an ordinary Gradle properties file:
 
 ```properties
-storeFile=/home/you/.my-safe/upload-keystore.jks
+storeFile=/home/you/.my-safe/my-release-key.jks
 storePassword=…
 keyAlias=…
 keyPassword=…
 ```
 
-Without that file the release build stops before it starts. To build with your own key,
-create the keystore (`keytool -genkey -v -keystore upload-keystore.jks -keyalg RSA
--keysize 2048 -validity 10000 -alias upload`) and point the properties at it; to build
-without signing at all, drop the `signingConfigs` block and the `signingConfig` line from
-`android/app/build.gradle.kts`. The Linux build needs none of this.
+Without that file the release build stops before it starts. `bash 77-MakeMyKey.sh` makes
+both the keystore and the properties file for you — it carries no execute bit, since it
+is a once-in-a-project step and not part of any build, and it refuses to run when either
+file already exists. To build without signing at all, drop the `signingConfigs` block and
+the `signingConfig` line from `android/app/build.gradle.kts`. The Linux build needs none
+of this.
 
 ## Note
 
