@@ -45,6 +45,10 @@ class _HomeScreenState extends State<HomeScreen>
   ]);
 
   StreamSubscription<List<SharedMediaFile>>? _shareSub;
+  bool _networkDesired = true;
+  bool _disposed = false;
+  int _networkEpoch = 0;
+  Future<void> _networkTail = Future<void>.value();
 
   @override
   void initState() {
@@ -55,6 +59,7 @@ class _HomeScreenState extends State<HomeScreen>
     if (!Platform.isAndroid) windowManager.addListener(this);
     devicesTick.addListener(_dropOfflineTarget);
     transfersTick.addListener(_pruneSentFiles);
+    androidService.attach();
     _startNetwork();
     _listenForShares();
   }
@@ -62,6 +67,9 @@ class _HomeScreenState extends State<HomeScreen>
   // The picked list doubles as the queue: a file that arrived and passed its
   // checksum leaves it, so whatever remains is exactly what did not get there.
   void _pruneSentFiles() {
+    if (!_networkDesired && !xvTransfers.any((t) => t.isRunning)) {
+      _queueNetworkTransition();
+    }
     if (_selected.isEmpty || !mounted) return;
     final int before = _selected.length;
     _selected.removeWhere((f) => f.done);
@@ -85,19 +93,19 @@ class _HomeScreenState extends State<HomeScreen>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (!Platform.isAndroid) return;
-    if (xdef['Receive in background'] == 'true') return;
+    if (xdef['Receive in background'] == 'true') {
+      _setNetworkDesired(true);
+      return;
+    }
 
     switch (state) {
       case AppLifecycleState.resumed:
-        _startNetwork();
+        _setNetworkDesired(true);
       case AppLifecycleState.paused:
       case AppLifecycleState.detached:
       case AppLifecycleState.hidden:
         // A transfer in flight is not interrupted by leaving the screen.
-        if (sender.busy || xvTransfers.any((t) => t.isRunning)) return;
-        discovery.stop();
-        manualPoller.stop();
-        receiveServer.stop();
+        _setNetworkDesired(false);
       case AppLifecycleState.inactive:
         break;
     }
@@ -125,6 +133,9 @@ class _HomeScreenState extends State<HomeScreen>
 
   @override
   void dispose() {
+    _disposed = true;
+    _networkDesired = false;
+    _networkEpoch++;
     WidgetsBinding.instance.removeObserver(this);
     if (!Platform.isAndroid) windowManager.removeListener(this);
     devicesTick.removeListener(_dropOfflineTarget);
@@ -139,21 +150,67 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Future<void> _startNetwork() async {
+    _setNetworkDesired(true);
+    await _networkTail;
+  }
+
+  void _setNetworkDesired(bool desired) {
+    _networkDesired = desired;
+    _networkEpoch++;
+    _queueNetworkTransition();
+  }
+
+  void _queueNetworkTransition({bool restart = false}) {
+    final int epoch = _networkEpoch;
+    _networkTail = _networkTail.then(
+      (_) => _applyNetworkState(epoch, restart: restart),
+    );
+  }
+
+  bool _stillWantsNetwork(int epoch) =>
+      !_disposed && _networkDesired && epoch == _networkEpoch;
+
+  Future<void> _applyNetworkState(int epoch, {bool restart = false}) async {
+    if (!_networkDesired || _disposed) {
+      if (sender.busy || xvTransfers.any((t) => t.isRunning)) return;
+      manualPoller.stop();
+      await discovery.stop();
+      await receiveServer.stop();
+      return;
+    }
+
     // Ask before the first transfer rather than at the moment files arrive:
     // without storage access the receive folder cannot be written at all.
     await ensureStoragePermission();
+    if (!_stillWantsNetwork(epoch)) return;
     await ensureNotificationPermission();
+    if (!_stillWantsNetwork(epoch)) return;
     await ensureRecvDir();
-    androidService.attach();
+    if (!_stillWantsNetwork(epoch)) return;
+    if (restart) {
+      await discovery.stop();
+      await receiveServer.stop();
+      if (!_stillWantsNetwork(epoch)) return;
+    }
     await receiveServer.start();
+    if (!_stillWantsNetwork(epoch)) {
+      await receiveServer.stop();
+      return;
+    }
     await discovery.start();
+    if (!_stillWantsNetwork(epoch)) {
+      await discovery.stop();
+      await receiveServer.stop();
+      return;
+    }
     manualPoller.start();
   }
 
   // Called after the port may have changed in settings.
   Future<void> _restartNetwork() async {
-    await receiveServer.start();
-    await discovery.start();
+    _networkEpoch++;
+    _queueNetworkTransition(restart: true);
+    await _networkTail;
   }
 
   int get _totalBytes => _selected.fold(0, (sum, f) => sum + f.size);

@@ -156,21 +156,34 @@ Future<void> setDiscoveryMulticastEnabled(bool enabled) async {
 class AndroidService {
   bool _serviceUp = false;
   bool _screenHeld = false;
+  bool _attached = false;
+  Future<void> _syncTail = Future<void>.value();
   DateTime _lastPush = DateTime.fromMillisecondsSinceEpoch(0);
   String _lastText = '';
 
+  bool get attached => _attached;
+
   void attach() {
+    if (_attached) return;
+    _attached = true;
     if (!Platform.isAndroid) return;
     transfersTick.addListener(sync);
     sync();
   }
 
   void detach() {
+    if (!_attached) return;
+    _attached = false;
     if (!Platform.isAndroid) return;
     transfersTick.removeListener(sync);
   }
 
-  Future<void> sync() async {
+  Future<void> sync() {
+    _syncTail = _syncTail.then((_) => _syncNow());
+    return _syncTail;
+  }
+
+  Future<void> _syncNow() async {
     if (!Platform.isAndroid) return;
 
     TransferSession? active;
