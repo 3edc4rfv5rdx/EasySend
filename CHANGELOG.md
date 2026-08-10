@@ -2,6 +2,7 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+- F: The receive folder sits under Device, where a place on the disk belongs, and not under Network
 - F: The settings are grouped under Device, Network and Application headings, the same rule the home screen uses, instead of one flat list
 - F: A heavier + and folder icon in the section headings, 22 px instead of 18 in the same button
 - F: The selection list shows its scrollbar while scrolling instead of pinning it beside a list of two rows

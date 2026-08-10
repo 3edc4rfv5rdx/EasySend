@@ -218,7 +218,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             value: xdef['Device name'],
             onTap: _editDeviceName,
           ),
-          sectionTitle(lw('Network')),
+          // The folder is a place on this disk, not an address: it belongs with
+          // the device rather than with the port it is reached on.
           _tile(
             icon: Icons.folder_outlined,
             title: lw('Receive folder'),
@@ -226,6 +227,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             keepTail: true,
             onTap: _editRecvFolder,
           ),
+          sectionTitle(lw('Network')),
           _tile(
             icon: Icons.lan_outlined,
             title: lw('Port'),
