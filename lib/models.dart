@@ -2,13 +2,13 @@ import 'globals.dart';
 
 // A peer device: either discovered by UDP announces or added by hand.
 class Device {
-  String id;         // stable per-device UUID, trust is bound to it, not to IP
+  String id; // stable per-device UUID, trust is bound to it, not to IP
   String name;
-  String platform;   // android | linux | windows
-  String address;    // IP
+  String platform; // android | linux | windows
+  String address; // IP
   int port;
-  bool trusted;      // accept from it without asking
-  bool manual;       // added by hand, stays in the list while offline
+  bool trusted; // accept from it without asking
+  bool manual; // added by hand, stays in the list while offline
   DateTime? lastSeen;
 
   Device({
@@ -58,10 +58,10 @@ class Device {
 class FileItem {
   final String id;
   final String relativePath; // path inside the transfer, keeps folder structure
-  final String? sourcePath;  // local path, sender side only
+  final String? sourcePath; // local path, sender side only
   final int size;
-  final DateTime? modified;  // shown next to the size in the picked list
-  int? crc32;                // computed on the fly, known once the file ends
+  final DateTime? modified; // shown next to the size in the picked list
+  int? crc32; // computed on the fly, known once the file ends
   bool done = false;
   bool failed = false;
 
@@ -96,7 +96,7 @@ enum TransferStatus { pending, active, done, partial, cancelled, failed }
 // One transfer, in either direction. Not persisted: the app keeps no history
 // between runs, finished entries only live until restart.
 class TransferSession {
-  final String id;
+  String id;
   final bool incoming;
   final String peerName;
   // Who it went to, so a partial outgoing transfer can be retried later even
@@ -118,7 +118,9 @@ class TransferSession {
     bytesDone = totalBytesDone;
     final DateTime now = DateTime.now();
     _samples.add((now, totalBytesDone));
-    final DateTime cutoff = now.subtract(const Duration(seconds: speedWindowSec));
+    final DateTime cutoff = now.subtract(
+      const Duration(seconds: speedWindowSec),
+    );
     while (_samples.length > 2 && _samples.first.$1.isBefore(cutoff)) {
       _samples.removeAt(0);
     }
@@ -127,7 +129,9 @@ class TransferSession {
   // Bytes per second, 0 until there are two samples far enough apart.
   double get speed {
     if (_samples.length < 2) return 0;
-    final int micros = _samples.last.$1.difference(_samples.first.$1).inMicroseconds;
+    final int micros = _samples.last.$1
+        .difference(_samples.first.$1)
+        .inMicroseconds;
     if (micros <= 0) return 0;
     final int bytes = _samples.last.$2 - _samples.first.$2;
     return bytes * 1000000 / micros;
@@ -160,6 +164,6 @@ class TransferSession {
     return total == 0 ? 0 : (bytesDone / total).clamp(0.0, 1.0);
   }
 
-  bool get isRunning => status == TransferStatus.pending || status == TransferStatus.active;
-
+  bool get isRunning =>
+      status == TransferStatus.pending || status == TransferStatus.active;
 }

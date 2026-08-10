@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:archive/archive.dart';
+import 'package:uuid/uuid.dart';
 
 import 'globals.dart';
 
@@ -15,14 +16,15 @@ class _Cancelled implements Exception {
 
 // Sending side. One transfer at a time, files strictly in sequence.
 class SendService {
-  final HttpClient _client = HttpClient();
+  HttpClient? _client;
   TransferSession? _current;
   String? _sessionId;
   Device? _peer;
   bool _cancelled = false;
+  bool _inFlight = false;
 
   TransferSession? get current => _current;
-  bool get busy => _current?.isRunning ?? false;
+  bool get busy => _inFlight;
 
   Uri _url(Device peer, String path, [Map<String, String>? query]) =>
       Uri.http('${peer.address}:${peer.port}', '$apiPrefix/$path', query);
@@ -33,12 +35,14 @@ class SendService {
     required Device peer,
     required List<FileItem> files,
   }) async {
-    if (busy) return TransferStatus.failed;
+    if (_inFlight) return TransferStatus.failed;
+    _inFlight = true;
     _cancelled = false;
     _peer = peer;
+    _client = HttpClient();
 
     final TransferSession transfer = TransferSession(
-      id: '',
+      id: const Uuid().v4(),
       incoming: false,
       peerName: peer.name,
       peerId: peer.id,
@@ -51,7 +55,9 @@ class SendService {
     try {
       final String? sessionId = await _prepare(peer, files);
       if (sessionId == null) return transfer.status;
+      if (_cancelled) return transfer.status;
       _sessionId = sessionId;
+      transfer.id = sessionId;
       transfer.status = TransferStatus.active;
       transfersChanged();
 
@@ -63,13 +69,21 @@ class SendService {
           ? TransferStatus.done
           : TransferStatus.partial;
     } on SocketException catch (e) {
-      _fail(transfer, e.osError?.message ?? e.message);
-      await _cancelRemoteBestEffort(peer);
+      if (!_cancelled) {
+        _fail(transfer, e.osError?.message ?? e.message);
+        await _cancelRemoteBestEffort(peer);
+      }
     } catch (e) {
-      _fail(transfer, '$e');
-      await _cancelRemoteBestEffort(peer);
+      if (!_cancelled) {
+        _fail(transfer, '$e');
+        await _cancelRemoteBestEffort(peer);
+      }
     } finally {
       _sessionId = null;
+      _peer = null;
+      _client?.close(force: true);
+      _client = null;
+      _inFlight = false;
       transfersChanged();
     }
     return transfer.status;
@@ -83,7 +97,7 @@ class SendService {
 
   // Ask permission first: nothing is streamed until the peer said yes.
   Future<String?> _prepare(Device peer, List<FileItem> files) async {
-    final HttpClientRequest req = await _client.postUrl(_url(peer, 'prepare'));
+    final HttpClientRequest req = await _client!.postUrl(_url(peer, 'prepare'));
     req.headers.contentType = ContentType.json;
     req.write(
       json.encode({
@@ -155,7 +169,7 @@ class SendService {
     DateTime lastTick = DateTime.now();
 
     try {
-      final HttpClientRequest req = await _client.postUrl(
+      final HttpClientRequest req = await _client!.postUrl(
         _url(peer, 'upload', {'session': _sessionId!, 'file': item.id}),
       );
       req.contentLength = item.size;
@@ -201,7 +215,7 @@ class SendService {
   }
 
   Future<HttpClientResponse> _post(Uri uri) async {
-    final HttpClientRequest req = await _client.postUrl(uri);
+    final HttpClientRequest req = await _client!.postUrl(uri);
     req.contentLength = 0;
     final HttpClientResponse resp = await req.close();
     await resp.drain<void>();
@@ -211,10 +225,18 @@ class SendService {
   Future<void> _cancelRemoteBestEffort(Device peer) async {
     final String? sessionId = _sessionId;
     if (sessionId == null) return;
+    final HttpClient client = HttpClient();
     try {
-      await _post(_url(peer, 'cancel', {'session': sessionId}));
+      final HttpClientRequest req = await client.postUrl(
+        _url(peer, 'cancel', {'session': sessionId}),
+      );
+      req.contentLength = 0;
+      final HttpClientResponse response = await req.close();
+      await response.drain<void>();
     } catch (e) {
       myPrint('terminal cancel notice failed: $e');
+    } finally {
+      client.close(force: true);
     }
   }
 
@@ -228,13 +250,10 @@ class SendService {
     _cancelled = true;
     transfer.status = TransferStatus.cancelled;
     transfersChanged();
+    _client?.close(force: true);
 
     if (peer != null && sessionId != null) {
-      try {
-        await _post(_url(peer, 'cancel', {'session': sessionId}));
-      } catch (e) {
-        myPrint('cancel notice failed: $e');
-      }
+      await _cancelRemoteBestEffort(peer);
     }
   }
 }
