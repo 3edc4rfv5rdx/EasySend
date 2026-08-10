@@ -55,6 +55,25 @@ void main() {
     expect(await File(p.join(outside.path, 'stolen.bin')).exists(), isFalse);
   });
 
+  test('rejects a symlinked final file inside a nested directory', () async {
+    final File victim = File(p.join(outside.path, 'victim.bin'));
+    await victim.writeAsString('unchanged');
+    final Directory nested = await Directory(
+      p.join(receive.path, 'one', 'two'),
+    ).create(recursive: true);
+    final String destination = p.join(nested.path, 'file.bin');
+    await Link(destination).create(victim.path);
+    expect(
+      await ensureSafeDestination(
+        receive.path,
+        destination,
+        createParents: true,
+      ),
+      isFalse,
+    );
+    expect(await victim.readAsString(), 'unchanged');
+  });
+
   test('rejects a symlinked final file', () async {
     final File victim = File(p.join(outside.path, 'victim.bin'));
     await victim.writeAsString('unchanged');

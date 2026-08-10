@@ -349,7 +349,9 @@ Future<bool> ensureSafeDestination(
     if (resolved != root && !p.isWithin(root, resolved)) return false;
   }
 
-  final String finalPath = p.join(root, components.last);
+  // Below the resolved parent, not below the root: a nested destination has to
+  // be checked where it actually lands.
+  final String finalPath = p.join(cursor, components.last);
   final FileSystemEntityType finalType = await FileSystemEntity.type(
     finalPath,
     followLinks: false,
