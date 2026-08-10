@@ -49,6 +49,9 @@ Future<void> main() async {
         await windowManager.focus();
       },
     );
+    // The frame's close button must ask about a running transfer like the one
+    // in the bar does; the home screen listens for it and exits from there.
+    await windowManager.setPreventClose(true);
   }
 
   runApp(const EasySendApp());

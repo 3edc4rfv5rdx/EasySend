@@ -24,7 +24,7 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver, WindowListener {
   final List<FileItem> _selected = [];
   // Paths of the last batch handed to the sender, so the list can be brought
   // back after it emptied itself. Only paths: the files are re-read on restore,
@@ -46,6 +46,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    // The window frame's own close button is prevented in main() so that it
+    // comes here instead, and asks and shuts down like the button in the bar.
+    if (!Platform.isAndroid) windowManager.addListener(this);
     devicesTick.addListener(_dropOfflineTarget);
     transfersTick.addListener(_pruneSentFiles);
     _startNetwork();
@@ -119,6 +122,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    if (!Platform.isAndroid) windowManager.removeListener(this);
     devicesTick.removeListener(_dropOfflineTarget);
     transfersTick.removeListener(_pruneSentFiles);
     _shareSub?.cancel();
@@ -238,9 +242,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (Platform.isAndroid) {
       await SystemNavigator.pop();
     } else {
-      await windowManager.close();
+      // Not windowManager.close(): the engine tears the GTK window down first
+      // and then trips over its own compositor cleanup with no GL context left,
+      // which ends in an abort. Everything of ours is already stopped above.
+      exit(0);
     }
   }
+
+  // The close button on the window frame, prevented in main() so it lands here.
+  @override
+  void onWindowClose() => _exitApp();
 
   // Send with nothing chosen: one reachable device is no choice at all, so it
   // becomes the target and the transfer starts; with several, ask. An empty
