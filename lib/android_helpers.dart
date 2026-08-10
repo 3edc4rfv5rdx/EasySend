@@ -140,6 +140,17 @@ Future<void> ensureNotificationPermission() async {
   await Permission.notification.request();
 }
 
+Future<void> setDiscoveryMulticastEnabled(bool enabled) async {
+  if (!Platform.isAndroid) return;
+  try {
+    await _serviceChannel.invokeMethod<void>(
+      enabled ? 'acquireMulticast' : 'releaseMulticast',
+    );
+  } on PlatformException catch (e) {
+    myPrint('multicast lock failed: ${e.message}');
+  }
+}
+
 // Mirrors transfer state into the Android foreground service, so a backgrounded
 // or screen-off device keeps transferring (SPEC 7).
 class AndroidService {

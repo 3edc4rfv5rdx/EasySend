@@ -34,6 +34,7 @@ const String androidRoot = '/storage/emulated/0';
 // UDP discovery is stable even when the user changes the HTTP transfer port.
 const int defaultPort = 15353;
 const int discoveryPort = 15353;
+const String discoveryMulticastGroup = '239.255.53.53';
 const String apiPrefix = '/api/v1';
 // Announce every 5 s, forget a silent device after 20 s.
 const int announceIntervalSec = 5;

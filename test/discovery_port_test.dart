@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:easysend/globals.dart';
 import 'package:easysend/net_discovery.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -14,5 +16,11 @@ void main() {
     );
     expect(payload['port'], 16000);
     expect(payload['port'], isNot(discoveryPort));
+  });
+
+  test('discovery uses a link-local multicast group', () {
+    final group = InternetAddress(discoveryMulticastGroup);
+    expect(group.isMulticast, isTrue);
+    expect(discoveryMulticastGroup, isNot(endsWith('.255')));
   });
 }

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'android_helpers.dart';
 import 'globals.dart';
 
 Map<String, dynamic> buildDiscoveryPayload({
@@ -24,6 +25,8 @@ class DiscoveryService {
   RawDatagramSocket? _socket;
   Timer? _announceTimer;
   int _port = 0;
+  List<NetworkInterface> _interfaces = const [];
+  final InternetAddress _group = InternetAddress(discoveryMulticastGroup);
 
   bool get running => _socket != null;
 
@@ -38,6 +41,17 @@ class DiscoveryService {
         reusePort: !Platform.isWindows,
       );
       _socket!.broadcastEnabled = true;
+      _socket!.multicastHops = 1;
+      _socket!.multicastLoopback = true;
+      _interfaces = await _activeIpv4Interfaces();
+      for (final NetworkInterface interface in _interfaces) {
+        try {
+          _socket!.joinMulticast(_group, interface);
+        } catch (e) {
+          myPrint('multicast join ${interface.name} failed: $e');
+        }
+      }
+      await setDiscoveryMulticastEnabled(true);
       _socket!.listen(_onEvent);
     } catch (e) {
       myPrint('discovery bind failed on $_port: $e');
@@ -60,6 +74,8 @@ class DiscoveryService {
     _announceTimer = null;
     _socket?.close();
     _socket = null;
+    _interfaces = const [];
+    await setDiscoveryMulticastEnabled(false);
   }
 
   void _tick() {
@@ -82,15 +98,10 @@ class DiscoveryService {
     final RawDatagramSocket? socket = _socket;
     if (socket == null) return;
     final List<int> data = utf8.encode(json.encode(_payload(type)));
-    _broadcastTargets().then((targets) {
-      for (final InternetAddress target in targets) {
-        try {
-          socket.send(data, target, _port);
-        } catch (e) {
-          myPrint('send to ${target.address} failed: $e');
-        }
-      }
-    });
+    // Limited broadcast remains as a compatibility fallback. Multicast does
+    // not depend on an assumed /24 netmask and is sent on every interface.
+    socket.send(data, InternetAddress('255.255.255.255'), _port);
+    _sendMulticast(data);
   }
 
   void _sendTo(String type, InternetAddress address, int port) {
@@ -101,29 +112,36 @@ class DiscoveryService {
     }
   }
 
-  // Every interface gets its own directed broadcast: with several interfaces up,
-  // a lone 255.255.255.255 leaves by whichever route the OS picks, and the other
-  // networks never hear us. Dart exposes no netmask, so /24 is assumed — true
-  // for home and office networks, and the limited broadcast covers the rest.
-  Future<List<InternetAddress>> _broadcastTargets() async {
-    final Set<String> targets = {'255.255.255.255'};
+  Future<List<NetworkInterface>> _activeIpv4Interfaces() async {
     try {
-      final List<NetworkInterface> interfaces = await NetworkInterface.list(
+      return await NetworkInterface.list(
         type: InternetAddressType.IPv4,
         includeLoopback: false,
         includeLinkLocal: false,
       );
-      for (final NetworkInterface iface in interfaces) {
-        for (final InternetAddress addr in iface.addresses) {
-          final List<String> parts = addr.address.split('.');
-          if (parts.length == 4)
-            targets.add('${parts[0]}.${parts[1]}.${parts[2]}.255');
-        }
-      }
     } catch (e) {
       myPrint('interface list failed: $e');
+      return const [];
     }
-    return targets.map(InternetAddress.new).toList();
+  }
+
+  Future<void> _sendMulticast(List<int> data) async {
+    for (final NetworkInterface interface in _interfaces) {
+      for (final InternetAddress address in interface.addresses) {
+        RawDatagramSocket? sender;
+        try {
+          // Binding the ephemeral sender to this interface selects the correct
+          // route without Dart's deprecated multicastInterface property.
+          sender = await RawDatagramSocket.bind(address, 0);
+          sender.multicastHops = 1;
+          sender.send(data, _group, _port);
+        } catch (e) {
+          myPrint('multicast send ${interface.name} failed: $e');
+        } finally {
+          sender?.close();
+        }
+      }
+    }
   }
 
   void _onEvent(RawSocketEvent event) {
