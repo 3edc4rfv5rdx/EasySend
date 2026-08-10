@@ -2,6 +2,7 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+- E: A device that sends to us is remembered with the address it connected from and the port it named, so a trusted device behind a router can be sent to instead of sitting in the list with nowhere to reach it
 - I: 13-MakeLinux.sh builds the Linux desktop release, checks the toolchain first — including the linker beside clang, whose absence otherwise surfaces as a Dart build error — and leaves the version alone
 - F: The Linux window icon is redrawn in the same hand: a phone, the blue triangle and a monitor on cream, from the same tools/make_icon.py
 - N: A new app icon: two phones and a deep blue triangle on cream, drawn as geometry by tools/make_icon.py instead of a recoloured stock bitmap

@@ -131,7 +131,14 @@ class ReceiveServer {
     }
 
     final int totalBytes = files.fold(0, (sum, f) => sum + f.size);
-    if (!await _askAccept(senderId, senderName, files.length, totalBytes)) {
+    if (!await _askAccept(
+      senderId,
+      senderName,
+      files.length,
+      totalBytes,
+      address: req.connectionInfo?.remoteAddress.address ?? '',
+      port: (body['senderPort'] as num?)?.toInt() ?? currentPort,
+    )) {
       return _json(req, {'reason': 'declined'}, status: HttpStatus.forbidden);
     }
 
@@ -156,9 +163,35 @@ class ReceiveServer {
 
   // Trusted senders are accepted silently; an unknown one has to be confirmed,
   // and stays unconfirmed if nobody answers in time.
-  Future<bool> _askAccept(String senderId, String senderName, int count, int bytes) async {
+  Future<bool> _askAccept(
+    String senderId,
+    String senderName,
+    int count,
+    int bytes, {
+    required String address,
+    required int port,
+  }) async {
     final int known = xvDevices.indexWhere((d) => d.id == senderId);
-    if (known >= 0 && xvDevices[known].trusted) return true;
+    // Whoever just connected has told us where to reach them. Behind a router
+    // nothing else ever will: broadcast does not cross it, so a trusted device
+    // remembered without an address can never be sent to.
+    if (known >= 0) {
+      final Device device = xvDevices[known];
+      // Silent until it knocked on the door: discovery is not reaching it, so
+      // only a poll will keep it in the list once the transfer is over.
+      final bool wasOnline = device.online;
+      if (address.isNotEmpty) {
+        device.address = address;
+        device.port = port;
+        if (!wasOnline) device.manual = true;
+      }
+      device.lastSeen = DateTime.now();
+      if (device.trusted) {
+        await saveSettings();
+        devicesChanged();
+        return true;
+      }
+    }
 
     // Off screen there is nobody to show a dialog to; ask by notification.
     final bool accepted;
@@ -180,7 +213,17 @@ class ReceiveServer {
       if (known >= 0) {
         xvDevices[known].trusted = true;
       } else {
-        xvDevices.add(Device(id: senderId, name: senderName, trusted: true));
+        xvDevices.add(Device(
+          id: senderId,
+          name: senderName,
+          address: address,
+          port: port,
+          // Nothing announced this one to us, so only an HTTP poll can keep it
+          // in the list — which is what manual means here.
+          manual: address.isNotEmpty,
+          trusted: true,
+          lastSeen: DateTime.now(),
+        ));
       }
       await saveSettings();
       devicesChanged();

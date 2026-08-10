@@ -86,6 +86,9 @@ class SendService {
     req.write(json.encode({
       'senderId': xvDeviceId,
       'senderName': xvDeviceName,
+      // Where to reach us back: the receiver sees our address on the connection
+      // but has no way to know the port we listen on.
+      'senderPort': currentPort,
       'files': files.map((f) => f.toJson()).toList(),
     }));
     final HttpClientResponse resp = await req.close();
