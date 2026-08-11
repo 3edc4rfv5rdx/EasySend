@@ -97,7 +97,6 @@ class ReceiveServer {
     if (running && boundPort == currentPort) return true;
     await stop();
     await ensureRecvDir();
-    await cleanupOrphanParts(xvRecvDir);
     final int port = currentPort;
     try {
       _http = await HttpServer.bind(

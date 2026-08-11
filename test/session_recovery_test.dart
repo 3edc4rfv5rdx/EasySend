@@ -80,13 +80,33 @@ void main() {
       await outsidePart.writeAsString('outside');
       await Link(p.join(receive.path, 'linked')).create(outside.path);
 
-      final server = ReceiveServer();
-      await server.start();
+      await cleanupOrphanParts(xvRecvDir);
       expect(await orphan.exists(), isFalse);
       expect(await ordinary.exists(), isTrue);
       expect(await similar.exists(), isTrue);
       expect(await outsidePart.exists(), isTrue);
-      await server.stop();
     },
   );
+
+  test('the sweep is a startup job, not a server one', () async {
+    final receive = await Directory(xvRecvDir).create(recursive: true);
+    final File first = File(p.join(receive.path, 'first$partSuffix'));
+    await first.writeAsString('partial');
+
+    await sweepOrphanPartsOnce(xvRecvDir);
+    expect(await first.exists(), isFalse);
+
+    // A later start must not walk the whole folder again — on a phone that is
+    // the user's Downloads, and it happened on every return to the screen.
+    final File later = File(p.join(receive.path, 'later$partSuffix'));
+    await later.writeAsString('partial');
+    await sweepOrphanPartsOnce(xvRecvDir);
+    expect(await later.exists(), isTrue);
+
+    final server = ReceiveServer();
+    expect(await server.start(), isTrue);
+    expect(await later.exists(), isTrue, reason: 'start() must not sweep');
+    await server.stop();
+    await later.delete();
+  });
 }

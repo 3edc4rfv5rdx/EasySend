@@ -2,6 +2,7 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+- F: Leftover part files are swept once per run, as SPEC asks, instead of walking the whole receive folder every time the receive server binds, and a folder that cannot be listed no longer throws out of startup
 - F: The receive folder is canonicalized once per transfer instead of once per file, which took 281 ms of a 3000-file manifest before the consent dialog appeared, and a folder swapped underneath a running transfer is now refused
 - I: ADD/todo.md says why the multicast check cannot be answered on an emulator, from this desktop, or by two devices that only see each other as manual entries, and records what a phone did answer on 2026-08-11
 - I: IDEAS.txt records a per-transfer log screen, and what the tap it would use is already doing

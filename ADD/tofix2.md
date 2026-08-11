@@ -191,7 +191,7 @@ None of these is a correctness bug; the point is that a 4 GB transfer should not
 
 Add a timing-independent test where possible (for example, asserting the cached totals equal the folded ones after mutation) and keep the existing stalled-upload test passing.
 
-## 16. P3 — Do not scan the whole receive folder on every server start
+## 16. P3 — FIXED - Do not scan the whole receive folder on every server start
 
 `ReceiveServer.start()` calls `cleanupOrphanParts(xvRecvDir)`, which walks the receive folder recursively. SPEC 7 asks for that at *startup*, to clear what a killed process left behind. As written it also runs on every port change and — until finding 1 is fixed — on every return to the foreground, over a folder that is the user's Downloads by default and may hold thousands of files.
 

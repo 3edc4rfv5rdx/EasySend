@@ -422,26 +422,45 @@ Future<bool> ensureSafeDestination(
   return parent == root || p.isWithin(root, parent);
 }
 
+// Once per run, which is what SPEC 7 asks for: a killed process leaves .part
+// files behind and nothing else will ever remove them. Tying it to the receive
+// server instead meant a full recursive walk of the user's Downloads folder
+// every time the app came back to the screen.
+bool _orphansSwept = false;
+
+Future<void> sweepOrphanPartsOnce(String baseDir) async {
+  if (_orphansSwept) return;
+  _orphansSwept = true;
+  await cleanupOrphanParts(baseDir);
+}
+
 // Startup recovery removes only EasySend's exact temporary suffix and never
 // descends through links. Completed and unrelated user files are untouched.
 Future<void> cleanupOrphanParts(String baseDir) async {
   final Directory root = Directory(baseDir);
   if (!await root.exists()) return;
-  await for (final FileSystemEntity entity in root.list(
-    recursive: true,
-    followLinks: false,
-  )) {
-    final FileSystemEntityType type = await FileSystemEntity.type(
-      entity.path,
+  try {
+    await for (final FileSystemEntity entity in root.list(
+      recursive: true,
       followLinks: false,
-    );
-    if (type == FileSystemEntityType.file && entity.path.endsWith(partSuffix)) {
-      try {
-        await File(entity.path).delete();
-      } catch (e) {
-        myPrint('cannot delete orphan ${entity.path}: $e');
+    )) {
+      final FileSystemEntityType type = await FileSystemEntity.type(
+        entity.path,
+        followLinks: false,
+      );
+      if (type == FileSystemEntityType.file &&
+          entity.path.endsWith(partSuffix)) {
+        try {
+          await File(entity.path).delete();
+        } catch (e) {
+          myPrint('cannot delete orphan ${entity.path}: $e');
+        }
       }
     }
+  } catch (e) {
+    // An unreadable folder is not a reason to fail startup; storage permission
+    // may simply not have been granted yet.
+    myPrint('cannot sweep $baseDir: $e');
   }
 }
 

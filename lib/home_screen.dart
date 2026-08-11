@@ -284,6 +284,10 @@ class _HomeScreenState extends State<HomeScreen>
     if (!_stillWantsNetwork(epoch)) return;
     await ensureRecvDir();
     if (!_stillWantsNetwork(epoch)) return;
+    // Here rather than at main(), because on Android the folder cannot even be
+    // listed until the storage permission above has been answered.
+    await sweepOrphanPartsOnce(xvRecvDir);
+    if (!_stillWantsNetwork(epoch)) return;
     if (_restartPending) {
       // Leave everything exactly as it is until the sockets are free: starting
       // on the new port would rebind, and rebinding is what drops the session.
