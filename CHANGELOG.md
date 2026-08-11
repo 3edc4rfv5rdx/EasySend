@@ -2,6 +2,7 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+- E: The Android fallback identity is read and written in the receive folder the user actually chose, while an id an older build left in the default one is still adopted
 - E: The main button reads Stopping while a cancelled send is still unwinding, instead of offering Send and doing nothing when pressed
 - E: Android answering that it will not start the foreground service is reported back to the app instead of taking the process down with it, and a refused start is not remembered as a running service
 - I: ADD/todo.md, the checks that need real hardware, starting with whether the multicast lock has to leave the Activity

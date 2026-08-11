@@ -269,10 +269,10 @@ Future<String> _defaultDeviceName() async {
 // storage — and with it the trust other devices granted us. So on Android the
 // id is derived from ANDROID_ID, which survives reinstalls of the same signing
 // key. On desktop the config directory survives on its own (SPEC 5.3).
-Future<String> _resolveDeviceId() async {
+Future<String> _resolveDeviceId(bool onAndroid, List<String> lookIn) async {
   final String stored = xdef['.Device id'] as String? ?? '';
   if (stored.isNotEmpty) return stored;
-  if (Platform.isAndroid) {
+  if (onAndroid) {
     try {
       final String? androidId = await const AndroidId().getId();
       if (androidId != null && androidId.isNotEmpty) {
@@ -283,15 +283,21 @@ Future<String> _resolveDeviceId() async {
       myPrint('ANDROID_ID unavailable: $e');
     }
     xdef['.External id fallback'] = 'true';
-    final String? external = await readExternalDeviceId(
-      File(p.join(xvRecvDir, '.easysend-id')),
-    );
-    if (external != null) return external;
+    // The configured receive folder first, then the default one: an id an
+    // older build left in the default place is still ours, and losing it
+    // would cost the trust every other device has granted us.
+    for (final String dir in lookIn) {
+      final String? external = await readExternalDeviceId(
+        File(p.join(dir, '.easysend-id')),
+      );
+      if (external != null) return external;
+    }
   }
   return const Uuid().v4();
 }
 
-Future<void> initIdentity() async {
+Future<void> initIdentity({bool? android}) async {
+  final bool onAndroid = android ?? Platform.isAndroid;
   xvPlatform = Platform.isAndroid
       ? 'android'
       : Platform.isWindows
@@ -300,11 +306,24 @@ Future<void> initIdentity() async {
       ? 'linux'
       : Platform.operatingSystem;
 
-  xvDeviceId = await _resolveDeviceId();
+  // Where files land is settled before who this device is: on Android the
+  // fallback id lives inside the receive folder (SPEC 5.3), so resolving it
+  // first would read and write a folder the user may have moved away from.
+  final String defaultRecvDir = xvRecvDir;
+  if ((xdef['Receive folder'] as String).isEmpty) {
+    xdef['Receive folder'] = xvRecvDir;
+  } else {
+    xvRecvDir = xdef['Receive folder'];
+  }
+
+  xvDeviceId = await _resolveDeviceId(onAndroid, <String>{
+    xvRecvDir,
+    defaultRecvDir,
+  }.toList());
   if (xdef['.Device id'] != xvDeviceId) {
     xdef['.Device id'] = xvDeviceId;
   }
-  if (Platform.isAndroid && xdef['.External id fallback'] == 'true') {
+  if (onAndroid && xdef['.External id fallback'] == 'true') {
     await writeExternalDeviceIdIfAbsent(
       File(p.join(xvRecvDir, '.easysend-id')),
       xvDeviceId,
@@ -330,12 +349,6 @@ Future<void> initIdentity() async {
     xdef['Device name'] = await _defaultDeviceName();
   }
   xvDeviceName = xdef['Device name'];
-
-  if ((xdef['Receive folder'] as String).isEmpty) {
-    xdef['Receive folder'] = xvRecvDir;
-  } else {
-    xvRecvDir = xdef['Receive folder'];
-  }
 
   await saveSettings();
   myPrint('identity: $xvDeviceName [$xvPlatform] $xvDeviceId');

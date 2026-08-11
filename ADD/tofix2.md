@@ -147,7 +147,7 @@ Either keep the button in its stopping state until `sender.busy` clears, or answ
 
 Add a widget-level or logic-level test: while `busy` is true and the transfer reads `cancelled`, the main action does not silently no-op.
 
-## 14. P2 — Resolve the fallback device id against the configured receive folder
+## 14. P2 — FIXED - Resolve the fallback device id against the configured receive folder
 
 `initIdentity()` in `lib/settings_helpers.dart` calls `_resolveDeviceId()` first and applies the stored `Receive folder` to `xvRecvDir` about thirty lines later. `_resolveDeviceId()` — and `writeExternalDeviceIdIfAbsent()` right after it — therefore read and write `.easysend-id` in the *default* downloads folder, even when the user has moved the receive folder elsewhere. SPEC 5.3 puts that file inside the receive folder, which is what makes it survive a reinstall in the place the user actually keeps EasySend's files.
 
