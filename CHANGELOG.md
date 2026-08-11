@@ -2,6 +2,7 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+- E: Manually added devices are polled all at once, so a pass costs one timeout instead of one per unreachable device and a live device no longer blinks offline because a switched-off one was ahead of it in the list
 - E: A UDP announce and an /info answer are held to the same limits the transfer protocol holds a sender to, so an oversized name, an id nobody bounded or a port outside the range can no longer enter the device list or reach settings.json
 - E: A peer whose error answer never ends no longer stops the polling of manually added devices for the rest of the run: the connection is dropped unread and the whole exchange has one deadline over it
 - E: A receive finishes in the folder it was planned for even if the setting moves meanwhile, the folder cannot be changed under a running receive, and a folder that cannot be written to is refused when it is picked

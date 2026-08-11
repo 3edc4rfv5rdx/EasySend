@@ -132,6 +132,71 @@ void main() {
     await healthy.close(force: true);
   });
 
+  test('one pass reaches every manual device at once', () async {
+    const Duration pollTimeout = Duration(milliseconds: 100);
+    final Completer<void> release = Completer<void>();
+    final HttpServer silent = await HttpServer.bind(
+      InternetAddress.loopbackIPv4,
+      0,
+    );
+    silent.listen((HttpRequest request) async {
+      // Answers nothing: what a device that is switched off looks like once
+      // something else has taken its address.
+      await release.future;
+      await request.response.close();
+    });
+
+    final HttpServer healthy = await HttpServer.bind(
+      InternetAddress.loopbackIPv4,
+      0,
+    );
+    healthy.listen((HttpRequest request) async {
+      request.response.headers.contentType = ContentType.json;
+      request.response.write('{"id":"alive","name":"Alive"}');
+      await request.response.close();
+    });
+
+    final List<Device> dead = [
+      for (int i = 0; i < 4; i++)
+        Device(
+          id: 'dead-$i',
+          name: 'Dead $i',
+          address: '127.0.0.1',
+          port: silent.port,
+          manual: true,
+        ),
+    ];
+    final Device alive = Device(
+      id: 'alive',
+      name: 'Alive',
+      address: '127.0.0.1',
+      port: healthy.port,
+      manual: true,
+    );
+    // Last in the list: the one that used to pay for everyone ahead of it.
+    xvDevices = [...dead, alive];
+
+    final ManualPoller poller = ManualPoller(timeout: pollTimeout);
+    final Stopwatch watch = Stopwatch()..start();
+    await poller.pollNow().timeout(const Duration(seconds: 5));
+
+    // Measured on this harness: one after another costs 410 ms for these four,
+    // all at once costs 104 ms. The threshold is the sequential lower bound.
+    expect(
+      watch.elapsedMilliseconds,
+      lessThan(dead.length * pollTimeout.inMilliseconds),
+      reason: 'a pass still costs one timeout per silent device',
+    );
+    expect(alive.lastSeen, isNotNull);
+    for (final Device device in dead) {
+      expect(device.lastSeen, isNull);
+    }
+
+    release.complete();
+    await silent.close(force: true);
+    await healthy.close(force: true);
+  });
+
   test('receiver aborts a stalled upload and removes its part file', () async {
     final root = await Directory.systemTemp.createTemp('easysend-idle-');
     xvConfigDir = p.join(root.path, 'config');

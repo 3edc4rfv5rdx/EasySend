@@ -67,7 +67,14 @@ Apply the same limits the HTTP protocol uses: reject the packet unless `id` is a
 
 Add tests over `_touchDevice`/the payload parser for an out-of-range port, an id that is not a UUID, an oversized name, and a well-formed packet that must still be accepted.
 
-## 7. P2 — Poll manual devices concurrently, or stop judging them by a shared deadline
+## 7. P2 — FIXED - Poll manual devices concurrently, or stop judging them by a shared deadline
+
+The estimate this section asked to verify was measured before fixing anything: on
+a loopback harness with four silent devices and a 100 ms timeout, a sequential
+pass took 410 ms and a concurrent one 104 ms — one timeout per silent device
+against one timeout in total, exactly as suspected. With the production timeout
+of 2 s that puts the flicker threshold at about ten unreachable manual devices,
+not the five guessed below. The mechanism was real, the number was not.
 
 `_pollAll()` in `lib/net_discovery.dart` walks manual devices sequentially, each costing up to `manualPollTimeoutSec` when unreachable, while `Device.online` calls a manual device offline after `manualPollSec * 2` = 20 s. The timer's own re-entry guard then stretches the cycle further. With roughly five or more unreachable manual devices in the list, a healthy device polled late in the pass has its `lastSeen` refreshed less often than the window it is judged by, so it flickers between online and offline and cannot be selected as a target while it is grey.
 

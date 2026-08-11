@@ -260,29 +260,34 @@ class ManualPoller {
     if (_polling) return;
     _polling = true;
     try {
-      for (final Device device in xvDevices.where((d) => d.manual).toList()) {
-        final Map<String, dynamic>? info = await _ask(
-          device.address,
-          device.port,
-        );
-        if (info == null) continue;
-        final PeerInfo? peer = validatedPeerInfo(info, fallbackPort: device.port);
-        if (peer == null || peer.id != device.id) {
-          // DHCP may have handed the saved address to somebody else, or the
-          // answer is not one this protocol can use. Keep the original
-          // identity/trust record but never mark it reachable.
-          device.lastSeen = null;
-          devicesChanged();
-          continue;
-        }
-        if (peer.name.isNotEmpty) device.name = peer.name;
-        if (peer.platform.isNotEmpty) device.platform = peer.platform;
-        device.lastSeen = DateTime.now();
-        devicesChanged();
-      }
+      // All of them at once. Asked one after another, a pass costs one timeout
+      // per silent device — and a device that is switched off is silent, not
+      // refusing — so a handful of them stretches the pass past the window
+      // every device is judged by, and live ones start blinking offline.
+      await Future.wait(
+        xvDevices.where((d) => d.manual).map(_pollOne).toList(),
+      );
     } finally {
       _polling = false;
     }
+  }
+
+  Future<void> _pollOne(Device device) async {
+    final Map<String, dynamic>? info = await _ask(device.address, device.port);
+    if (info == null) return;
+    final PeerInfo? peer = validatedPeerInfo(info, fallbackPort: device.port);
+    if (peer == null || peer.id != device.id) {
+      // DHCP may have handed the saved address to somebody else, or the answer
+      // is not one this protocol can use. Keep the original identity/trust
+      // record but never mark it reachable.
+      device.lastSeen = null;
+      devicesChanged();
+      return;
+    }
+    if (peer.name.isNotEmpty) device.name = peer.name;
+    if (peer.platform.isNotEmpty) device.platform = peer.platform;
+    device.lastSeen = DateTime.now();
+    devicesChanged();
   }
 
   Future<void> pollNow() => _pollAll();
