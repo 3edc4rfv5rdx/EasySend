@@ -452,6 +452,19 @@ Future<bool> ensureSafeDestination(
   return parent == root || p.isWithin(root, parent);
 }
 
+// Remove a file without making a failure anyone's problem. Says whether it is
+// gone: a file that was already missing counts as gone, since the point is the
+// state afterwards and not who removed it.
+Future<bool> deleteQuietly(File file) async {
+  try {
+    if (await file.exists()) await file.delete();
+    return true;
+  } catch (e) {
+    myPrint('cannot delete ${file.path}: $e');
+    return false;
+  }
+}
+
 // Once per run, which is what SPEC 7 asks for: a killed process leaves .part
 // files behind and nothing else will ever remove them. Tying it to the receive
 // server instead meant a full recursive walk of the user's Downloads folder

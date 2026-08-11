@@ -31,6 +31,14 @@ no internet: the two devices talk to each other and nothing else.
   file, speed and time left. Either side can stop a running transfer. Files arrive under a
   `.easysend-part` name and are renamed only after their CRC32 matches; a mismatch is
   re-sent automatically twice before it is called a failure.
+- **Every transfer explains itself** — tap one to open its log: what happened to each file,
+  response codes, refusal reasons, a line per failed attempt. One button copies the whole
+  thing, build number included, so a bug report does not have to be typed off a phone
+  screen. It lives in memory and goes away with the transfer; the app keeps no history.
+- **Move instead of copy** — the *delete originals* tick beside Send removes each source
+  once that file has been received and verified at the far end. The file is the unit: what
+  did not get there stays where it is, a cancelled transfer deletes nothing, and the tick
+  clears itself afterwards so the next send has to ask for it again.
 - **Receiving with the screen off** (Android) — an optional foreground service keeps the
   port open and puts an incoming request in a notification you can accept from the
   lock screen.
@@ -48,8 +56,13 @@ created on the first transfer and can be changed in the settings.
 
 ## Network
 
-One port, 15353 by default, serves both the TCP file server and UDP discovery. The
-protocol is plain HTTP under `/api/v1`: `prepare` announces a manifest, `upload` streams
+Two ports, and they are not the same one. Discovery always listens on 15353 — a multicast
+announce to `239.255.53.53` with a limited broadcast behind it for anything that filters
+multicast. The transfer port is what the settings change; it travels inside the announce,
+so two devices set to different transfer ports still find each other and connect to the
+port each one named. 15353 is the default for both, which is why they look like one.
+
+Transfers are plain HTTP under `/api/v1`: `prepare` announces a manifest, `upload` streams
 one file, `verify` checks its checksum, `finish` closes the session. `SPEC.md` (in
 Russian) describes it in full.
 
@@ -63,6 +76,8 @@ it on public or guest Wi-Fi.
 Flutter, one codebase for Android and desktop. The numbered scripts do the work:
 
 ```
+./05-Lint.sh           # flutter analyze
+./06-Test.sh           # flutter test
 ./00-MakeAll.sh        # everything: APK, both installs, AppImage
 ./10-MakeRelease.sh    # release APKs, one build number up
 ./11-EmulRELEASE.sh    # install the freshest APK on the emulator

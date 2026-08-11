@@ -2,6 +2,15 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+- I: README describes the transfer log and the move tick, says that discovery and transfers are two separate ports rather than one, and lists the lint and test scripts
+- F: Text in the three light themes is nearly black instead of dark grey, taking the body contrast from about 14:1 to about 17:1
+- F: Checkboxes are drawn in the accent colour rather than the frame grey, so an empty box is visible before it is looked for
+- F: The tick beside Send reads "delete originals" at body size on two lines, which names what disappears and keeps the width it takes off the button
+- F: The Send button is 56 px tall on every platform instead of taking its height from Material's platform defaults, which made it 48 on Android and 41 on Linux
+- F: The theme states its density and minimum tap target instead of letting Material pick them per platform, so a control is the same size on the desktop as on the phone, which is the single layout SPEC 4 asks for
+- N: A "delete originals" tick beside the Send button moves instead of copying — each source is deleted once that file is verified on the other side, failures and cancelled transfers delete nothing, and every deletion is written to the log
+- F: The Send button no longer repeats the count and the size the Selected heading already carries, and says "Move" while the tick is on
+- R: The receive server and the sender delete through one shared helper instead of each having its own
 - N: A tap on any transfer opens its log — what happened to every file, response codes, refusal reasons and a line per failed attempt — with a copy button that takes the build version with it
 - F: The tap on a transfer no longer opens the received file, which only ever worked on incoming rows and which the receive-folder button already does
 - F: The add-device and receive-folder buttons in the section headings are larger

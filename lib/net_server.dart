@@ -523,12 +523,12 @@ class ReceiveServer {
       }
 
       if (session.cancelled) {
-        await _deleteQuietly(part);
+        await deleteQuietly(part);
         return _status(req, HttpStatus.conflict);
       }
 
       if (overflow || written != item.size) {
-        await _deleteQuietly(part);
+        await deleteQuietly(part);
         session.transfer.log(
           'Size does not match',
           file: item.relativePath,
@@ -546,7 +546,7 @@ class ReceiveServer {
       transfersChanged();
       return _json(req, {'ok': true});
     } on TimeoutException {
-      if (part != null) await _deleteQuietly(part);
+      if (part != null) await deleteQuietly(part);
       session.transfer.log(
         'The file stopped arriving',
         file: item.relativePath,
@@ -599,7 +599,7 @@ class ReceiveServer {
       final File part = File('$dest$partSuffix');
 
       if (theirs == null || ours == null || theirs != ours) {
-        await _deleteQuietly(part);
+        await deleteQuietly(part);
         session.crc.remove(fileId);
         session.transfer.log(
           'Checksum did not match',
@@ -622,7 +622,7 @@ class ReceiveServer {
             part.path,
             resolvedRoot: session.resolvedRoot,
           )) {
-        await _deleteQuietly(part);
+        await deleteQuietly(part);
         session.transfer.log(
           'Cannot write here',
           file: item.relativePath,
@@ -719,7 +719,7 @@ class ReceiveServer {
   // Files that never passed verification leave nothing behind.
   Future<void> _cleanupParts(_Incoming session) async {
     for (final String dest in session.finalPaths.values) {
-      await _deleteQuietly(File('$dest$partSuffix'));
+      await deleteQuietly(File('$dest$partSuffix'));
     }
   }
 
@@ -786,14 +786,6 @@ class ReceiveServer {
       return utf8.decode(bytes, allowMalformed: false);
     } on FormatException {
       throw const _ProtocolProblem(HttpStatus.badRequest, 'invalid-utf8');
-    }
-  }
-
-  Future<void> _deleteQuietly(File file) async {
-    try {
-      if (await file.exists()) await file.delete();
-    } catch (e) {
-      myPrint('cannot delete ${file.path}: $e');
     }
   }
 

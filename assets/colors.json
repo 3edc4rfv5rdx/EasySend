@@ -1,6 +1,6 @@
 {
   "Light": {
-    "text": "#1B1F24",
+    "text": "#0A0D10",
     "background": "#EFF2F5",
     "appBar": "#5A6B7A",
     "appBarText": "#FFFFFF",
@@ -34,7 +34,7 @@
     "success": "#56C08A"
   },
   "Sand": {
-    "text": "#22201B",
+    "text": "#12100C",
     "background": "#F6F1E7",
     "appBar": "#3D6E6A",
     "appBarText": "#FFFDF8",
@@ -68,7 +68,7 @@
     "success": "#5FBF9A"
   },
   "Olive": {
-    "text": "#1E2118",
+    "text": "#0D0F0A",
     "background": "#E9EAD6",
     "appBar": "#9DA07B",
     "appBarText": "#1E2118",

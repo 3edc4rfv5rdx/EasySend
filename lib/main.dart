@@ -153,6 +153,13 @@ class _NoPageTransition extends PageTransitionsBuilder {
 ThemeData _buildTheme(bool dark) {
   return ThemeData(
     useMaterial3: true,
+    // SPEC 4 asks for one layout on every platform, and these two are the
+    // reason it was not one: ThemeData takes both from the running platform,
+    // giving desktop a compact density and no minimum tap target, so the same
+    // widget came out 4 to 7 px shorter on Linux than on the phone. Said
+    // outright, a control is the size it was drawn at wherever it runs.
+    visualDensity: VisualDensity.standard,
+    materialTapTargetSize: MaterialTapTargetSize.padded,
     pageTransitionsTheme: PageTransitionsTheme(
       builders: <TargetPlatform, PageTransitionsBuilder>{
         for (final TargetPlatform platform in TargetPlatform.values)
@@ -178,8 +185,11 @@ ThemeData _buildTheme(bool dark) {
       centerTitle: false,
     ),
     dividerColor: clFrame,
+    // An empty box drawn in the frame colour is the quietest thing on the
+    // screen, and this one asks whether to delete the user's files. The accent
+    // is what the eye is meant to find.
     checkboxTheme: CheckboxThemeData(
-      side: BorderSide(color: clFrame, width: 2),
+      side: BorderSide(color: clAccent, width: 2.5),
     ),
   );
 }

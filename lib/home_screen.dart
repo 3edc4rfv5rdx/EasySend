@@ -111,6 +111,9 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen>
     with WidgetsBindingObserver, WindowListener {
   final List<FileItem> _selected = [];
+  // Delete each source once the other side has it. Never persisted and never
+  // carried over: see _buildMoveTick.
+  bool _move = false;
   // Immutable source/relative-path pairs preserve folder structure while
   // current size/date are re-read when the batch is restored.
   List<FileSnapshot> _lastSent = [];
@@ -526,8 +529,14 @@ class _HomeScreenState extends State<HomeScreen>
       _lastSent = snapshotFiles(batch);
     });
     // Files leave the list one by one as they land, via _pruneSentFiles.
-    final TransferStatus status = await sender.send(peer: target, files: batch);
+    final TransferStatus status = await sender.send(
+      peer: target,
+      files: batch,
+      move: _move,
+    );
     if (!mounted) return;
+    // Whatever came of it, the tick does not carry into the next transfer.
+    setState(() => _move = false);
     // Everything arrived: drop the target too, so the next send starts clean.
     // After a partial or failed one it stays selected, together with the files
     // still in the list, ready for another attempt.
@@ -1165,58 +1174,104 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
+  // Sits beside the button that acts on it, always on screen so the mode can be
+  // read before pressing rather than discovered afterwards. It is a decision
+  // about one batch, so it is cleared once the transfer is over: the next send
+  // has to ask for it again instead of quietly deleting a second set of files.
+  Widget _buildMoveTick() {
+    return InkWell(
+      onTap: () => setState(() => _move = !_move),
+      borderRadius: BorderRadius.circular(btnRadius),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Checkbox(
+            value: _move,
+            activeColor: clAccent,
+            checkColor: onColor(clAccent),
+            visualDensity: VisualDensity.compact,
+            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            onChanged: (bool? v) => setState(() => _move = v ?? false),
+          ),
+          const SizedBox(width: 4),
+          // Wrapped rather than laid out in one line: at body size the label
+          // would take a fifth of the width away from the button beside it.
+          SizedBox(
+            width: 84,
+            child: Text(lw('Delete originals'), style: tsNormal, maxLines: 2),
+          ),
+          const SizedBox(width: 4),
+        ],
+      ),
+    );
+  }
+
   Widget _buildSendButton() {
     final SendButtonMode mode = sendButtonMode(
       transferRunning: _running != null,
       senderBusy: sender.busy,
     );
     final bool ending = mode != SendButtonMode.send;
+    // The count and the size are in the Selected heading already; what the
+    // button has to say is what pressing it does, and with the tick on that is
+    // no longer sending.
     final String label = switch (mode) {
       SendButtonMode.stop => lw('Stop'),
       SendButtonMode.stopping => lw('Stopping'),
-      SendButtonMode.send =>
-        _selected.isEmpty
-            ? lw('Send')
-            : '${lw('Send')}  ${_selected.length} — ${formatBytes(_totalBytes)}',
+      SendButtonMode.send => _move ? lw('Move') : lw('Send'),
     };
     return SafeArea(
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(48, 6, 48, 10),
-        child: SizedBox(
-          width: double.infinity,
-          child: ElevatedButton(
-            // Never disabled: a transfer in flight has already turned this into
-            // Stop, and with a piece still missing the button says which one it
-            // is instead of sitting there grey and mute. Pressing it while the
-            // stop is still unwinding asks again, which costs nothing.
-            onPressed: ending ? _stop : _sendOrPickTarget,
-            style: ElevatedButton.styleFrom(
-              // Grey while a target is still missing: pressing it then only
-              // asks for one.
-              backgroundColor: ending
-                  ? clError
-                  : _canSend
-                  ? clAccent
-                  : clFrame.withValues(alpha: 0.3),
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(btnRadius),
+        padding: const EdgeInsets.fromLTRB(12, 6, 12, 10),
+        child: Row(
+          children: [
+            _buildMoveTick(),
+            const SizedBox(width: 8),
+            Expanded(
+              child: ElevatedButton(
+                // Never disabled: a transfer in flight has already turned this
+                // into Stop, and with a piece still missing the button says
+                // which one it is instead of sitting there grey and mute.
+                // Pressing it while the stop is still unwinding asks again,
+                // which costs nothing.
+                onPressed: ending ? _stop : _sendOrPickTarget,
+                style: ElevatedButton.styleFrom(
+                  // Grey while a target is still missing: pressing it then only
+                  // asks for one.
+                  backgroundColor: ending
+                      ? clError
+                      : _canSend
+                      ? clAccent
+                      : clFrame.withValues(alpha: 0.3),
+                  // Said outright, because the defaults are not the same on
+                  // both platforms: ThemeData takes visualDensity and
+                  // materialTapTargetSize from the platform, so the same code
+                  // gave Android a 48 px button and Linux a 41 px one. This is
+                  // the main action of the app and keeps one height everywhere.
+                  minimumSize: const Size.fromHeight(56),
+                  visualDensity: VisualDensity.standard,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(btnRadius),
+                  ),
+                ),
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: fsLarge,
+                    // Whatever the button is painted with decides the
+                    // lettering: an accent light enough for dark text is a
+                    // valid palette.
+                    color: ending
+                        ? onColor(clError)
+                        : _canSend
+                        ? onColor(clAccent)
+                        : clText,
+                  ),
+                ),
               ),
             ),
-            child: Text(
-              label,
-              style: TextStyle(
-                fontSize: fsLarge,
-                // Whatever the button is painted with decides the lettering:
-                // an accent light enough for dark text is a valid palette.
-                color: ending
-                    ? onColor(clError)
-                    : _canSend
-                    ? onColor(clAccent)
-                    : clText,
-              ),
-            ),
-          ),
+          ],
         ),
       ),
     );

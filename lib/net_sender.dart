@@ -50,9 +50,13 @@ class SendService {
 
   // Returns how it ended, so the caller can decide whether to clear the
   // selection: a failed or cancelled transfer must leave it alone.
+  // `move` deletes each source once that file has been received and verified on
+  // the other side. It is a decision about this one batch, never a setting: the
+  // caller asks for it afresh every time.
   Future<TransferStatus> send({
     required Device peer,
     required List<FileItem> files,
+    bool move = false,
   }) async {
     if (_inFlight) return TransferStatus.failed;
     _inFlight = true;
@@ -68,6 +72,9 @@ class SendService {
       files: files,
     );
     _current = transfer;
+    // Said once at the top: reading the log later, the deletions further down
+    // should not be the first hint that this was a move.
+    if (move) transfer.log('Sources are deleted after they arrive');
     xvTransfers.add(transfer);
     transfersChanged();
 
@@ -84,7 +91,7 @@ class SendService {
       transfer.status = TransferStatus.active;
       transfersChanged();
 
-      await _sendOneByOne(peer, transfer);
+      await _sendOneByOne(peer, transfer, move: move);
       if (_cancelled) return transfer.status;
 
       await _post(_url(peer, 'finish', {'session': sessionId}));
@@ -188,7 +195,11 @@ class SendService {
     return null;
   }
 
-  Future<void> _sendOneByOne(Device peer, TransferSession transfer) async {
+  Future<void> _sendOneByOne(
+    Device peer,
+    TransferSession transfer, {
+    required bool move,
+  }) async {
     int settled = 0;
     for (int i = 0; i < transfer.files.length; i++) {
       if (_cancelled) return;
@@ -218,10 +229,28 @@ class SendService {
         file: item.relativePath,
         failure: !item.done,
       );
+      // The file is the unit of atomicity (SPEC 5.6), so it is also the unit of
+      // moving: this one is verified on the other side and nothing that happens
+      // to the rest of the queue can take that back. A file that did not make it
+      // stays where it is.
+      if (move && item.done) await _deleteSource(transfer, item);
       settled += item.size;
       transfer.noteProgress(settled);
       transfersChanged();
     }
+  }
+
+  // Empty folders are left standing: the user asked for the files to move, and
+  // removing what held them is a second decision nobody made here.
+  Future<void> _deleteSource(TransferSession transfer, FileItem item) async {
+    final String? source = item.sourcePath;
+    if (source == null) return;
+    final bool gone = await deleteQuietly(File(source));
+    transfer.log(
+      gone ? 'Deleted here' : 'Could not delete it here',
+      file: item.relativePath,
+      failure: !gone,
+    );
   }
 
   // Streams one file, then hands over the checksum computed while reading it.
