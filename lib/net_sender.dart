@@ -97,6 +97,12 @@ class SendService {
         await _cancelRemoteBestEffort(peer);
       }
     } finally {
+      // Nothing may leave a transfer running. A row stuck at pending or active
+      // keeps the main button on Stop, holds the network open against every
+      // teardown, and on Android keeps the foreground service with it.
+      if (transfer.isRunning) {
+        _fail(transfer, transfer.error ?? lw('The transfer did not start'));
+      }
       _sessionId = null;
       _peer = null;
       _client?.close(force: true);
@@ -140,10 +146,26 @@ class SendService {
     final HttpClientResponse resp = await req.close().timeout(prepareTimeout);
     final String body = await _readSmallBody(resp, timeout: headerTimeout);
 
-    if (resp.statusCode == HttpStatus.ok) {
-      return (json.decode(body) as Map)['sessionId'] as String?;
-    }
     final TransferSession transfer = _current!;
+    if (resp.statusCode == HttpStatus.ok) {
+      dynamic decoded;
+      try {
+        decoded = json.decode(body);
+      } on FormatException {
+        decoded = null;
+      }
+      final dynamic id = decoded is Map ? decoded['sessionId'] : null;
+      // A session id is what every later request is addressed to. Without a
+      // usable one there is nothing to continue, and the transfer has to say so
+      // rather than sit at pending for the rest of the run.
+      if (id is! String ||
+          id.isEmpty ||
+          utf8.encode(id).length > maxProtocolIdBytes) {
+        _fail(transfer, lw('The receiver answered with no session'));
+        return null;
+      }
+      return id;
+    }
     transfer.status = resp.statusCode == HttpStatus.forbidden
         ? TransferStatus.cancelled
         : TransferStatus.failed;

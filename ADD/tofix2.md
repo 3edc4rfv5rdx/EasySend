@@ -26,7 +26,7 @@ Give the server a generation/epoch counter bumped by `stop()`. After `_askAccept
 
 Add tests: stop the server while a prepare is parked on consent, then let consent succeed, and assert `xvTransfers` is empty, `_current` is null and a fresh `prepare` on a newly started server returns 200 rather than 409.
 
-## 3. P1 — A malformed prepare answer must not strand the transfer in `pending`
+## 3. P1 — FIXED - A malformed prepare answer must not strand the transfer in `pending`
 
 `_prepare()` in `lib/net_sender.dart` reads `(json.decode(body) as Map)['sessionId'] as String?` and returns null when the cast yields null. On the `200` path nothing sets a status or an error, so `send()` returns with the transfer still at `TransferStatus.pending` — which `TransferSession.isRunning` reports as running, forever. That single row then keeps the Send button showing `Stop`, keeps `_applyNetworkState` from ever tearing the network down, and keeps the Android foreground service and screen wakelock held for the rest of the process's life. An empty-string `sessionId` is accepted just as readily and produces upload URLs the receiver rejects one by one.
 
