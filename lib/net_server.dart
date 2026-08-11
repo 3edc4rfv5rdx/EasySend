@@ -128,6 +128,7 @@ class ReceiveServer {
     if (session != null) {
       session.cancelled = true;
       session.phase = _ReceivePhase.cancelled;
+      session.transfer.log('Receiving stopped');
     }
     await _http?.close(force: true);
     _http = null;
@@ -440,6 +441,12 @@ class ReceiveServer {
       return _status(req, HttpStatus.badRequest);
     }
     if (session.phase != _ReceivePhase.ready || item.done) {
+      session.transfer.log(
+        'Unexpected request',
+        file: item.relativePath,
+        detail: 'upload, ${session.phase.name}',
+        failure: true,
+      );
       return _json(req, {
         'reason': 'out-of-order',
       }, status: HttpStatus.conflict);
@@ -466,6 +473,11 @@ class ReceiveServer {
             createParents: true,
             resolvedRoot: session.resolvedRoot,
           )) {
+        session.transfer.log(
+          'Cannot write here',
+          file: item.relativePath,
+          failure: true,
+        );
         session.phase = _ReceivePhase.ready;
         return _status(req, HttpStatus.badRequest);
       }
@@ -517,8 +529,11 @@ class ReceiveServer {
 
       if (overflow || written != item.size) {
         await _deleteQuietly(part);
-        myPrint(
-          'size mismatch for ${item.relativePath}: $written of ${item.size}',
+        session.transfer.log(
+          'Size does not match',
+          file: item.relativePath,
+          detail: '$written / ${item.size}',
+          failure: true,
         );
         session.phase = _ReceivePhase.ready;
         return _status(req, HttpStatus.badRequest);
@@ -532,6 +547,11 @@ class ReceiveServer {
       return _json(req, {'ok': true});
     } on TimeoutException {
       if (part != null) await _deleteQuietly(part);
+      session.transfer.log(
+        'The file stopped arriving',
+        file: item.relativePath,
+        failure: true,
+      );
       session.phase = _ReceivePhase.ready;
       return _json(req, {
         'reason': 'upload-timeout',
@@ -556,6 +576,12 @@ class ReceiveServer {
     if (session.phase != _ReceivePhase.awaitingVerification ||
         session.activeFileId != fileId ||
         item.done) {
+      session.transfer.log(
+        'Unexpected request',
+        file: item.relativePath,
+        detail: 'verify, ${session.phase.name}',
+        failure: true,
+      );
       return _json(req, {
         'reason': 'out-of-order',
       }, status: HttpStatus.conflict);
@@ -575,7 +601,11 @@ class ReceiveServer {
       if (theirs == null || ours == null || theirs != ours) {
         await _deleteQuietly(part);
         session.crc.remove(fileId);
-        myPrint('checksum mismatch for ${item.relativePath}');
+        session.transfer.log(
+          'Checksum did not match',
+          file: item.relativePath,
+          failure: true,
+        );
         session.phase = _ReceivePhase.ready;
         return _json(req, {'reason': 'crc'}, status: HttpStatus.conflict);
       }
@@ -593,12 +623,18 @@ class ReceiveServer {
             resolvedRoot: session.resolvedRoot,
           )) {
         await _deleteQuietly(part);
+        session.transfer.log(
+          'Cannot write here',
+          file: item.relativePath,
+          failure: true,
+        );
         session.phase = _ReceivePhase.ready;
         return _status(req, HttpStatus.conflict);
       }
       await part.rename(dest);
       item.done = true;
       item.failed = false;
+      session.transfer.log('Received', file: item.relativePath);
       session.settledBytes += item.size;
       session.transfer.noteProgress(session.settledBytes);
       _touch(session);
@@ -625,7 +661,11 @@ class ReceiveServer {
 
     final TransferSession transfer = session.transfer;
     for (final FileItem f in transfer.files) {
-      if (!f.done) f.failed = true;
+      if (f.done) continue;
+      f.failed = true;
+      // The sender gave up on this one and moved past it; from here it simply
+      // never arrived, and the log has to say so for every such file.
+      transfer.log('Not received', file: f.relativePath, failure: true);
     }
     transfer.status = transfer.failedCount == 0
         ? TransferStatus.done
@@ -644,6 +684,7 @@ class ReceiveServer {
   Future<void> _cancel(HttpRequest req) async {
     final _Incoming? session = _sessionOf(req);
     if (session == null) return _status(req, HttpStatus.badRequest);
+    session.transfer.log('Cancelled by the sender');
     await _abort(session, TransferStatus.cancelled);
     return _json(req, {'ok': true});
   }
@@ -654,6 +695,7 @@ class ReceiveServer {
     final _Incoming? session = _current;
     if (session == null || !session.transfer.isRunning) return;
     session.cancelled = true;
+    session.transfer.log('Cancelled');
     await _abort(session, TransferStatus.cancelled);
   }
 
@@ -710,6 +752,7 @@ class ReceiveServer {
     session.inactivityTimer = Timer(sessionTimeout, () async {
       if (_current != session || session.cancelled) return;
       session.transfer.error = lw('Connection timed out');
+      session.transfer.log('Connection timed out', failure: true);
       await _abort(session, TransferStatus.failed);
     });
   }

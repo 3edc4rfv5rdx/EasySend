@@ -121,7 +121,7 @@ class SendService {
   void _fail(TransferSession transfer, String message) {
     transfer.error = message;
     transfer.status = TransferStatus.failed;
-    myPrint('send failed: $message');
+    transfer.log('Transfer failed', detail: message, failure: true);
   }
 
   String _describeError(Object error) {
@@ -171,14 +171,20 @@ class SendService {
       }
       return id;
     }
-    transfer.status = resp.statusCode == HttpStatus.forbidden
+    final bool declined = resp.statusCode == HttpStatus.forbidden;
+    final bool busy = resp.statusCode == HttpStatus.conflict;
+    transfer.status = declined
         ? TransferStatus.cancelled
         : TransferStatus.failed;
-    transfer.error = resp.statusCode == HttpStatus.forbidden
-        ? lw('Declined by receiver')
-        : resp.statusCode == HttpStatus.conflict
-        ? lw('Receiver is busy')
-        : 'HTTP ${resp.statusCode}';
+    final String reason = declined
+        ? 'Declined by receiver'
+        : busy
+        ? 'Receiver is busy'
+        : 'The receiver refused the transfer';
+    // The row shows an HTTP code for anything unnamed, because there is nothing
+    // truer to say about it; the log keeps the code either way.
+    transfer.error = declined || busy ? lw(reason) : 'HTTP ${resp.statusCode}';
+    transfer.log(reason, detail: 'HTTP ${resp.statusCode}', failure: true);
     return null;
   }
 
@@ -205,6 +211,13 @@ class SendService {
       if (_cancelled) return;
       item.done = result == _FileResult.sent;
       item.failed = !item.done;
+      // Every file says how it ended, so the log answers the question the row
+      // cannot: which of the three hundred was the one that did not go.
+      transfer.log(
+        item.done ? 'Sent' : 'Not sent',
+        file: item.relativePath,
+        failure: !item.done,
+      );
       settled += item.size;
       transfer.noteProgress(settled);
       transfersChanged();
@@ -230,13 +243,20 @@ class SendService {
     final FileStat stat = await File(source).stat();
     if (stat.type != FileSystemEntityType.file) {
       transfer.error = lw('A file is no longer there');
-      myPrint('${item.relativePath} is gone');
+      transfer.log(
+        'A file is no longer there',
+        file: item.relativePath,
+        failure: true,
+      );
       return _FileResult.hopeless;
     }
     if (stat.size != item.size) {
       transfer.error = lw('A file changed on disk');
-      myPrint(
-        '${item.relativePath} is ${stat.size}, manifest says ${item.size}',
+      transfer.log(
+        'A file changed on disk',
+        file: item.relativePath,
+        detail: '${stat.size} / ${item.size}',
+        failure: true,
       );
       return _FileResult.hopeless;
     }
@@ -270,7 +290,12 @@ class SendService {
       final HttpClientResponse resp = await req.close().timeout(headerTimeout);
       await _drainWithTimeout(resp);
       if (resp.statusCode != HttpStatus.ok) {
-        myPrint('upload of ${item.relativePath} returned ${resp.statusCode}');
+        transfer.log(
+          'The receiver rejected the file',
+          file: item.relativePath,
+          detail: 'HTTP ${resp.statusCode}',
+          failure: true,
+        );
         return _FileResult.retry;
       }
 
@@ -282,16 +307,27 @@ class SendService {
         }),
       );
       item.crc32 = crc;
-      return verify.statusCode == HttpStatus.ok
-          ? _FileResult.sent
-          : _FileResult.retry;
+      if (verify.statusCode == HttpStatus.ok) return _FileResult.sent;
+      // Each failed attempt writes its own line, so the number of them is what
+      // says how many tries the file took.
+      transfer.log(
+        'Checksum did not match',
+        file: item.relativePath,
+        failure: true,
+      );
+      return _FileResult.retry;
     } on _Cancelled {
-      myPrint('upload of ${item.relativePath} cancelled');
+      transfer.log('Cancelled', file: item.relativePath);
       return _FileResult.hopeless;
     } on SocketException {
       rethrow;
     } catch (e) {
-      myPrint('sending ${item.relativePath} failed: $e');
+      transfer.log(
+        'Sending failed',
+        file: item.relativePath,
+        detail: '$e',
+        failure: true,
+      );
       return _FileResult.retry;
     }
   }
@@ -338,7 +374,7 @@ class SendService {
       );
       await response.drain<void>().timeout(headerTimeout);
     } catch (e) {
-      myPrint('terminal cancel notice failed: $e');
+      _current?.log('The receiver was not told', detail: '$e', failure: true);
     } finally {
       client.close(force: true);
     }
@@ -353,6 +389,7 @@ class SendService {
 
     _cancelled = true;
     transfer.status = TransferStatus.cancelled;
+    transfer.log('Cancelled');
     transfersChanged();
     _client?.close(force: true);
 

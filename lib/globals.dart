@@ -21,7 +21,7 @@ final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 const String prgName = 'easysend';
 const String progVersion = '0.2.260811';
-const int buildNumber = 68;
+const int buildNumber = 69;
 const String progAuthor = 'Eugen';
 
 const String langFile = 'assets/locales.json';
@@ -71,6 +71,9 @@ const int consentTransportMarginSec = 3;
 const int maxResendAttempts = 2;
 // Speed and ETA are averaged over this window; the instant value is unreadable.
 const int speedWindowSec = 5;
+// Log lines one transfer keeps. A run of three thousand files writes one line
+// each, and only the tail of that is ever read.
+const int maxTransferEvents = 500;
 
 // Subdirectory created inside the system downloads folder.
 const String recvDirName = 'EasySend';
@@ -400,6 +403,10 @@ String _two(int v) => v.toString().padLeft(2, '0');
 // 2026-08-07 14:30
 String formatDateTime(DateTime t) =>
     '${t.year}-${_two(t.month)}-${_two(t.day)} ${_two(t.hour)}:${_two(t.minute)}';
+
+// 14:30:07. Log lines happen seconds apart, so the date would only repeat.
+String formatClock(DateTime t) =>
+    '${_two(t.hour)}:${_two(t.minute)}:${_two(t.second)}';
 
 String formatSpeed(double bytesPerSec) =>
     '${formatBytes(bytesPerSec.round())}/s';

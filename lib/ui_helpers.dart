@@ -127,17 +127,17 @@ Widget sectionButton(
       onTap: onTap,
       borderRadius: BorderRadius.circular(btnRadius),
       child: Container(
-        width: 34,
-        height: 26,
+        width: 40,
+        height: 30,
         alignment: Alignment.center,
         decoration: BoxDecoration(
           color: clButton,
           border: Border.all(color: clFrame),
           borderRadius: BorderRadius.circular(btnRadius),
         ),
-        // 22 in a 26 px button: MaterialIcons is not a variable font, so the
+        // 26 in a 30 px button: MaterialIcons is not a variable font, so the
         // only way to a heavier stroke is a bigger glyph.
-        child: Icon(icon, color: clText, size: 22),
+        child: Icon(icon, color: clText, size: 26),
       ),
     ),
   );

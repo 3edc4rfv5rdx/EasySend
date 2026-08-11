@@ -10,6 +10,7 @@ import 'package:window_manager/window_manager.dart';
 
 import 'android_helpers.dart';
 import 'globals.dart';
+import 'log_screen.dart';
 import 'net_discovery.dart';
 import 'net_sender.dart';
 import 'net_server.dart';
@@ -988,7 +989,7 @@ class _HomeScreenState extends State<HomeScreen>
     final int? eta = t.etaSeconds;
 
     return InkWell(
-      onTap: _canOpenTransfer(t) ? () => _openTransfer(t) : null,
+      onTap: () => _openTransferLog(t),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
         child: Column(
@@ -1094,21 +1095,14 @@ class _HomeScreenState extends State<HomeScreen>
     await sender.send(peer: xvDevices[peerIndex], files: restored.files);
   }
 
-  bool _canOpenTransfer(TransferSession transfer) =>
-      transfer.incoming &&
-      !transfer.isRunning &&
-      transfer.files.any(
-        (file) => file.done && file.destinationPath?.isNotEmpty == true,
-      );
-
-  Future<void> _openTransfer(TransferSession transfer) async {
-    final List<FileItem> received = transfer.files
-        .where((file) => file.done && file.destinationPath != null)
-        .toList();
-    final bool opened = received.length == 1
-        ? await openExternally(received.single.destinationPath!)
-        : await openRecvFolder();
-    if (!opened) okInfoBarRed(lw('Nothing can open this'));
+  // Tapping a row opens its log. It used to open the received file or folder,
+  // which the folder button in the section heading already does, and only ever
+  // worked on incoming rows — half the list did nothing at all.
+  Future<void> _openTransferLog(TransferSession transfer) async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => TransferLogScreen(transfer)),
+    );
   }
 
   // The bar carries the outcome at a glance: red went wrong, grey was stopped

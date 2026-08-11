@@ -2,6 +2,9 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+- N: A tap on any transfer opens its log — what happened to every file, response codes, refusal reasons and a line per failed attempt — with a copy button that takes the build version with it
+- F: The tap on a transfer no longer opens the received file, which only ever worked on incoming rows and which the receive-folder button already does
+- F: The add-device and receive-folder buttons in the section headings are larger
 - E: The Android multicast lock belongs to the application rather than to one screen, so destroying the window no longer takes it away while discovery goes on believing it is held
 - I: ADD/todo.md names the competing explanation for tomorrow's multicast check — an engine that may die with the Activity — and the unicast question that tells the two apart
 - I: .gitignore covers the whole .claude directory, so a temporary file left by an interrupted settings write stops showing up as something to commit

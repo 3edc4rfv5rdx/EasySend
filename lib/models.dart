@@ -111,6 +111,53 @@ typedef RefusedPick = ({FileItem file, PickProblem problem});
 
 enum TransferStatus { pending, active, done, partial, cancelled, failed }
 
+// One thing that happened during a transfer. The message is an English key
+// translated on the log screen; the detail is the part worth quoting in a bug
+// report — status codes and system text — and is never translated.
+class TransferEvent {
+  final DateTime at;
+  final String? file; // relative path, null when it is about the whole transfer
+  final String message;
+  final String? detail;
+  // Something went wrong here. The screen paints these apart: the one line that
+  // explains an outcome should not have to be found by reading all of them.
+  final bool failure;
+
+  const TransferEvent({
+    required this.at,
+    required this.message,
+    this.file,
+    this.detail,
+    this.failure = false,
+  });
+}
+
+// One line of the log, the same on screen and in the clipboard.
+String formatTransferEvent(TransferEvent event) {
+  final String where = event.file == null ? '' : '${event.file}  ';
+  final String detail = event.detail == null ? '' : ': ${event.detail}';
+  return '${formatClock(event.at)}  $where${lw(event.message)}$detail';
+}
+
+// What the log says about the transfer as a whole, above the lines.
+List<String> transferLogHeader(TransferSession transfer) => [
+  transfer.peerName,
+  '${lw(transfer.incoming ? 'Received' : 'Sent')} '
+      '${transfer.doneCount}/${transfer.files.length} — '
+      '${formatBytes(transfer.bytesTotal)}',
+  formatDateTime(transfer.startedAt),
+  if (transfer.error != null) '${lw('Error')}: ${transfer.error}',
+];
+
+// The whole log as one piece of text. The version goes first: a log quoted in
+// a report is worth nothing without the build it came from.
+String transferLogText(TransferSession transfer) => [
+  '$prgName $progVersion+$buildNumber $xvPlatform',
+  ...transferLogHeader(transfer),
+  '',
+  ...transfer.events.map(formatTransferEvent),
+].join('\n');
+
 // One transfer, in either direction. Not persisted: the app keeps no history
 // between runs, finished entries only live until restart.
 class TransferSession {
@@ -130,6 +177,32 @@ class TransferSession {
   TransferStatus status = TransferStatus.pending;
   DateTime startedAt = DateTime.now();
   String? error;
+
+  // What happened along the way, in order. The row can only say how it ended;
+  // this is where a file that did not make it says why. The list belongs to the
+  // session, so it goes away with it instead of growing for the whole run.
+  final List<TransferEvent> events = [];
+
+  void log(
+    String message, {
+    String? file,
+    String? detail,
+    bool failure = false,
+  }) {
+    events.add(
+      TransferEvent(
+        at: DateTime.now(),
+        message: message,
+        file: file,
+        detail: detail,
+        failure: failure,
+      ),
+    );
+    // Thousands of files with a retry each would otherwise be held whole. The
+    // end is what explains an outcome, so the oldest line is the one to drop.
+    if (events.length > maxTransferEvents) events.removeAt(0);
+    myPrint([file, message, detail].nonNulls.join(' '));
+  }
 
   // Rolling samples for speed and ETA. The instant rate jumps around too much
   // to read, so both are averaged over speedWindowSec.
