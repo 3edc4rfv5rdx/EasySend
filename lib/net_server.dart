@@ -57,6 +57,8 @@ class ReceiveServer {
   // Bumped by every stop. A prepare parked on the consent question holds no
   // socket, so nothing else tells it that the server it belongs to is gone.
   int _generation = 0;
+  // Completed to take that question off the screen along with the server.
+  Completer<void>? _consentAbort;
 
   // The consent question. Production asks the user — a dialog while the app is
   // on screen, a notification when it is not — and a test replaces this to hold
@@ -114,6 +116,7 @@ class ReceiveServer {
     // Before any await: a consent answered while this is running belongs to the
     // server that is going away, not to the one that may take its place.
     _generation++;
+    _abortConsent();
     final _Incoming? session = _current;
     if (session != null) {
       session.cancelled = true;
@@ -350,6 +353,10 @@ class ReceiveServer {
     }
 
     // Off screen there is nobody to show a dialog to; ask by notification.
+    // Either way the question is withdrawn if the server stops underneath it:
+    // an answer nobody can act on should not sit there asking to be given.
+    final Completer<void> abort = Completer<void>();
+    _consentAbort = abort;
     final bool accepted;
     bool trust = false;
     final Future<(bool, bool)> Function({
@@ -369,14 +376,17 @@ class ReceiveServer {
         senderName: senderName,
         fileCount: count,
         totalBytes: bytes,
+        cancelled: abort.future,
       );
     } else {
       (accepted, trust) = await showAcceptDialog(
         senderName: senderName,
         fileCount: count,
         totalBytes: bytes,
+        cancelled: abort.future,
       );
     }
+    if (identical(_consentAbort, abort)) _consentAbort = null;
     if (accepted && trust && !self) {
       if (known >= 0) {
         xvDevices[known].trusted = true;
@@ -649,6 +659,12 @@ class ReceiveServer {
         session.phase == _ReceivePhase.verifying) {
       session.phase = _ReceivePhase.ready;
     }
+  }
+
+  void _abortConsent() {
+    final Completer<void>? abort = _consentAbort;
+    _consentAbort = null;
+    if (abort != null && !abort.isCompleted) abort.complete();
   }
 
   void _touch(_Incoming session) {

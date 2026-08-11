@@ -261,26 +261,35 @@ void showCustomDialog({
 
 // Ask whether to accept an incoming transfer. Returns (accepted, trust).
 // Unanswered after acceptTimeoutSec the dialog closes itself and declines: the
-// sender must not hang waiting for someone who is not at the screen.
+// sender must not hang waiting for someone who is not at the screen. The
+// receiver can also withdraw the question through `cancelled` — once its server
+// is gone, no answer means anything any more.
 Future<(bool, bool)> showAcceptDialog({
   required String senderName,
   required int fileCount,
   required int totalBytes,
+  Future<void>? cancelled,
 }) async {
   final BuildContext? context = navigatorKey.currentContext;
   if (context == null) return (false, false);
 
   bool trust = false;
   Timer? timer;
+  BuildContext? liveDialog;
+  void close() {
+    final BuildContext? ctx = liveDialog;
+    if (ctx != null && ctx.mounted && Navigator.canPop(ctx)) {
+      Navigator.pop(ctx, (false, false));
+    }
+  }
+
+  cancelled?.then((_) => close());
   final (bool, bool)? result = await showFlatDialog<(bool, bool)>(
     context: context,
     barrierDismissible: false,
     builder: (BuildContext dialogContext) {
-      timer = Timer(const Duration(seconds: acceptTimeoutSec), () {
-        if (Navigator.canPop(dialogContext)) {
-          Navigator.pop(dialogContext, (false, false));
-        }
-      });
+      liveDialog = dialogContext;
+      timer = Timer(const Duration(seconds: acceptTimeoutSec), close);
       return StatefulBuilder(
         builder: (context, setState) {
           return AlertDialog(

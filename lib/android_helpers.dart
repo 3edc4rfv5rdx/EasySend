@@ -56,9 +56,15 @@ Future<bool> askAcceptViaNotification({
   required String senderName,
   required int fileCount,
   required int totalBytes,
+  Future<void>? cancelled,
 }) async {
   final Completer<bool> completer = Completer<bool>();
   _askCompleter = completer;
+  // The receiver withdrawing the question counts as no, and takes the buttons
+  // off the lock screen with it.
+  cancelled?.then((_) {
+    if (!completer.isCompleted) completer.complete(false);
+  });
 
   await _notifications.show(
     _askNotificationId,
