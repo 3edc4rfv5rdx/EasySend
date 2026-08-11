@@ -2,6 +2,7 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+- F: A transfer may carry 3000 files instead of 1000, and the prepare body grew with it so a full manifest of real paths still fits
 - E: A pick that the receiver would refuse is answered when it is made: too many files at once, too large a total, and names that cannot travel are counted and named instead of arriving as HTTP 400 halfway through a transfer
 - E: One failure no longer stops settings from being saved or the Android service notification from being updated for the rest of the run: both queues drop a failure instead of storing it, and a plugin that has gone away is caught like any other channel error
 - E: Manually added devices are polled all at once, so a pass costs one timeout instead of one per unreachable device and a live device no longer blinks offline because a switched-off one was ahead of it in the list

@@ -5,6 +5,7 @@ import 'package:easysend/globals.dart';
 import 'package:easysend/net_server.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
+import 'package:uuid/uuid.dart';
 
 void main() {
   late Directory root;
@@ -86,15 +87,55 @@ void main() {
     );
   });
 
+  test('a full manifest of real paths fits inside the body limit', () async {
+    // The two limits are coupled: raising the file count without the body cap
+    // would turn a legal pick into 413 instead of a transfer.
+    final List<Map<String, dynamic>> files = List.generate(
+      maxManifestFiles,
+      (index) => {
+        'id': const Uuid().v4(),
+        // Deeper and longer than what a phone's camera folder produces.
+        'path':
+            'Pictures/Camera Roll/2026/08/Holiday in the mountains/'
+            'IMG_20260811_123456_$index.jpg',
+        'size': 3456789,
+      },
+    );
+    final int bytes = utf8.encode(json.encode(manifest(files))).length;
+    expect(bytes, lessThan(maxPrepareBodyBytes));
+  });
+
   test('bounds a chunked prepare body without Content-Length', () async {
-    final request = await client.postUrl(uri);
-    request.headers.contentType = ContentType.json;
-    request.write('{"senderId":"sender","senderName":"');
-    for (int i = 0; i <= maxPrepareBodyBytes ~/ 4096; i++) {
-      request.write('x' * 4096);
+    // Two honest endings: the 413 comes back, or the receiver drops the
+    // connection while the sender is still writing. Which one depends on how
+    // much of the body fits in socket buffers before the limit is hit, so both
+    // count — what must never happen is the body being taken.
+    int? status;
+    try {
+      final request = await client.postUrl(uri);
+      request.headers.contentType = ContentType.json;
+      request.write('{"senderId":"sender","senderName":"');
+      for (int i = 0; i <= maxPrepareBodyBytes ~/ 4096; i++) {
+        request.write('x' * 4096);
+      }
+      final response = await request.close();
+      status = response.statusCode;
+      await response.drain<void>();
+    } on HttpException {
+      status = null;
+    } on SocketException {
+      status = null;
     }
-    final response = await request.close();
-    expect(response.statusCode, 413);
-    await response.drain<void>();
+    expect(status, anyOf(isNull, HttpStatus.requestEntityTooLarge));
+
+    // And the receiver is free for the next sender either way.
+    expect(
+      await send(
+        manifest([
+          {'id': 'x', 'path': 'x.txt', 'size': 0},
+        ]),
+      ),
+      200,
+    );
   });
 }

@@ -96,12 +96,11 @@ Add tests: a sync whose platform call throws is followed by a sync that still re
 
 ## 9. P2 — FIXED - Enforce the manifest limits on the sending side
 
-Implemented at the current `maxManifestFiles` of 1000. Whether that number is
-right is a product decision and is left open: SPEC readiness criterion 4 only
-promises a folder of 500 files, while a phone's camera folder can hold several
-thousand. Raising it costs nothing in code — the limit is one constant, checked
-on both sides — but it should be raised deliberately, not as a side effect of
-this fix.
+Implemented, and the limit has since been raised deliberately to 3000 files —
+a phone's camera folder holds thousands, and a folder is picked whole. That bump
+carried `maxPrepareBodyBytes` with it, from 1 MiB to 4 MiB: the manifest travels
+inside that body, so leaving the cap behind would have turned a legal pick into
+a 413. A test now pins the two together.
 
 `_addPaths()` in `lib/home_screen.dart` accepts any number of files of any total size, while the receiver refuses more than `maxManifestFiles` (1000) or more than `maxDeclaredTransferBytes`, and refuses individual paths that fail `sanitizeRelPath` (depth over `maxPathDepth`, components over `maxPathComponentUtf8Bytes`, reserved Windows names, trailing dots or spaces). The sender learns none of this until `prepare`, where every one of those refusals arrives as `HTTP 400` and is shown to the user exactly like that. Picking a folder of 1500 files — well within what SPEC readiness criterion 4 implies — is a plain user action that ends in an unexplained failure.
 

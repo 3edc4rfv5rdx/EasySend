@@ -49,8 +49,11 @@ const String partSuffix = '.easysend-part';
 const int acceptTimeoutSec = 30;
 // Valid protocol progress refreshes this receiver-side inactivity deadline.
 const int receiveSessionTimeoutSec = 60;
-const int maxPrepareBodyBytes = 1024 * 1024;
-const int maxManifestFiles = 1000;
+// A camera folder holds thousands of files, and a folder is picked whole.
+const int maxManifestFiles = 3000;
+// The manifest travels inside this, so the two move together: a full manifest
+// of real paths has to fit, with room for deeper ones than a phone produces.
+const int maxPrepareBodyBytes = 4 * 1024 * 1024;
 const int maxProtocolIdBytes = 128;
 const int maxSenderNameBytes = 256;
 const int maxDeclaredFileBytes = 16 * 1024 * 1024 * 1024 * 1024;
