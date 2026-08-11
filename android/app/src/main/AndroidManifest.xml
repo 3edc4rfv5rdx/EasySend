@@ -23,10 +23,12 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC"/>
 
+    <!-- Our own Application class, so the multicast lock can outlive the
+         Activity: discovery keeps running while the app is off screen. -->
     <application
         android:label="EasySend"
         android:usesCleartextTraffic="true"
-        android:name="${applicationName}"
+        android:name=".EasySendApplication"
         android:icon="@mipmap/ic_launcher">
         <activity
             android:name=".MainActivity"

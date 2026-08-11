@@ -2,6 +2,7 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+- E: The Android multicast lock belongs to the application rather than to one screen, so destroying the window no longer takes it away while discovery goes on believing it is held
 - I: ADD/todo.md names the competing explanation for tomorrow's multicast check — an engine that may die with the Activity — and the unicast question that tells the two apart
 - I: .gitignore covers the whole .claude directory, so a temporary file left by an interrupted settings write stops showing up as something to commit
 - I: SPEC follows the app on the two places they had drifted apart: the Ukrainian locale key is `ua`, and manually added devices belong in the one device list on the main screen

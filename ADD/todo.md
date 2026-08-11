@@ -76,17 +76,29 @@ dead, does `curl http://<phone>:15353/api/v1/info` still answer? No answer means
 the engine, not the lock, and nothing about multicast can be concluded until
 that is fixed.
 
+**The lock has already been moved.** As of 2026-08-11 it lives in
+`EasySendApplication` and is released only when discovery says it has stopped,
+so this run confirms a fix rather than choosing between guesses. The ownership
+was wrong on its own terms — Dart asked once and never again while `onDestroy`
+gave the lock back — and that is true whatever any single device does.
+
+**Read the result asymmetrically.** Both phones here are Samsung, which is one
+Wi-Fi chipset and one ROM family. If discovery works with the Activity dead,
+that confirms the fix on this hardware and nothing more; it is **not** grounds
+for deciding the lock was unnecessary and removing it, because another chipset
+may well filter multicast where this one does not. Only the positive direction
+generalizes: if it turns out to be needed here, it is needed everywhere.
+
 **What it decides.** Three outcomes:
 
 - Answers `/info` and appears by itself on a device that has never seen it: the
-  finding is not real on this hardware, record it as such — and the lock can
-  arguably be dropped altogether.
-- Answers `/info` but never appears until added by hand: it is the lock. Move it
-  into `TransferService` (or the Application object) and tie it to whether
-  discovery is running rather than to the Activity's lifetime.
-- Does not answer `/info` at all: it is the engine. That is a new finding of its
-  own — background receiving does not work at all once the Activity is gone, and
-  the fix is a cached `FlutterEngine` that outlives it.
+  fix works, close finding 11 as confirmed.
+- Answers `/info` but never appears until added by hand: the lock was not the
+  whole story. Check that discovery is actually running in that state at all
+  (announces leaving the phone), before looking further at the chipset.
+- Does not answer `/info` at all: it is the engine, not the lock. That is a new
+  finding of its own — background receiving does not work at all once the
+  Activity is gone, and the fix is a cached `FlutterEngine` that outlives it.
 
 ### What was already established on 2026-08-11
 

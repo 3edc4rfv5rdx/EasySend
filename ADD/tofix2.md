@@ -116,12 +116,21 @@ Re-stat the file immediately before sending it. If the size still matches the ma
 
 Add tests with a file truncated and a file extended between manifest construction and send: exactly one attempt per file, a distinct error, and the other files in the batch still delivered.
 
-## 11. P2 — DEFERRED - Move the multicast lock off the Activity
+## 11. P2 — FIXED - Move the multicast lock off the Activity
 
-Not implemented: whether the missing lock actually stops datagrams from arriving
-is device-dependent, and the fix would be a blind change to code that cannot be
-exercised from the desktop. The check to run on a phone, and what its answer
-decides, is written down in `ADD/todo.md`.
+Done without waiting for the hardware check, because the ownership is wrong
+whatever the check says: Dart asks for the lock once when discovery starts and
+never again, while `MainActivity.onDestroy` gave it back — two halves
+disagreeing in silence, one of them believing it holds a lock Android has taken
+away. A lock tied to the lifetime of a screen, when the thing that needs it is
+the network layer that outlives every screen, is a defect on its own. It now
+lives in `EasySendApplication`, released only when discovery says it stopped.
+
+The phone check in `ADD/todo.md` therefore confirms a fix rather than choosing
+between guesses. Note the asymmetry before reading its result: if the lock turns
+out to be needed, the change is right for every device; if datagrams arrive
+without it on this particular Samsung, that says nothing about other Wi-Fi
+chipsets and is **not** grounds for removing it.
 
 `MainActivity.kt` holds the `WifiManager.MulticastLock` and releases it in `onDestroy()`. With `Receive in background` on, the foreground service keeps the process alive while the Activity can be destroyed at any time — after which the lock is gone, but `DiscoveryService` is still running and still believes it holds it (`setDiscoveryMulticastEnabled(true)` was called once, at `start()`). Depending on the device, multicast and broadcast datagrams then stop being delivered, so the phone keeps its HTTP server up and quietly disappears from every other device's list.
 

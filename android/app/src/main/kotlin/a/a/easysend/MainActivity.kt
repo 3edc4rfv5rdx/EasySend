@@ -3,7 +3,6 @@ package a.a.easysend
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.os.Build
-import android.net.wifi.WifiManager
 import android.provider.DocumentsContract
 import android.webkit.MimeTypeMap
 import androidx.core.content.FileProvider
@@ -14,8 +13,6 @@ import io.flutter.plugin.common.MethodChannel
 import java.io.File
 
 class MainActivity : FlutterActivity() {
-
-    private var multicastLock: WifiManager.MulticastLock? = null
 
     private companion object {
         const val CHANNEL = "easysend/service"
@@ -76,31 +73,21 @@ class MainActivity : FlutterActivity() {
 
             "openFolder" -> result.success(openFolder(call.argument<String>("path")))
 
+            // Held by the Application, not by this Activity: discovery outlives
+            // any one screen, and a lock let go in onDestroy left the Dart side
+            // believing it still had one.
             "acquireMulticast" -> {
-                if (multicastLock?.isHeld != true) {
-                    val wifi = applicationContext.getSystemService(WIFI_SERVICE) as WifiManager
-                    multicastLock = wifi.createMulticastLock("EasySend::discovery").apply {
-                        setReferenceCounted(false)
-                        acquire()
-                    }
-                }
+                (application as EasySendApplication).acquireMulticast()
                 result.success(true)
             }
 
             "releaseMulticast" -> {
-                multicastLock?.let { if (it.isHeld) it.release() }
-                multicastLock = null
+                (application as EasySendApplication).releaseMulticast()
                 result.success(true)
             }
 
             else -> result.notImplemented()
         }
-    }
-
-    override fun onDestroy() {
-        multicastLock?.let { if (it.isHeld) it.release() }
-        multicastLock = null
-        super.onDestroy()
     }
 
     // Sending our own file path out would raise FileUriExposedException, so the
