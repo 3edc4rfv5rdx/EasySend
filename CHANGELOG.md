@@ -3,7 +3,7 @@
 
 ## Unreleased
 - F: The receive folder is canonicalized once per transfer instead of once per file, which took 281 ms of a 3000-file manifest before the consent dialog appeared, and a folder swapped underneath a running transfer is now refused
-- I: ADD/todo.md says why the multicast check cannot be answered on an emulator, and what makes a run of it valid at all
+- I: ADD/todo.md says why the multicast check cannot be answered on an emulator, from this desktop, or by two devices that only see each other as manual entries, and records what a phone did answer on 2026-08-11
 - I: IDEAS.txt records a per-transfer log screen, and what the tap it would use is already doing
 - F: A name too long to travel is reported as exactly that, with the limit, instead of being counted among the names that cannot be sent for any other reason
 - E: A file name is measured the way NTFS and ext4 measure it, 255 characters rather than 255 bytes, so an ordinary Cyrillic name is no longer refused for being written in Cyrillic
