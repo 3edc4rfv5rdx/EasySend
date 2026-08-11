@@ -48,5 +48,6 @@ app.*.map.json
 # Build artifacts kept in the project root by 00-Make.sh
 *.apkx
 
-# Local Claude Code settings
-.claude/settings.local.json
+# Local Claude Code settings, and the temporary files an atomic write of them
+# leaves behind when it is interrupted
+.claude/
