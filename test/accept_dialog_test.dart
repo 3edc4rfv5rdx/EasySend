@@ -32,6 +32,37 @@ void main() {
     expect(await answer, (false, false));
   });
 
+  testWidgets('rebuilding the app does not leave a deadline behind', (
+    WidgetTester tester,
+  ) async {
+    await pumpHost(tester);
+    final Future<(bool, bool)> answer = showAcceptDialog(
+      senderName: 'Peer',
+      fileCount: 1,
+      totalBytes: 1,
+    );
+    await tester.pump();
+    expect(find.text('Incoming files'), findsOneWidget);
+
+    // What a language or theme change does: the whole app is rebuilt under the
+    // open dialog, and its route is rebuilt with it.
+    await tester.pumpWidget(
+      MaterialApp(
+        navigatorKey: navigatorKey,
+        theme: ThemeData(brightness: Brightness.dark),
+        home: const SizedBox.shrink(),
+      ),
+    );
+    await tester.pump();
+    expect(find.text('Incoming files'), findsOneWidget);
+
+    await tester.tap(find.text('Decline'));
+    await tester.pumpAndSettle();
+    expect(await answer, (false, false));
+    // The test itself fails on any timer still pending here, which is the
+    // whole point: a deadline started inside the builder outlived its dialog.
+  });
+
   testWidgets('an answer given before the abort still counts', (
     WidgetTester tester,
   ) async {

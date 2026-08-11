@@ -274,7 +274,6 @@ Future<(bool, bool)> showAcceptDialog({
   if (context == null) return (false, false);
 
   bool trust = false;
-  Timer? timer;
   BuildContext? liveDialog;
   void close() {
     final BuildContext? ctx = liveDialog;
@@ -283,74 +282,82 @@ Future<(bool, bool)> showAcceptDialog({
     }
   }
 
+  // Started here and cancelled in the finally below, never inside the builder:
+  // a builder runs again whenever the route rebuilds — which is exactly what a
+  // language or theme change does — and each run would start another deadline
+  // while dropping the reference to the one before it, leaving a timer alive
+  // after the question had already been answered.
+  final Timer timer = Timer(const Duration(seconds: acceptTimeoutSec), close);
   cancelled?.then((_) => close());
-  final (bool, bool)? result = await showFlatDialog<(bool, bool)>(
-    context: context,
-    barrierDismissible: false,
-    builder: (BuildContext dialogContext) {
-      liveDialog = dialogContext;
-      timer = Timer(const Duration(seconds: acceptTimeoutSec), close);
-      return StatefulBuilder(
-        builder: (context, setState) {
-          return AlertDialog(
-            backgroundColor: clFill,
-            shape: dialogShape,
-            title: Row(
-              children: [
-                Icon(Icons.download_outlined, color: clAccent),
-                const SizedBox(width: 8),
-                Text(lw('Incoming files'), style: tsLarge),
-              ],
-            ),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  senderName,
-                  style: TextStyle(
-                    fontSize: fsNormal,
-                    fontWeight: fwBold,
-                    color: clText,
+  try {
+    final (bool, bool)? result = await showFlatDialog<(bool, bool)>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext dialogContext) {
+        liveDialog = dialogContext;
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              backgroundColor: clFill,
+              shape: dialogShape,
+              title: Row(
+                children: [
+                  Icon(Icons.download_outlined, color: clAccent),
+                  const SizedBox(width: 8),
+                  Text(lw('Incoming files'), style: tsLarge),
+                ],
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    senderName,
+                    style: TextStyle(
+                      fontSize: fsNormal,
+                      fontWeight: fwBold,
+                      color: clText,
+                    ),
                   ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '$fileCount — ${formatBytes(totalBytes)}',
+                    style: tsNormal,
+                  ),
+                  const SizedBox(height: 8),
+                  CheckboxListTile(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    controlAffinity: ListTileControlAffinity.leading,
+                    value: trust,
+                    activeColor: clAccent,
+                    checkColor: onColor(clAccent),
+                    title: Text(lw('Always trust this device'), style: tsSmall),
+                    onChanged: (v) => setState(() => trust = v ?? false),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext, (false, false)),
+                  style: dialogCancelStyle,
+                  child: Text(lw('Decline')),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  '$fileCount — ${formatBytes(totalBytes)}',
-                  style: tsNormal,
-                ),
-                const SizedBox(height: 8),
-                CheckboxListTile(
-                  dense: true,
-                  contentPadding: EdgeInsets.zero,
-                  controlAffinity: ListTileControlAffinity.leading,
-                  value: trust,
-                  activeColor: clAccent,
-                  checkColor: onColor(clAccent),
-                  title: Text(lw('Always trust this device'), style: tsSmall),
-                  onChanged: (v) => setState(() => trust = v ?? false),
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext, (true, trust)),
+                  style: dialogButtonStyle,
+                  child: Text(lw('Accept')),
                 ),
               ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(dialogContext, (false, false)),
-                style: dialogCancelStyle,
-                child: Text(lw('Decline')),
-              ),
-              TextButton(
-                onPressed: () => Navigator.pop(dialogContext, (true, trust)),
-                style: dialogButtonStyle,
-                child: Text(lw('Accept')),
-              ),
-            ],
-          );
-        },
-      );
-    },
-  );
-  timer?.cancel();
-  return result ?? (false, false);
+            );
+          },
+        );
+      },
+    );
+    return result ?? (false, false);
+  } finally {
+    timer.cancel();
+  }
 }
 
 // Single-field prompt, used for the device name, the port and manual IPs.

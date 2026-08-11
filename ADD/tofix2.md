@@ -209,7 +209,7 @@ The flag has since been removed anyway: `myPrint` follows `kDebugMode`, which sa
 
 Nothing left to implement. Recorded so the next reader does not raise it again.
 
-## 18. P3 — Create the accept dialog's timeout outside the builder
+## 18. P3 — FIXED - Create the accept dialog's timeout outside the builder
 
 `showAcceptDialog()` in `lib/ui_helpers.dart` assigns `timer = Timer(...)` inside the `pageBuilder` passed to `showGeneralDialog`. That builder runs again whenever the route's content rebuilds — which is exactly what a language or theme change does, since `appRebuild` rebuilds the whole `MaterialApp`. Each rebuild starts another 30-second timer and drops the reference to the previous one, so the earliest of them pops the dialog and the transfer is declined ahead of its deadline.
 
