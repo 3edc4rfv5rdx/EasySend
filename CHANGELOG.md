@@ -2,6 +2,7 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+- I: ADD/tofix2.md withdraws its release-logging finding, which the build scripts already handle by stripping the flag
 - I: The release dry-run test derives the expected build number from pubspec.yaml instead of spelling it out, so it stops failing after every release
 - E: Reopening the app no longer rebinds the receive server, so an incoming transfer survives being brought back to the screen, and a changed port waits for the running transfer instead of dropping it
 - I: ADD/tofix2.md, a second code audit of the whole app, twenty-one findings written as standalone implementation prompts

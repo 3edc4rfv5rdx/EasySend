@@ -149,11 +149,13 @@ Move the orphan sweep to application startup, once, and leave `start()` to bind 
 
 Add a test asserting the sweep runs once across two `start()` calls.
 
-## 17. P3 — Silence release logging, or make it opt-in
+## 17. P3 — NOT REAL - Release logging is already stripped
 
-`xvDebug` is `true` in `lib/globals.dart` and `myPrint` writes through `debugPrint`, which is not stripped from release builds — and this project only ever ships release builds. Every receive path, every failed poll and every path error therefore writes file paths, device names, device ids and peer addresses into logcat, where any app with log access on older Androids, and every bug report on all of them, picks them up. It also costs string formatting on the transfer hot path.
+The finding as first written claimed that `xvDebug = true` in `lib/globals.dart` ships the log into release builds, where `myPrint` would write paths, device names and peer addresses into logcat.
 
-Make `xvDebug` default to false and flip it from a setting (a hidden `.Debug log` key alongside the other dotted keys would fit the existing scheme), or gate `myPrint` on `kDebugMode` and keep a separate explicit path for the handful of messages worth keeping. Keep the port-bind failure visible in the UI banner regardless — that one is already surfaced properly and must not regress.
+It does not. All three shipping scripts — `10-MakeRelease.sh:91`, `13-MakeLinux.sh:53` and `14-MakeAppImage.sh:67` — rewrite the flag to `false` for the duration of the build and restore whatever was in the file afterwards, so no released binary carries the log. The value checked into the repository is the one a local `flutter run` uses, which is where it belongs.
+
+Nothing to implement. Recorded so the next reader of `globals.dart` does not raise it again: the flag looks wrong in isolation and is correct in context.
 
 ## 18. P3 — Create the accept dialog's timeout outside the builder
 
