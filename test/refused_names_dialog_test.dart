@@ -57,25 +57,24 @@ void main() {
     expect(await answer, isFalse);
   });
 
-  testWidgets('the tick decides what Fix does', (WidgetTester tester) async {
+  testWidgets('what Fix will do is said, not offered as a second control', (
+    WidgetTester tester,
+  ) async {
     await pumpHost(tester);
     final Future<bool> answer = showRefusedNamesDialog([
       (file: item(r'a\b.txt'), problem: PickProblem.backslash),
     ]);
     await tester.pump();
-    expect(find.text('Fix'), findsOneWidget);
 
-    // On by default; turning it off makes Fix change nothing.
-    await tester.tap(find.byType(Checkbox));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Fix'));
+    expect(find.text('replace the backslash with a dash'), findsOneWidget);
+    expect(find.byType(Checkbox), findsNothing);
+
+    await tester.tap(find.text('Cancel'));
     await tester.pumpAndSettle();
     expect(await answer, isFalse);
   });
 
-  testWidgets('Fix with the tick on asks for the repair', (
-    WidgetTester tester,
-  ) async {
+  testWidgets('Fix asks for the repair', (WidgetTester tester) async {
     await pumpHost(tester);
     final Future<bool> answer = showRefusedNamesDialog([
       (file: item(r'a\b.txt'), problem: PickProblem.backslash),

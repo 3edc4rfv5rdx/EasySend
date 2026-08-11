@@ -253,7 +253,12 @@ Pick one rule and write it down in SPEC: either treat `\` as a separator (then s
 
 Add tests for whichever rule is chosen, on both the sanitizer and the sender-side duplicate key.
 
-## 21. P3 — Documentation drift
+## 21. P3 — FIXED - Documentation drift
+
+Both settled on 2026-08-11 in favour of the code, and SPEC now says what the
+app does: the Ukrainian locale key stays `ua` with the system's `uk` mapped onto
+it, and manually added devices stay in the one device list on the main screen
+rather than being repeated in settings.
 
 Two places where SPEC.md and the code disagree. Neither is a defect on its own; both mislead the next reader.
 

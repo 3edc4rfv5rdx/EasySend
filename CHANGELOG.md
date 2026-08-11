@@ -2,6 +2,8 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+- I: SPEC follows the app on the two places they had drifted apart: the Ukrainian locale key is `ua`, and manually added devices belong in the one device list on the main screen
+- F: The refused-names dialog says what Fix will do instead of offering a tick beside the button that already decides it
 - N: Files whose names cannot travel are named one by one in a dialog when they are picked, each with its own reason, and a backslash can be replaced with a dash on the spot
 - E: A backslash is refused on every platform instead of quietly becoming a second separator, so a Linux file with one in its name no longer arrives as a folder
 - E: Closing the window within a moment of moving or resizing it keeps the new geometry, which used to be lost with the debounce that had not fired yet
