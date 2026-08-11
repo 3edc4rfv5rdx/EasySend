@@ -31,5 +31,25 @@ void main() {
       expect(sanitizeRelPath('${'a' * 256}.txt'), isNull);
       expect(sanitizeRelPath('${List.filled(65, 'd').join('/')}/x'), isNull);
     });
+
+    test('counts a name the way the filesystems do', () {
+      // 255 UTF-16 code units is what NTFS and ext4 allow, whatever those
+      // units cost in bytes. Counting bytes refused perfectly ordinary names
+      // in every language that is not English.
+      final String cyrillic = 'я' * maxPathComponentChars;
+      expect(cyrillic.length, maxPathComponentChars);
+      expect(sanitizeRelPath(cyrillic), cyrillic);
+      expect(sanitizeRelPath('я' * (maxPathComponentChars + 1)), isNull);
+
+      final String ascii = 'a' * maxPathComponentChars;
+      expect(sanitizeRelPath(ascii), ascii);
+      expect(sanitizeRelPath('a' * (maxPathComponentChars + 1)), isNull);
+
+      // A long name in a deep folder is still one name per component.
+      expect(
+        sanitizeRelPath('folder/$cyrillic/файл.txt'),
+        'folder/$cyrillic/файл.txt',
+      );
+    });
   });
 }

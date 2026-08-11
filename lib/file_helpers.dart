@@ -12,7 +12,10 @@ const Uuid _uuid = Uuid();
 
 const int maxPathUtf8Bytes = 4096;
 const int maxPathDepth = 64;
-const int maxPathComponentUtf8Bytes = 255;
+// One name, counted the way NTFS and ext4 count it: 255 UTF-16 code units, not
+// bytes. Counting bytes would refuse a Cyrillic name of 150 letters that every
+// filesystem involved would have taken.
+const int maxPathComponentChars = 255;
 final RegExp _windowsForbidden = RegExp(r'[<>:"|?*\x00-\x1f]');
 
 // The same channel the foreground service talks over.
@@ -241,7 +244,7 @@ String? sanitizeRelPath(String raw) {
     if (_windowsForbidden.hasMatch(segment) ||
         segment.endsWith('.') ||
         segment.endsWith(' ') ||
-        utf8.encode(segment).length > maxPathComponentUtf8Bytes) {
+        segment.length > maxPathComponentChars) {
       return null;
     }
     final String base = segment.split('.').first.toLowerCase();

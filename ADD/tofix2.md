@@ -218,3 +218,28 @@ Two places where SPEC.md and the code disagree. Neither is a defect on its own; 
 - SPEC 4 lists "устройства, добавленные вручную" among the settings screen's contents. The settings screen shows only trusted devices; manual devices are listed and removed on the home screen. That is a reasonable UI decision, but SPEC still promises the other one.
 
 Fix the documents (or the code, if the promise is worth keeping) in one pass, and do not let this become a UI redesign.
+
+## 22. P3 — DECIDED - Path length follows the filesystem, not the Win32 API
+
+Raised while fixing 9 and settled on 2026-08-11, recorded so it is not raised
+again as a defect.
+
+`sanitizeRelPath()` bounds one component at `maxPathComponentChars` — 255 UTF-16
+code units, which is exactly what NTFS and ext4 store — and the whole relative
+path at `maxPathUtf8Bytes` as a protocol sanity cap. It counts code units and
+not bytes on purpose: byte counting refused ordinary names in every language
+that is not English, a 150-letter Cyrillic name among them.
+
+What is deliberately **not** enforced is the Win32 `MAX_PATH` of 260 characters
+for a whole path. That is an API limit rather than a filesystem one, Windows 10
+and later can be made long-path aware, and rejecting a manifest for it would
+refuse transfers that the receiving filesystem is perfectly able to hold. A path
+Windows does refuse fails that one file with an OS error while the rest of the
+transfer carries on, which is the same treatment any other unwritable
+destination gets.
+
+If that ever turns out to bite in practice, the fix is not a length check: it is
+the `\\?\` prefix on Windows destinations, or the `longPathAware` flag in the
+executable manifest. A check, if one is wanted anyway, belongs in
+`buildDestinationPlan()`, where the full destination path is already known and
+the receive folder's own length can be counted with it.
