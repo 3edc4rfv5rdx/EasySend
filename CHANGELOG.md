@@ -2,6 +2,8 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+
+## v0.2.260811+72
 - I: README describes the transfer log and the move tick, says that discovery and transfers are two separate ports rather than one, and lists the lint and test scripts
 - F: Text in the three light themes is nearly black instead of dark grey, taking the body contrast from about 14:1 to about 17:1
 - F: Checkboxes are drawn in the accent colour rather than the frame grey, so an empty box is visible before it is looked for
