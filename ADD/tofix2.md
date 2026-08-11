@@ -34,7 +34,7 @@ Validate the answer: a `200` must carry a non-empty `sessionId` string of sane l
 
 Add fake-server tests for `200 {}`, `200 {"sessionId": ""}`, `200 {"sessionId": 42}` and a `200` with a non-object body. Each must leave exactly one transfer in a terminal state and `sender.busy` false.
 
-## 4. P1 — Pin the receive directory to the session instead of reading the global
+## 4. P1 — FIXED - Pin the receive directory to the session instead of reading the global
 
 `ReceiveServer` reads the global `xvRecvDir` at four different moments: `start()`, `_prepare()`, `_upload()` and `_verify()`. `_editRecvFolder()` in `lib/settings_screen.dart` reassigns that global at any time, and `home_screen.dart` only restarts the network when the *port* changed. Change the folder while a receive is running and the destinations planned under the old root are then checked with `ensureSafeDestination(newRoot, oldDest)`, where `p.relative` produces a `../…` path and the check fails — the file dies with a bare `400` mid-transfer.
 

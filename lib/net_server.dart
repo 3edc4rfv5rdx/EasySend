@@ -27,6 +27,10 @@ class _ProtocolProblem implements Exception {
 // Receiving side of a transfer in flight.
 class _Incoming {
   final String sessionId;
+  // The folder this session was planned for. Settings may point somewhere else
+  // by the time a file lands, and every destination here was resolved against
+  // this one — checking them against a newer root would refuse them all.
+  final String recvDir;
   final TransferSession transfer;
   final Map<String, FileItem> byId;
   final Map<String, String> finalPaths; // fileId -> destination path
@@ -40,6 +44,7 @@ class _Incoming {
 
   _Incoming({
     required this.sessionId,
+    required this.recvDir,
     required this.transfer,
     required this.byId,
     required this.finalPaths,
@@ -244,13 +249,15 @@ class ReceiveServer {
       }
 
       // Resolve every destination before answering: a manifest that cannot be
-      // written safely is refused as a whole, not half-accepted.
+      // written safely is refused as a whole, not half-accepted. The folder is
+      // read once here and carried by the session from now on.
+      final String recvDir = xvRecvDir;
       final Map<String, String> finalPaths;
       try {
-        finalPaths = await buildDestinationPlan(xvRecvDir, files);
+        finalPaths = await buildDestinationPlan(recvDir, files);
         for (final String dest in finalPaths.values) {
-          if (!await ensureSafeDestination(xvRecvDir, dest) ||
-              !await ensureSafeDestination(xvRecvDir, '$dest$partSuffix')) {
+          if (!await ensureSafeDestination(recvDir, dest) ||
+              !await ensureSafeDestination(recvDir, '$dest$partSuffix')) {
             throw const DestinationPlanException('unsafe filesystem component');
           }
         }
@@ -296,6 +303,7 @@ class ReceiveServer {
 
       _current = _Incoming(
         sessionId: transfer.id,
+        recvDir: recvDir,
         transfer: transfer,
         byId: {for (final FileItem f in files) f.id: f},
         finalPaths: finalPaths,
@@ -433,9 +441,13 @@ class ReceiveServer {
     try {
       final String dest = session.finalPaths[fileId]!;
       final String partPath = '$dest$partSuffix';
-      if (!await ensureSafeDestination(xvRecvDir, dest, createParents: true) ||
+      if (!await ensureSafeDestination(
+            session.recvDir,
+            dest,
+            createParents: true,
+          ) ||
           !await ensureSafeDestination(
-            xvRecvDir,
+            session.recvDir,
             partPath,
             createParents: true,
           )) {
@@ -552,8 +564,8 @@ class ReceiveServer {
 
       // Only now does the file get its real name: a partial file must never look
       // like a complete one.
-      if (!await ensureSafeDestination(xvRecvDir, dest) ||
-          !await ensureSafeDestination(xvRecvDir, part.path)) {
+      if (!await ensureSafeDestination(session.recvDir, dest) ||
+          !await ensureSafeDestination(session.recvDir, part.path)) {
         await _deleteQuietly(part);
         session.phase = _ReceivePhase.ready;
         return _status(req, HttpStatus.conflict);

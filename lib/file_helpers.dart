@@ -31,6 +31,24 @@ Future<bool> ensureRecvDir() async {
   }
 }
 
+// Whether files can actually land in this folder, asked at the moment somebody
+// picks it rather than when the first transfer arrives. Existing is not the
+// same as writable: a folder can be listed and still refuse a file.
+Future<bool> canWriteInto(String dir) async {
+  try {
+    await Directory(dir).create(recursive: true);
+    final File probe = File(
+      p.join(dir, '.easysend-probe-${DateTime.now().microsecondsSinceEpoch}'),
+    );
+    await probe.writeAsString('', flush: true);
+    await probe.delete();
+    return true;
+  } catch (e) {
+    myPrint('cannot write into $dir: $e');
+    return false;
+  }
+}
+
 // Open the receive folder whatever state the storage is in. The folder is made
 // first; if that failed for want of permission, Android is asked for it and the
 // folder tried again. Should the folder still not open, the nearest parent that

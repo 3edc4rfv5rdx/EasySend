@@ -135,9 +135,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
     });
   }
 
+  // A receive in flight has already planned where every one of its files goes.
+  // Moving the folder under it is a question nobody asked the transfer.
+  bool get _receiving => xvTransfers.any((t) => t.incoming && t.isRunning);
+
   Future<void> _editRecvFolder() async {
+    if (_receiving) {
+      okInfoBarOrange(lw('Cannot change the receive folder during a transfer'));
+      return;
+    }
     final String? dir = await pickFolder(initialPath: xvRecvDir);
     if (dir == null) return;
+    // Asked again: the picker was open long enough for a transfer to arrive.
+    if (_receiving) {
+      okInfoBarOrange(lw('Cannot change the receive folder during a transfer'));
+      return;
+    }
+    if (!await canWriteInto(dir)) {
+      okInfoBarRed(lw('Cannot write into that folder'));
+      return;
+    }
     await _apply(() {
       xdef['Receive folder'] = dir;
       xvRecvDir = dir;
