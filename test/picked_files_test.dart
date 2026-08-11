@@ -51,7 +51,23 @@ void main() {
     ], <FileItem>[]);
     expect(picked.fresh.single.relativePath, 'ok.txt');
     expect(picked.unusable, 4);
+    expect(picked.tooLong, 0);
     expect(picked.duplicates, 0);
+  });
+
+  test('a name that is merely too long is counted as such', () {
+    // Told apart from the rest, because it is nobody's mistake and the answer
+    // to it is a shorter name rather than a different file.
+    final picked = sortPickedFiles([
+      item('${'a' * (maxPathComponentChars + 1)}.txt'),
+      item('folder/${'я' * (maxPathComponentChars + 1)}.bin'),
+      item('${List.filled(maxPathDepth + 1, 'd').join('/')}/x.txt'),
+      item('CON'),
+      item('ok.txt'),
+    ], <FileItem>[]);
+    expect(picked.fresh.single.relativePath, 'ok.txt');
+    expect(picked.tooLong, 3);
+    expect(picked.unusable, 1, reason: 'a reserved name is not a long one');
   });
 
   test('a file larger than the protocol declares is refused', () {

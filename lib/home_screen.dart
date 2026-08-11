@@ -66,10 +66,8 @@ String targetKey(FileItem f) =>
 // file added on its own and again inside its folder. Unusable ones are those
 // the receiver would refuse anyway, found here so the answer is a sentence
 // rather than a transfer that dies at 'HTTP 400'.
-({List<FileItem> fresh, int duplicates, int unusable}) sortPickedFiles(
-  List<FileItem> items,
-  List<FileItem> selected,
-) {
+({List<FileItem> fresh, int duplicates, int unusable, int tooLong})
+sortPickedFiles(List<FileItem> items, List<FileItem> selected) {
   final Set<String> knownSources = selected
       .map((f) => f.sourcePath)
       .whereType<String>()
@@ -78,11 +76,16 @@ String targetKey(FileItem f) =>
   final List<FileItem> fresh = [];
   int duplicates = 0;
   int unusable = 0;
+  int tooLong = 0;
 
   for (final FileItem file in items) {
     if (sanitizeRelPath(file.relativePath) == null ||
         file.size > maxDeclaredFileBytes) {
-      unusable++;
+      if (isPathTooLong(file.relativePath)) {
+        tooLong++;
+      } else {
+        unusable++;
+      }
       continue;
     }
     final String? source = file.sourcePath;
@@ -95,7 +98,12 @@ String targetKey(FileItem f) =>
     }
     fresh.add(file);
   }
-  return (fresh: fresh, duplicates: duplicates, unusable: unusable);
+  return (
+    fresh: fresh,
+    duplicates: duplicates,
+    unusable: unusable,
+    tooLong: tooLong,
+  );
 }
 
 // The whole application is this one screen: picking, devices, progress. No tabs
@@ -351,6 +359,8 @@ class _HomeScreenState extends State<HomeScreen>
     final List<String> notes = [
       if (picked.duplicates > 0)
         '${lw('Duplicates skipped')}: ${picked.duplicates}',
+      if (picked.tooLong > 0)
+        '${lw('Names too long')}: ${picked.tooLong} — ${lw('the limit is')} $maxPathComponentChars',
       if (picked.unusable > 0)
         '${lw('Some names cannot be sent')}: ${picked.unusable}',
     ];

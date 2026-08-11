@@ -255,6 +255,20 @@ String? sanitizeRelPath(String raw) {
   return parts.isEmpty ? null : parts.join('/');
 }
 
+// Why a path was refused, when the answer is worth telling the user apart from
+// the rest. Length is the one refusal that is nobody's mistake — a name simply
+// grew past what a filesystem will hold — so it gets said in those words.
+bool isPathTooLong(String raw) {
+  if (utf8.encode(raw).length > maxPathUtf8Bytes) return true;
+  final List<String> parts = raw
+      .replaceAll(r'\', '/')
+      .split('/')
+      .where((String segment) => segment.isNotEmpty && segment != '.')
+      .toList();
+  return parts.length > maxPathDepth ||
+      parts.any((String segment) => segment.length > maxPathComponentChars);
+}
+
 // Full lexical destination for a manifest entry. Filesystem containment is
 // checked separately immediately before any directory/file operation.
 Future<String?> resolveInside(String baseDir, String relPath) async {

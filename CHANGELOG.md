@@ -2,6 +2,7 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+- F: A name too long to travel is reported as exactly that, with the limit, instead of being counted among the names that cannot be sent for any other reason
 - E: A file name is measured the way NTFS and ext4 measure it, 255 characters rather than 255 bytes, so an ordinary Cyrillic name is no longer refused for being written in Cyrillic
 - E: The Android fallback identity is read and written in the receive folder the user actually chose, while an id an older build left in the default one is still adopted
 - E: The main button reads Stopping while a cancelled send is still unwinding, instead of offering Send and doing nothing when pressed
