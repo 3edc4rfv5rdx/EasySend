@@ -9,6 +9,7 @@ import android.webkit.MimeTypeMap
 import androidx.core.content.FileProvider
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
+import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import java.io.File
 
@@ -27,58 +28,73 @@ class MainActivity : FlutterActivity() {
 
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
             .setMethodCallHandler { call, result ->
-                when (call.method) {
-                    "start", "update" -> {
-                        val intent = Intent(this, TransferService::class.java).apply {
-                            action = if (call.method == "start") {
-                                TransferService.ACTION_START
-                            } else {
-                                TransferService.ACTION_UPDATE
-                            }
-                            putExtra(TransferService.EXTRA_TITLE, call.argument<String>("title"))
-                            putExtra(TransferService.EXTRA_TEXT, call.argument<String>("text"))
-                            putExtra(TransferService.EXTRA_PROGRESS, call.argument<Int>("progress") ?: -1)
-                        }
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                            startForegroundService(intent)
-                        } else {
-                            startService(intent)
-                        }
-                        result.success(true)
-                    }
-
-                    "stop" -> {
-                        val intent = Intent(this, TransferService::class.java).apply {
-                            action = TransferService.ACTION_STOP
-                        }
-                        startService(intent)
-                        result.success(true)
-                    }
-
-                    "openFile" -> result.success(openFile(call.argument<String>("path")))
-
-                    "openFolder" -> result.success(openFolder(call.argument<String>("path")))
-
-                    "acquireMulticast" -> {
-                        if (multicastLock?.isHeld != true) {
-                            val wifi = applicationContext.getSystemService(WIFI_SERVICE) as WifiManager
-                            multicastLock = wifi.createMulticastLock("EasySend::discovery").apply {
-                                setReferenceCounted(false)
-                                acquire()
-                            }
-                        }
-                        result.success(true)
-                    }
-
-                    "releaseMulticast" -> {
-                        multicastLock?.let { if (it.isHeld) it.release() }
-                        multicastLock = null
-                        result.success(true)
-                    }
-
-                    else -> result.notImplemented()
+                // A handler that throws takes the whole process down with it,
+                // and these calls do throw: startService from the background
+                // when the service is not already up, and
+                // startForegroundService outside the windows Android 12 allows.
+                // The Dart side copes with a refusal; it cannot cope with a
+                // crash. Every branch answers as its last statement, so nothing
+                // here can reply twice.
+                try {
+                    handle(call, result)
+                } catch (e: Exception) {
+                    result.error("easysend", e.message, call.method)
                 }
             }
+    }
+
+    private fun handle(call: MethodCall, result: MethodChannel.Result) {
+        when (call.method) {
+            "start", "update" -> {
+                val intent = Intent(this, TransferService::class.java).apply {
+                    action = if (call.method == "start") {
+                        TransferService.ACTION_START
+                    } else {
+                        TransferService.ACTION_UPDATE
+                    }
+                    putExtra(TransferService.EXTRA_TITLE, call.argument<String>("title"))
+                    putExtra(TransferService.EXTRA_TEXT, call.argument<String>("text"))
+                    putExtra(TransferService.EXTRA_PROGRESS, call.argument<Int>("progress") ?: -1)
+                }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    startForegroundService(intent)
+                } else {
+                    startService(intent)
+                }
+                result.success(true)
+            }
+
+            "stop" -> {
+                val intent = Intent(this, TransferService::class.java).apply {
+                    action = TransferService.ACTION_STOP
+                }
+                startService(intent)
+                result.success(true)
+            }
+
+            "openFile" -> result.success(openFile(call.argument<String>("path")))
+
+            "openFolder" -> result.success(openFolder(call.argument<String>("path")))
+
+            "acquireMulticast" -> {
+                if (multicastLock?.isHeld != true) {
+                    val wifi = applicationContext.getSystemService(WIFI_SERVICE) as WifiManager
+                    multicastLock = wifi.createMulticastLock("EasySend::discovery").apply {
+                        setReferenceCounted(false)
+                        acquire()
+                    }
+                }
+                result.success(true)
+            }
+
+            "releaseMulticast" -> {
+                multicastLock?.let { if (it.isHeld) it.release() }
+                multicastLock = null
+                result.success(true)
+            }
+
+            else -> result.notImplemented()
+        }
     }
 
     override fun onDestroy() {

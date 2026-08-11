@@ -131,7 +131,7 @@ Hold the lock in `TransferService` (or in the Application object), tied to wheth
 
 Add an instrumentation-level or manual check: with background receiving on, swipe the app away, then confirm from another device that the phone still answers discovery.
 
-## 12. P2 — A MethodChannel handler must not crash the app
+## 12. P2 — FIXED - A MethodChannel handler must not crash the app
 
 The handlers in `MainActivity.configureFlutterEngine` call `startForegroundService()` and `startService()` without a `try`. Both throw from the background: `startService` raises `IllegalStateException` when the app is backgrounded and the service is not already running, and on Android 12+ `startForegroundService` raises `ForegroundServiceStartNotAllowedException` outside the allowed windows. An uncaught exception in a channel handler takes the process down. The Dart side only calls `stop` when it believes `_serviceUp`, but that belief survives a service the system already killed.
 

@@ -160,6 +160,10 @@ Future<void> setDiscoveryMulticastEnabled(bool enabled) async {
 // Mirrors transfer state into the Android foreground service, so a backgrounded
 // or screen-off device keeps transferring (SPEC 7).
 class AndroidService {
+  // Nothing here is Android-specific on the Dart side — it is one method
+  // channel — so a test can say it is on Android and drive the whole state
+  // machine against a mocked channel.
+  final bool android;
   bool _serviceUp = false;
   bool _screenHeld = false;
   bool _attached = false;
@@ -168,12 +172,14 @@ class AndroidService {
   DateTime _lastPush = DateTime.fromMillisecondsSinceEpoch(0);
   String _lastText = '';
 
+  AndroidService({bool? android}) : android = android ?? Platform.isAndroid;
+
   bool get attached => _attached;
 
   void attach() {
     if (_attached) return;
     _attached = true;
-    if (!Platform.isAndroid) return;
+    if (!android) return;
     transfersTick.addListener(sync);
     sync();
   }
@@ -181,14 +187,14 @@ class AndroidService {
   void detach() {
     if (!_attached) return;
     _attached = false;
-    if (!Platform.isAndroid) return;
+    if (!android) return;
     transfersTick.removeListener(sync);
   }
 
   Future<void> sync() => _syncQueue.add(_syncNow);
 
   Future<void> _syncNow() async {
-    if (!Platform.isAndroid) return;
+    if (!android) return;
 
     TransferSession? active;
     for (final TransferSession t in xvTransfers) {

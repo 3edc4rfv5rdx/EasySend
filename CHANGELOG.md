@@ -2,6 +2,7 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+- E: Android answering that it will not start the foreground service is reported back to the app instead of taking the process down with it, and a refused start is not remembered as a running service
 - I: ADD/todo.md, the checks that need real hardware, starting with whether the multicast lock has to leave the Activity
 - E: A file edited or deleted between being picked and being sent is named as such and skipped at once, instead of burning three attempts on a length that can no longer add up, and a partial transfer now says why it was partial
 - I: IDEAS.txt records sending by move instead of copy, as a tick that is never remembered
