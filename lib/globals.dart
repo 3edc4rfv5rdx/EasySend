@@ -414,6 +414,28 @@ String formatDuration(int seconds) {
 
 // The log belongs to development: a release build is silent, and nothing has to
 // rewrite this file during a build to make it so.
+// One-at-a-time queue: work is chained onto the tail so two calls never
+// overlap. A failure is logged and dropped rather than stored — a rejected tail
+// makes every later `then` skip its callback and hand back the same old
+// failure, which would silently stop the queue for the rest of the run.
+class SerialQueue {
+  final String name;
+  Future<void> _tail = Future<void>.value();
+
+  SerialQueue(this.name);
+
+  Future<void> add(Future<void> Function() work) {
+    _tail = _tail.then((_) async {
+      try {
+        await work();
+      } catch (e, st) {
+        myPrint('$name failed: $e\n$st');
+      }
+    });
+    return _tail;
+  }
+}
+
 void myPrint(String msg) {
   if (kDebugMode) debugPrint('>>> $msg');
 }

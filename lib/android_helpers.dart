@@ -164,7 +164,7 @@ class AndroidService {
   bool _screenHeld = false;
   bool _attached = false;
   bool _transferMode = false;
-  Future<void> _syncTail = Future<void>.value();
+  final SerialQueue _syncQueue = SerialQueue('service sync');
   DateTime _lastPush = DateTime.fromMillisecondsSinceEpoch(0);
   String _lastText = '';
 
@@ -185,10 +185,7 @@ class AndroidService {
     transfersTick.removeListener(sync);
   }
 
-  Future<void> sync() {
-    _syncTail = _syncTail.then((_) => _syncNow());
-    return _syncTail;
-  }
+  Future<void> sync() => _syncQueue.add(_syncNow);
 
   Future<void> _syncNow() async {
     if (!Platform.isAndroid) return;
@@ -264,6 +261,11 @@ class AndroidService {
       _serviceUp = true;
     } on PlatformException catch (e) {
       myPrint('foreground service failed: ${e.message}');
+    } on MissingPluginException catch (e) {
+      // The engine is being torn down, or the channel is not wired yet. Leaving
+      // _serviceUp false makes the next call start the service rather than
+      // update one that is not there.
+      myPrint('foreground service unavailable: ${e.message}');
     }
   }
 
@@ -276,6 +278,8 @@ class AndroidService {
       await _serviceChannel.invokeMethod('stop');
     } on PlatformException catch (e) {
       myPrint('stopping service failed: ${e.message}');
+    } on MissingPluginException catch (e) {
+      myPrint('stopping service unavailable: ${e.message}');
     }
   }
 

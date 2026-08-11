@@ -84,7 +84,7 @@ Poll with bounded concurrency (all devices at once is fine at this scale) so one
 
 Add a test with several dead addresses and one live fake server: the live device must stay `online` across three consecutive poll cycles.
 
-## 8. P2 — A rejected future must not poison a serialization chain
+## 8. P2 — FIXED - A rejected future must not poison a serialization chain
 
 Two places serialize async work by chaining onto a stored future: `AndroidService.sync()` (`_syncTail = _syncTail.then((_) => _syncNow())`) in `lib/android_helpers.dart` and `saveSettings()` (`_saveTail = _saveTail.then((_) => _saveSettingsNow())`) in `lib/settings_helpers.dart`. In both, one rejection makes the stored future permanently failed: every later `.then` skips its callback and returns another failed future, so the foreground service stops being updated and settings stop being written — silently, for the rest of the run, plus an unhandled async error each time.
 

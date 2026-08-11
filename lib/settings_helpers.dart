@@ -63,7 +63,7 @@ Future<void> initPaths() async {
 }
 
 File get _settingsFile => File(p.join(xvConfigDir, settFile));
-Future<void> _saveTail = Future<void>.value();
+final SerialQueue _saveQueue = SerialQueue('settings save');
 int _saveSerial = 0;
 
 String? _validSetting(String key, dynamic value) {
@@ -200,10 +200,7 @@ Future<void> loadSettings() async {
   }
 }
 
-Future<void> saveSettings() {
-  _saveTail = _saveTail.then((_) => _saveSettingsNow());
-  return _saveTail;
-}
+Future<void> saveSettings() => _saveQueue.add(_saveSettingsNow);
 
 Future<void> _saveSettingsNow() async {
   File? temporary;
