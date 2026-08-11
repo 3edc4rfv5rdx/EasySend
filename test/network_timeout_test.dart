@@ -72,6 +72,66 @@ void main() {
     await server.close(force: true);
   });
 
+  test('an error body that never ends does not wedge the poller', () async {
+    final Completer<void> release = Completer<void>();
+    final HttpServer stuck = await HttpServer.bind(
+      InternetAddress.loopbackIPv4,
+      0,
+    );
+    stuck.listen((HttpRequest request) async {
+      request.response.statusCode = HttpStatus.internalServerError;
+      request.response.write('sorry');
+      await request.response.flush();
+      // Never closed until the test lets go.
+      await release.future;
+      await request.response.close();
+    });
+
+    final HttpServer healthy = await HttpServer.bind(
+      InternetAddress.loopbackIPv4,
+      0,
+    );
+    healthy.listen((HttpRequest request) async {
+      request.response.headers.contentType = ContentType.json;
+      request.response.write('{"id":"good","name":"Good"}');
+      await request.response.close();
+    });
+
+    final Device dead = Device(
+      id: 'stuck',
+      name: 'Stuck',
+      address: '127.0.0.1',
+      port: stuck.port,
+      manual: true,
+    );
+    final Device alive = Device(
+      id: 'good',
+      name: 'Good',
+      address: '127.0.0.1',
+      port: healthy.port,
+      manual: true,
+    );
+    xvDevices = [dead, alive];
+
+    final ManualPoller poller = ManualPoller(
+      timeout: const Duration(milliseconds: 100),
+    );
+    await poller.pollNow().timeout(const Duration(seconds: 5));
+    expect(poller.polling, isFalse);
+    // The device behind the stuck one is still reached in the same pass.
+    expect(alive.lastSeen, isNotNull);
+    expect(dead.lastSeen, isNull);
+
+    // And the poller keeps working afterwards.
+    alive.lastSeen = null;
+    await poller.pollNow().timeout(const Duration(seconds: 5));
+    expect(alive.lastSeen, isNotNull);
+
+    release.complete();
+    await stuck.close(force: true);
+    await healthy.close(force: true);
+  });
+
   test('receiver aborts a stalled upload and removes its part file', () async {
     final root = await Directory.systemTemp.createTemp('easysend-idle-');
     xvConfigDir = p.join(root.path, 'config');

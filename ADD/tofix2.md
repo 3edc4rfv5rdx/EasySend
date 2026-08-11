@@ -42,7 +42,7 @@ Store the receive root in `_Incoming` when the plan is built and use that value 
 
 Add tests: a session prepared under folder A completes correctly after `xvRecvDir` is reassigned to folder B mid-upload; the finished file lands in A; a new session then lands in B.
 
-## 5. P1 — Bound the error-response drain in the manual poller
+## 5. P1 — FIXED - Bound the error-response drain in the manual poller
 
 `_ask()` in `lib/net_discovery.dart` applies `timeout` to the connection, to `req.close()` and to the body stream of a `200` — but the non-200 branch does `await resp.drain<void>();` with no timeout at all. A peer that answers `500` and then never ends its body parks that await forever. `_pollAll()` holds `_polling = true` around it, so manual polling stops for the lifetime of the process and every manual device silently goes offline. The same `_ask()` is awaited by `verifyIdentity()` before an outgoing send, so a send to a manual device can hang with no cancel path.
 

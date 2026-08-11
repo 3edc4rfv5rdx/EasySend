@@ -2,6 +2,7 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+- E: A peer whose error answer never ends no longer stops the polling of manually added devices for the rest of the run: the connection is dropped unread and the whole exchange has one deadline over it
 - E: A receive finishes in the folder it was planned for even if the setting moves meanwhile, the folder cannot be changed under a running receive, and a folder that cannot be written to is refused when it is picked
 - E: A prepare accepted with no usable session id ends the transfer with a reason instead of leaving it pending forever, and no path out of a send can leave one running
 - E: Stopping the receive server takes the accept question off the screen and off the lock screen with it, instead of leaving a prompt whose answer no longer reaches anything

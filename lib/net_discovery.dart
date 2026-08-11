@@ -339,7 +339,13 @@ class ManualPoller {
     return true;
   }
 
-  Future<Map<String, dynamic>?> _ask(String host, int port) async {
+  // One deadline over the whole exchange on top of the per-phase ones: a slow
+  // connect, slow headers and a slow body must not add up into a wait no poll
+  // is worth. Whatever it is doing, it has failed by then.
+  Future<Map<String, dynamic>?> _ask(String host, int port) =>
+      _askWithin(host, port).timeout(timeout * 3, onTimeout: () => null);
+
+  Future<Map<String, dynamic>?> _askWithin(String host, int port) async {
     if (host.isEmpty) return null;
     try {
       final HttpClientRequest req = await _client
@@ -347,7 +353,9 @@ class ManualPoller {
           .timeout(timeout);
       final HttpClientResponse resp = await req.close().timeout(timeout);
       if (resp.statusCode != HttpStatus.ok) {
-        await resp.drain<void>();
+        // An error body holds nothing worth having, and reading one that never
+        // ends is what used to stop the poller for the rest of the run.
+        await _discard(resp);
         return null;
       }
       final List<int> bytes = [];
@@ -362,6 +370,17 @@ class ManualPoller {
     } catch (e) {
       myPrint('poll $host:$port failed: $e');
       return null;
+    }
+  }
+
+  // Drop the connection instead of reading a body nobody wants: detaching the
+  // socket ends it whether or not the peer ever intended to finish sending.
+  Future<void> _discard(HttpClientResponse response) async {
+    try {
+      final Socket socket = await response.detachSocket().timeout(timeout);
+      socket.destroy();
+    } catch (e) {
+      myPrint('cannot drop the response socket: $e');
     }
   }
 }
