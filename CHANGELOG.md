@@ -2,6 +2,7 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+- E: An accept answered after the receive server was stopped is dropped instead of installing a session nobody can finish, which used to leave the receiver answering busy for a minute
 - I: The debug log follows kDebugMode instead of the xvDebug flag, so the three build scripts no longer rewrite a source file mid-build to silence a release
 - I: ADD/tofix2.md withdraws its release-logging finding, which the build scripts already handle by stripping the flag
 - I: The release dry-run test derives the expected build number from pubspec.yaml instead of spelling it out, so it stops failing after every release

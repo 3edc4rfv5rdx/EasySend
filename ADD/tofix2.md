@@ -14,7 +14,7 @@ Make an already-running server on the correct port a no-op. `start()` should ret
 
 Add tests: `start()` twice in a row keeps the same `boundPort` and leaves an active session and its `.part` file untouched; a port change still rebinds; a simulated `resumed` transition during an active receive does not cancel it.
 
-## 2. P0 — A consent that resolves after the server stopped must not install a session
+## 2. P0 — FIXED - A consent that resolves after the server stopped must not install a session
 
 `_prepare()` in `lib/net_server.dart` holds `_preparing = true` across `_askAccept()`, which can await up to `acceptTimeoutSec`. `ReceiveServer.stop()` sets `_preparing = false` and closes the socket, but it cannot see the in-flight prepare because `_current` is still null. When the consent finally resolves, `_prepare()` adds a `TransferSession` to `xvTransfers`, assigns `_current`, and arms `_touch()` — on a server that was torn down, and on the *new* server object state if one was started meanwhile.
 

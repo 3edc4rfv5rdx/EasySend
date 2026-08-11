@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:archive/archive.dart';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:uuid/uuid.dart';
 
 import 'android_helpers.dart';
@@ -53,6 +54,20 @@ class ReceiveServer {
   HttpServer? _http;
   _Incoming? _current;
   bool _preparing = false;
+  // Bumped by every stop. A prepare parked on the consent question holds no
+  // socket, so nothing else tells it that the server it belongs to is gone.
+  int _generation = 0;
+
+  // The consent question. Production asks the user — a dialog while the app is
+  // on screen, a notification when it is not — and a test replaces this to hold
+  // the answer back for as long as it needs.
+  @visibleForTesting
+  Future<(bool, bool)> Function({
+    required String senderName,
+    required int fileCount,
+    required int totalBytes,
+  })?
+  askUser;
 
   // Set when the port could not be taken, shown as a banner on the main screen.
   String? bindError;
@@ -96,6 +111,9 @@ class ReceiveServer {
   }
 
   Future<void> stop() async {
+    // Before any await: a consent answered while this is running belongs to the
+    // server that is going away, not to the one that may take its place.
+    _generation++;
     final _Incoming? session = _current;
     if (session != null) {
       session.cancelled = true;
@@ -154,6 +172,7 @@ class ReceiveServer {
 
     // Reserve the one receive slot before body parsing or the consent await.
     _preparing = true;
+    final int generation = _generation;
     try {
       if (req.headers.contentType?.mimeType != ContentType.json.mimeType) {
         throw const _ProtocolProblem(
@@ -248,6 +267,17 @@ class ReceiveServer {
         return _json(req, {'reason': 'declined'}, status: HttpStatus.forbidden);
       }
 
+      // The answer can arrive after the server was torn down — the app was put
+      // away with the question still on screen, or the port changed. Installing
+      // a session now would leave a receiver that answers 'busy' to everyone
+      // until its own deadline expires, over a transfer nobody can finish.
+      if (generation != _generation) {
+        myPrint('consent arrived after the server stopped, dropping it');
+        return _json(req, {
+          'reason': 'stopped',
+        }, status: HttpStatus.serviceUnavailable);
+      }
+
       final TransferSession transfer = TransferSession(
         id: const Uuid().v4(),
         incoming: true,
@@ -276,7 +306,9 @@ class ReceiveServer {
         'reason': 'invalid-json',
       }, status: HttpStatus.badRequest);
     } finally {
-      _preparing = false;
+      // Only the prepare that still owns the slot may release it: a stale one
+      // would be handing away a slot a newer prepare has already taken.
+      if (generation == _generation) _preparing = false;
     }
   }
 
@@ -320,7 +352,19 @@ class ReceiveServer {
     // Off screen there is nobody to show a dialog to; ask by notification.
     final bool accepted;
     bool trust = false;
-    if (Platform.isAndroid && !appInForeground) {
+    final Future<(bool, bool)> Function({
+      required String senderName,
+      required int fileCount,
+      required int totalBytes,
+    })?
+    prompt = askUser;
+    if (prompt != null) {
+      (accepted, trust) = await prompt(
+        senderName: senderName,
+        fileCount: count,
+        totalBytes: bytes,
+      );
+    } else if (Platform.isAndroid && !appInForeground) {
       accepted = await askAcceptViaNotification(
         senderName: senderName,
         fileCount: count,
