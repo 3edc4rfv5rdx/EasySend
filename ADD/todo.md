@@ -27,6 +27,14 @@ with other apps). From the other device, open EasySend and watch whether the
 phone is still in the list after a minute, and whether a transfer to it still
 starts. Repeat with the Activity alive as the control.
 
+**What makes the run valid.** The point is an Activity that is dead while the
+process is alive. If the process went too, the server and discovery went with
+it and the result says nothing about the lock. The sign to watch is the ongoing
+"Ready to receive" notification: no notification, no valid run. Developer
+options → "Don't keep activities" forces the destruction immediately instead of
+waiting for the system to want the memory; turn it back off afterwards, since it
+applies to every app and makes anything else tested alongside it behave oddly.
+
 **What it decides.** If the phone disappears from the list, the lock has to move
 into `TransferService` (or the Application object) and be tied to whether
 discovery is running rather than to the Activity's lifetime. If it stays
