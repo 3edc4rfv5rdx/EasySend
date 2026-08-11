@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io' show InternetAddress;
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 
@@ -164,7 +165,6 @@ Map<String, dynamic> defaultSettings() => {
 
 Map<String, dynamic> xdef = defaultSettings();
 
-bool xvDebug = true;
 // Resolved at startup in initPaths()
 String xvConfigDir = '';
 String xvRecvDir = '';
@@ -371,6 +371,8 @@ String formatDuration(int seconds) {
   return h > 0 ? '$h:$mm:$ss' : '$mm:$ss';
 }
 
+// The log belongs to development: a release build is silent, and nothing has to
+// rewrite this file during a build to make it so.
 void myPrint(String msg) {
-  if (xvDebug) debugPrint('>>> $msg');
+  if (kDebugMode) debugPrint('>>> $msg');
 }

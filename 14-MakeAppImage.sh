@@ -62,18 +62,7 @@ flutter config --enable-linux-desktop >/dev/null
 # ---------- build ----------
 flutter pub get
 
-# Release builds ship without the debug log; restore whatever was there after.
-OLD_DEBUG=$(grep -oP 'bool xvDebug\s*=\s*\K[^;]+' "$GLOB_FILE")
-sed -i "s/bool xvDebug\s*=\s*[^;]*;/bool xvDebug = false;/" "$GLOB_FILE"
-restore_debug() {
-    sed -i "s/bool xvDebug\s*=\s*[^;]*;/bool xvDebug = $OLD_DEBUG;/" "$GLOB_FILE"
-}
-trap restore_debug EXIT
-
 flutter build linux --release
-
-restore_debug
-trap - EXIT
 
 # ---------- AppDir ----------
 VERSION=$(grep -oP '^version:\s*\K[0-9.]+' pubspec.yaml)

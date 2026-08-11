@@ -153,9 +153,11 @@ Add a test asserting the sweep runs once across two `start()` calls.
 
 The finding as first written claimed that `xvDebug = true` in `lib/globals.dart` ships the log into release builds, where `myPrint` would write paths, device names and peer addresses into logcat.
 
-It does not. All three shipping scripts — `10-MakeRelease.sh:91`, `13-MakeLinux.sh:53` and `14-MakeAppImage.sh:67` — rewrite the flag to `false` for the duration of the build and restore whatever was in the file afterwards, so no released binary carries the log. The value checked into the repository is the one a local `flutter run` uses, which is where it belongs.
+It did not. All three shipping scripts rewrote the flag to `false` for the duration of the build and restored whatever was in the file afterwards, so no released binary ever carried the log. The value checked into the repository was the one a local `flutter run` used, which is where it belonged.
 
-Nothing to implement. Recorded so the next reader of `globals.dart` does not raise it again: the flag looks wrong in isolation and is correct in context.
+The flag has since been removed anyway: `myPrint` follows `kDebugMode`, which says the same thing without three build scripts editing a source file while they build it. Behaviour is unchanged — releases are silent, `flutter run` and the tests print.
+
+Nothing left to implement. Recorded so the next reader does not raise it again.
 
 ## 18. P3 — Create the accept dialog's timeout outside the builder
 

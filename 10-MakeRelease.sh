@@ -62,9 +62,7 @@ VERSION_BACKUP=$(mktemp -d)
 cp "$PUB_FILE" "$VERSION_BACKUP/pubspec.yaml"
 cp "$GLOB_FILE" "$VERSION_BACKUP/globals.dart"
 BUILD_SUCCEEDED=false
-OLD_DEBUG=$(grep -oP 'bool xvDebug\s*=\s*\K[^;]+' "$GLOB_FILE")
 cleanup_release() {
-    sed -i "s/bool xvDebug\s*=\s*[^;]*;/bool xvDebug = $OLD_DEBUG;/" "$GLOB_FILE"
     if [ "$BUILD_SUCCEEDED" != true ]; then
         cp "$VERSION_BACKUP/pubspec.yaml" "$PUB_FILE"
         cp "$VERSION_BACKUP/globals.dart" "$GLOB_FILE"
@@ -87,14 +85,10 @@ echo ">>> Build: $BUILD <<<"
 flutter pub get
 dart run flutter_launcher_icons
 
-# Release builds ship without the debug log; restore whatever was there after.
-sed -i "s/bool xvDebug\s*=\s*[^;]*;/bool xvDebug = false;/" "$GLOB_FILE"
-
 # 64-bit only, no armeabi-v7a.
 flutter build apk --release --target-platform android-arm64,android-x64
 flutter build apk --release --split-per-abi --target-platform android-arm64,android-x64
 
-sed -i "s/bool xvDebug\s*=\s*[^;]*;/bool xvDebug = $OLD_DEBUG;/" "$GLOB_FILE"
 BUILD_SUCCEEDED=true
 
 # ---------- collect ----------
