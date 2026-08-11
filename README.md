@@ -29,8 +29,8 @@ no internet: the two devices talk to each other and nothing else.
   listed in the settings, revocable one by one.
 - **Transfers you can watch** — a progress bar in bytes for the whole transfer, current
   file, speed and time left. Either side can stop a running transfer. Files arrive under a
-  `.easysend-part` name and are renamed only after their CRC32 matches; a mismatch is
-  re-sent automatically twice before it is called a failure.
+  private incomplete-session directory and get their real names only after their CRC32
+  matches; a mismatch is re-sent automatically twice before it is called a failure.
 - **Every transfer explains itself** — tap one to open its log: what happened to each file,
   response codes, refusal reasons, a line per failed attempt. One button copies the whole
   thing, build number included, so a bug report does not have to be typed off a phone

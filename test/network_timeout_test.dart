@@ -238,14 +238,12 @@ void main() {
     // HttpServer may close a connection whose declared request body never
     // arrived before the 408 bytes can be delivered; either outcome must end.
     await utf8.decoder.bind(socket).join();
+    final incomplete = File(incompleteFilePath(xvRecvDir, session, 0));
     for (int i = 0; i < 10; i++) {
-      if (!await File(p.join(xvRecvDir, 'file.bin$partSuffix')).exists()) break;
+      if (!await incomplete.exists()) break;
       await Future<void>.delayed(const Duration(milliseconds: 20));
     }
-    expect(
-      await File(p.join(xvRecvDir, 'file.bin$partSuffix')).exists(),
-      isFalse,
-    );
+    expect(await incomplete.exists(), isFalse);
 
     client.close(force: true);
     await server.stop();

@@ -43,8 +43,6 @@ const int deviceTimeoutSec = 20;
 // Manual devices send no announces, so they are polled over HTTP instead.
 const int manualPollSec = 10;
 const int manualPollTimeoutSec = 2;
-// Incoming files carry this suffix until their checksum is verified.
-const String partSuffix = '.easysend-part';
 // Seconds the receiver waits for the user to accept an unknown sender.
 const int acceptTimeoutSec = 30;
 // Valid protocol progress refreshes this receiver-side inactivity deadline.

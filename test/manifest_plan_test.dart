@@ -46,11 +46,9 @@ void main() {
     );
   });
 
-  test('accounts for existing files and part files', () async {
+  test('accounts for existing files and directories', () async {
     await File(p.join(root.path, 'a.txt')).writeAsString('old');
-    await File(
-      p.join(root.path, 'b.txt.easysend-part'),
-    ).writeAsString('partial');
+    await Directory(p.join(root.path, 'b.txt')).create();
     final plan = await buildDestinationPlan(root.path, [
       item('1', 'a.txt'),
       item('2', 'b.txt'),

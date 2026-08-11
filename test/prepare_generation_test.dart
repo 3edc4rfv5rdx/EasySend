@@ -70,44 +70,53 @@ void main() {
     await sandbox.delete(recursive: true);
   });
 
-  test('a consent answered after the server stopped installs nothing', () async {
-    final Completer<void> asked = Completer<void>();
-    final Completer<bool> answer = Completer<bool>();
-    server.askUser =
-        ({
-          required String senderName,
-          required int fileCount,
-          required int totalBytes,
-        }) async {
-          if (!asked.isCompleted) asked.complete();
-          return (await answer.future, false);
-        };
+  test(
+    'a consent answered after the server stopped installs nothing',
+    () async {
+      final Completer<void> asked = Completer<void>();
+      final Completer<bool> answer = Completer<bool>();
+      server.askUser =
+          ({
+            required String senderName,
+            required int fileCount,
+            required int totalBytes,
+          }) async {
+            if (!asked.isCompleted) asked.complete();
+            return (await answer.future, false);
+          };
 
-    // The request dies with the socket; only what it leaves behind matters.
-    final Future<void> parked = post(
-      'prepare',
-      body: manifest('late.bin'),
-    ).then((_) {}, onError: (_) {});
-    await asked.future;
+      // The request dies with the socket; only what it leaves behind matters.
+      final Future<void> parked = post(
+        'prepare',
+        body: manifest('late.bin'),
+      ).then((_) {}, onError: (_) {});
+      await asked.future;
 
-    await server.stop();
-    answer.complete(true);
-    await parked;
-    await Future<void>.delayed(const Duration(milliseconds: 50));
+      await server.stop();
+      answer.complete(true);
+      await parked;
+      await Future<void>.delayed(const Duration(milliseconds: 50));
 
-    expect(xvTransfers, isEmpty);
-    expect(
-      await File(p.join(xvRecvDir, 'late.bin$partSuffix')).exists(),
-      isFalse,
-    );
+      expect(xvTransfers, isEmpty);
+      expect(
+        await Directory(xvRecvDir)
+            .list()
+            .where(
+              (entity) =>
+                  p.basename(entity.path).startsWith(incompleteDirPrefix),
+            )
+            .isEmpty,
+        isTrue,
+      );
 
-    // And the receiver that takes its place is free, not stuck on 'busy'.
-    expect(await server.start(), isTrue);
-    port = server.boundPort!;
-    final Reply fresh = await post('prepare', body: manifest('fresh.bin'));
-    expect(fresh.status, 200);
-    expect(xvTransfers, hasLength(1));
-  });
+      // And the receiver that takes its place is free, not stuck on 'busy'.
+      expect(await server.start(), isTrue);
+      port = server.boundPort!;
+      final Reply fresh = await post('prepare', body: manifest('fresh.bin'));
+      expect(fresh.status, 200);
+      expect(xvTransfers, hasLength(1));
+    },
+  );
 
   test('a prepare parked on consent keeps the slot to itself', () async {
     final Completer<void> asked = Completer<void>();

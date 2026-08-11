@@ -154,7 +154,9 @@ void main() {
         // The cancelled response may close the upload socket first.
       }
       expect(
-        await File(p.join(xvRecvDir, 'large.bin$partSuffix')).exists(),
+        await Directory(
+          incompleteSessionDirectory(xvRecvDir, session),
+        ).exists(),
         isFalse,
       );
       expect(xvTransfers.single.bytesDone, lessThanOrEqualTo(4));

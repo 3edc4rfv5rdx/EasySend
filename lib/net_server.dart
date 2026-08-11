@@ -36,6 +36,7 @@ class _Incoming {
   final TransferSession transfer;
   final Map<String, FileItem> byId;
   final Map<String, String> finalPaths; // fileId -> destination path
+  final Map<String, String> incompletePaths; // fileId -> owned temporary path
   final Map<String, int> crc = {}; // fileId -> checksum computed here
   int settledBytes = 0; // bytes of files already finished
   bool cancelled = false; // set when the user stops the receive
@@ -51,6 +52,7 @@ class _Incoming {
     required this.transfer,
     required this.byId,
     required this.finalPaths,
+    required this.incompletePaths,
   });
 }
 
@@ -265,12 +267,7 @@ class ReceiveServer {
         root = resolved;
         finalPaths = await buildDestinationPlan(recvDir, files);
         for (final String dest in finalPaths.values) {
-          if (!await ensureSafeDestination(recvDir, dest, resolvedRoot: root) ||
-              !await ensureSafeDestination(
-                recvDir,
-                '$dest$partSuffix',
-                resolvedRoot: root,
-              )) {
+          if (!await ensureSafeDestination(recvDir, dest, resolvedRoot: root)) {
             throw const DestinationPlanException('unsafe filesystem component');
           }
         }
@@ -321,6 +318,10 @@ class ReceiveServer {
         transfer: transfer,
         byId: {for (final FileItem f in files) f.id: f},
         finalPaths: finalPaths,
+        incompletePaths: {
+          for (int i = 0; i < files.length; i++)
+            files[i].id: incompleteFilePath(recvDir, transfer.id, i),
+        },
       );
       _touch(_current!);
       return _json(req, {'sessionId': transfer.id});
@@ -460,7 +461,20 @@ class ReceiveServer {
     File? part;
     try {
       final String dest = session.finalPaths[fileId]!;
-      final String partPath = '$dest$partSuffix';
+      final String partPath = session.incompletePaths[fileId]!;
+      if (!await ensureIncompleteSessionDirectory(
+        session.recvDir,
+        session.sessionId,
+        resolvedRoot: session.resolvedRoot,
+      )) {
+        session.transfer.log(
+          'Cannot write here',
+          file: item.relativePath,
+          failure: true,
+        );
+        session.phase = _ReceivePhase.ready;
+        return _status(req, HttpStatus.badRequest);
+      }
       if (!await ensureSafeDestination(
             session.recvDir,
             dest,
@@ -596,7 +610,7 @@ class ReceiveServer {
       );
       final int? ours = session.crc[fileId];
       final String dest = session.finalPaths[fileId]!;
-      final File part = File('$dest$partSuffix');
+      final File part = File(session.incompletePaths[fileId]!);
 
       if (theirs == null || ours == null || theirs != ours) {
         await deleteQuietly(part);
@@ -718,8 +732,13 @@ class ReceiveServer {
 
   // Files that never passed verification leave nothing behind.
   Future<void> _cleanupParts(_Incoming session) async {
-    for (final String dest in session.finalPaths.values) {
-      await deleteQuietly(File('$dest$partSuffix'));
+    final Directory directory = Directory(
+      incompleteSessionDirectory(session.recvDir, session.sessionId),
+    );
+    try {
+      if (await directory.exists()) await directory.delete(recursive: true);
+    } catch (e) {
+      myPrint('cannot clean incomplete session ${directory.path}: $e');
     }
   }
 

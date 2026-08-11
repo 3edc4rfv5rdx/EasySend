@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:archive/archive.dart';
 import 'package:easysend/globals.dart';
 import 'package:easysend/net_server.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -28,7 +29,11 @@ void main() {
     await sandbox.delete(recursive: true);
   });
 
-  Future<HttpClientResponse> prepare(int port, String id) async {
+  Future<HttpClientResponse> prepare(
+    int port,
+    String id, {
+    String? path,
+  }) async {
     final req = await client.postUrl(
       Uri.http('127.0.0.1:$port', '$apiPrefix/prepare'),
     );
@@ -38,7 +43,7 @@ void main() {
         'senderId': 'sender',
         'senderName': 'Sender',
         'files': [
-          {'id': id, 'path': '$id.bin', 'size': 1},
+          {'id': id, 'path': path ?? '$id.bin', 'size': 1},
         ],
       }),
     );
@@ -64,33 +69,98 @@ void main() {
     },
   );
 
+  test('startup removes only owned incomplete sessions', () async {
+    final receive = await Directory(xvRecvDir).create(recursive: true);
+    final legitimate = File(p.join(receive.path, 'old.easysend-part'));
+    final ordinary = File(p.join(receive.path, 'keep.txt'));
+    await legitimate.writeAsString('verified user file');
+    await ordinary.writeAsString('user');
+
+    final root = (await resolveReceiveRoot(receive.path))!;
+    expect(
+      await ensureIncompleteSessionDirectory(
+        receive.path,
+        'owned',
+        resolvedRoot: root,
+      ),
+      isTrue,
+    );
+    final orphan = File(incompleteFilePath(receive.path, 'owned', 0));
+    await orphan.writeAsString('partial');
+
+    final lookalike = await Directory(
+      p.join(receive.path, '${incompleteDirPrefix}user-data'),
+    ).create();
+    final lookalikeFile = File(p.join(lookalike.path, 'keep.txt'));
+    await lookalikeFile.writeAsString('user');
+
+    final outside = await Directory(p.join(sandbox.path, 'outside')).create();
+    final outsidePart = File(p.join(outside.path, 'outside.part'));
+    await outsidePart.writeAsString('outside');
+    await Link(
+      p.join(receive.path, '${incompleteDirPrefix}linked'),
+    ).create(outside.path);
+
+    await cleanupOrphanParts(xvRecvDir);
+    expect(await orphan.exists(), isFalse);
+    expect(await legitimate.exists(), isTrue);
+    expect(await ordinary.exists(), isTrue);
+    expect(await lookalikeFile.exists(), isTrue);
+    expect(await outsidePart.exists(), isTrue);
+  });
+
   test(
-    'startup removes only exact orphan suffixes without following links',
+    'verified names ending in the legacy part suffix survive cleanup',
     () async {
-      final receive = await Directory(xvRecvDir).create(recursive: true);
-      final orphan = File(p.join(receive.path, 'old$partSuffix'));
-      final ordinary = File(p.join(receive.path, 'keep.txt'));
-      final similar = File(p.join(receive.path, 'keep${partSuffix}x'));
-      await orphan.writeAsString('partial');
-      await ordinary.writeAsString('user');
-      await similar.writeAsString('user');
+      final server = ReceiveServer();
+      await server.start();
+      final prepared = await prepare(
+        server.boundPort!,
+        'suffix',
+        path: 'report.easysend-part',
+      );
+      final body = json.decode(await utf8.decoder.bind(prepared).join());
+      final session = body['sessionId'] as String;
 
-      final outside = await Directory(p.join(sandbox.path, 'outside')).create();
-      final outsidePart = File(p.join(outside.path, 'outside$partSuffix'));
-      await outsidePart.writeAsString('outside');
-      await Link(p.join(receive.path, 'linked')).create(outside.path);
+      final upload = await client.postUrl(
+        Uri.http('127.0.0.1:${server.boundPort}', '$apiPrefix/upload', {
+          'session': session,
+          'file': 'suffix',
+        }),
+      );
+      upload.add([7]);
+      final uploaded = await upload.close();
+      expect(uploaded.statusCode, 200);
+      await uploaded.drain<void>();
 
+      final verify = await client.postUrl(
+        Uri.http('127.0.0.1:${server.boundPort}', '$apiPrefix/verify', {
+          'session': session,
+          'file': 'suffix',
+          'crc': getCrc32([7]).toRadixString(16),
+        }),
+      );
+      final verified = await verify.close();
+      expect(verified.statusCode, 200);
+      await verified.drain<void>();
+      await server.stop();
+
+      final received = File(p.join(xvRecvDir, 'report.easysend-part'));
+      expect(await received.readAsBytes(), [7]);
       await cleanupOrphanParts(xvRecvDir);
-      expect(await orphan.exists(), isFalse);
-      expect(await ordinary.exists(), isTrue);
-      expect(await similar.exists(), isTrue);
-      expect(await outsidePart.exists(), isTrue);
+      expect(await received.readAsBytes(), [7]);
     },
   );
 
   test('the sweep is a startup job, not a server one', () async {
     final receive = await Directory(xvRecvDir).create(recursive: true);
-    final File first = File(p.join(receive.path, 'first$partSuffix'));
+    final root = (await resolveReceiveRoot(receive.path))!;
+    await ensureIncompleteSessionDirectory(
+      receive.path,
+      'first',
+      resolvedRoot: root,
+    );
+    final File first = File(incompleteFilePath(receive.path, 'first', 0));
     await first.writeAsString('partial');
 
     await sweepOrphanPartsOnce(xvRecvDir);
@@ -98,7 +168,12 @@ void main() {
 
     // A later start must not walk the whole folder again — on a phone that is
     // the user's Downloads, and it happened on every return to the screen.
-    final File later = File(p.join(receive.path, 'later$partSuffix'));
+    await ensureIncompleteSessionDirectory(
+      receive.path,
+      'later',
+      resolvedRoot: root,
+    );
+    final File later = File(incompleteFilePath(receive.path, 'later', 0));
     await later.writeAsString('partial');
     await sweepOrphanPartsOnce(xvRecvDir);
     expect(await later.exists(), isTrue);

@@ -16,6 +16,12 @@ const int maxPathDepth = 64;
 // bytes. Counting bytes would refuse a Cyrillic name of 150 letters that every
 // filesystem involved would have taken.
 const int maxPathComponentChars = 255;
+// Incomplete uploads live in a receiver-owned session directory instead of
+// borrowing a suffix from the final user name. A valid file is allowed to end
+// in `.easysend-part`; startup cleanup must never mistake it for our state.
+const String incompleteDirPrefix = '.easysend-incomplete-';
+const String _incompleteOwnerFile = '.owner';
+const String _incompleteOwnerMagic = 'EasySend incomplete transfer v1\n';
 // The backslash is in here on every platform: it is a separator on Windows and
 // an ordinary character on Linux, so a name carrying one cannot mean the same
 // thing at both ends of a transfer (SPEC 5.7).
@@ -465,8 +471,43 @@ Future<bool> deleteQuietly(File file) async {
   }
 }
 
-// Once per run, which is what SPEC 7 asks for: a killed process leaves .part
-// files behind and nothing else will ever remove them. Tying it to the receive
+String incompleteSessionDirectory(String baseDir, String sessionId) =>
+    p.join(baseDir, '$incompleteDirPrefix$sessionId');
+
+String incompleteFilePath(String baseDir, String sessionId, int index) =>
+    p.join(incompleteSessionDirectory(baseDir, sessionId), '$index.part');
+
+Future<bool> ensureIncompleteSessionDirectory(
+  String baseDir,
+  String sessionId, {
+  required String resolvedRoot,
+}) async {
+  final String directory = incompleteSessionDirectory(baseDir, sessionId);
+  final String markerPath = p.join(directory, _incompleteOwnerFile);
+  if (!await ensureSafeDestination(
+    baseDir,
+    markerPath,
+    createParents: true,
+    resolvedRoot: resolvedRoot,
+  )) {
+    return false;
+  }
+  final File marker = File(markerPath);
+  try {
+    if (await marker.exists()) {
+      return await marker.readAsString() == _incompleteOwnerMagic;
+    }
+    await marker.writeAsString(_incompleteOwnerMagic, flush: true);
+    return true;
+  } catch (e) {
+    myPrint('cannot mark incomplete session $directory: $e');
+    return false;
+  }
+}
+
+// Once per run, which is what SPEC 7 asks for: a killed process leaves owned
+// incomplete-session directories behind and nothing else will remove them.
+// Tying it to the receive
 // server instead meant a full recursive walk of the user's Downloads folder
 // every time the app came back to the screen.
 bool _orphansSwept = false;
@@ -477,27 +518,34 @@ Future<void> sweepOrphanPartsOnce(String baseDir) async {
   await cleanupOrphanParts(baseDir);
 }
 
-// Startup recovery removes only EasySend's exact temporary suffix and never
-// descends through links. Completed and unrelated user files are untouched.
+// Startup recovery removes only directories carrying the ownership marker we
+// wrote before an upload. A filename suffix is not ownership: a verified user
+// file may legitimately be named `report.easysend-part`.
 Future<void> cleanupOrphanParts(String baseDir) async {
   final Directory root = Directory(baseDir);
   if (!await root.exists()) return;
   try {
     await for (final FileSystemEntity entity in root.list(
-      recursive: true,
+      recursive: false,
       followLinks: false,
     )) {
       final FileSystemEntityType type = await FileSystemEntity.type(
         entity.path,
         followLinks: false,
       );
-      if (type == FileSystemEntityType.file &&
-          entity.path.endsWith(partSuffix)) {
-        try {
-          await File(entity.path).delete();
-        } catch (e) {
-          myPrint('cannot delete orphan ${entity.path}: $e');
-        }
+      if (type != FileSystemEntityType.directory ||
+          !p.basename(entity.path).startsWith(incompleteDirPrefix)) {
+        continue;
+      }
+      final File marker = File(p.join(entity.path, _incompleteOwnerFile));
+      if (!await marker.exists() ||
+          await marker.readAsString() != _incompleteOwnerMagic) {
+        continue;
+      }
+      try {
+        await Directory(entity.path).delete(recursive: true);
+      } catch (e) {
+        myPrint('cannot delete orphan session ${entity.path}: $e');
       }
     }
   } catch (e) {
@@ -507,8 +555,7 @@ Future<void> cleanupOrphanParts(String baseDir) async {
   }
 }
 
-// 'photo.jpg' -> 'photo (1).jpg' when taken. The .part twin counts as taken
-// too, so two transfers of the same name cannot collide mid-flight.
+// 'photo.jpg' -> 'photo (1).jpg' when taken.
 Future<String> uniquePath(
   String fullPath, {
   Set<String>? reserved,
@@ -537,6 +584,4 @@ Future<String> uniquePath(
 }
 
 Future<bool> _taken(String path) async =>
-    await File(path).exists() ||
-    await Directory(path).exists() ||
-    await File('$path$partSuffix').exists();
+    await File(path).exists() || await Directory(path).exists();
