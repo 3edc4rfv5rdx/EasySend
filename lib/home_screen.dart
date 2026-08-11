@@ -15,6 +15,31 @@ import 'net_sender.dart';
 import 'net_server.dart';
 import 'settings_screen.dart';
 
+// Which way the network should go for a lifecycle change, or null when the
+// change is no reason to touch it. With background receiving off, a
+// backgrounded app must stop announcing and stop listening: otherwise it keeps
+// advertising itself as reachable while the user believes it is closed
+// (SPEC 7). 'inactive' is nobody's answer — a notification shade or a
+// permission dialog passes through it, and rebinding the server there would
+// drop a transfer that is running perfectly well.
+bool? networkDesiredFor(
+  AppLifecycleState state, {
+  required bool receiveInBackground,
+}) {
+  if (state == AppLifecycleState.inactive) return null;
+  if (receiveInBackground) return true;
+  switch (state) {
+    case AppLifecycleState.resumed:
+      return true;
+    case AppLifecycleState.paused:
+    case AppLifecycleState.detached:
+    case AppLifecycleState.hidden:
+      return false;
+    case AppLifecycleState.inactive:
+      return null;
+  }
+}
+
 // The whole application is this one screen: picking, devices, progress. No tabs
 // and no bottom navigation (SPEC 4).
 class HomeScreen extends StatefulWidget {
@@ -46,7 +71,11 @@ class _HomeScreenState extends State<HomeScreen>
   ]);
 
   StreamSubscription<List<SharedMediaFile>>? _shareSub;
-  bool _networkDesired = true;
+  // Starts off, so the first _setNetworkDesired(true) is a real transition.
+  bool _networkDesired = false;
+  // The port changed and the server has to rebind — which drops whatever the
+  // socket is doing, so it waits for the transfer that is using it.
+  bool _restartPending = false;
   bool _disposed = false;
   int _networkEpoch = 0;
   Future<void> _networkTail = Future<void>.value();
@@ -71,7 +100,10 @@ class _HomeScreenState extends State<HomeScreen>
   // The picked list doubles as the queue: a file that arrived and passed its
   // checksum leaves it, so whatever remains is exactly what did not get there.
   void _pruneSentFiles() {
-    if (!_networkDesired && !xvTransfers.any((t) => t.isRunning)) {
+    // Whatever was postponed while the sockets were busy gets its turn as soon
+    // as they are idle: shutting the network down, or rebinding a new port.
+    if ((!_networkDesired || _restartPending) &&
+        !xvTransfers.any((t) => t.isRunning)) {
       _queueNetworkTransition();
     }
     if (_selected.isEmpty || !mounted) return;
@@ -91,28 +123,14 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
-  // With background receiving off, a backgrounded app must stop announcing and
-  // stop listening: otherwise it keeps advertising itself as reachable while
-  // the user believes it is closed (SPEC 7).
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (!Platform.isAndroid) return;
-    if (xdef['Receive in background'] == 'true') {
-      _setNetworkDesired(true);
-      return;
-    }
-
-    switch (state) {
-      case AppLifecycleState.resumed:
-        _setNetworkDesired(true);
-      case AppLifecycleState.paused:
-      case AppLifecycleState.detached:
-      case AppLifecycleState.hidden:
-        // A transfer in flight is not interrupted by leaving the screen.
-        _setNetworkDesired(false);
-      case AppLifecycleState.inactive:
-        break;
-    }
+    final bool? desired = networkDesiredFor(
+      state,
+      receiveInBackground: xdef['Receive in background'] == 'true',
+    );
+    if (desired != null) _setNetworkDesired(desired);
   }
 
   // "Share -> EasySend" drops straight into the selection, so all that is left
@@ -159,25 +177,33 @@ class _HomeScreenState extends State<HomeScreen>
     await _networkTail;
   }
 
+  // Only a real change is a transition. Repeating the state the network is
+  // already in would bump the epoch and make the transition in flight abandon
+  // itself halfway, which with background receiving on happens on every single
+  // lifecycle event.
   void _setNetworkDesired(bool desired) {
+    if (_networkDesired == desired) return;
     _networkDesired = desired;
     _networkEpoch++;
     _queueNetworkTransition();
   }
 
-  void _queueNetworkTransition({bool restart = false}) {
+  void _queueNetworkTransition() {
     final int epoch = _networkEpoch;
-    _networkTail = _networkTail.then(
-      (_) => _applyNetworkState(epoch, restart: restart),
-    );
+    _networkTail = _networkTail.then((_) => _applyNetworkState(epoch));
   }
 
   bool _stillWantsNetwork(int epoch) =>
       !_disposed && _networkDesired && epoch == _networkEpoch;
 
-  Future<void> _applyNetworkState(int epoch, {bool restart = false}) async {
+  bool get _transferBusy => sender.busy || xvTransfers.any((t) => t.isRunning);
+
+  // Every path that abandons this method leaves a queued transition behind it,
+  // so nothing has to be torn down on the way out: whoever bumped the epoch is
+  // about to run and will do it.
+  Future<void> _applyNetworkState(int epoch) async {
     if (!_networkDesired || _disposed) {
-      if (sender.busy || xvTransfers.any((t) => t.isRunning)) return;
+      if (_transferBusy) return;
       manualPoller.stop();
       await discovery.stop();
       await receiveServer.stop();
@@ -192,29 +218,34 @@ class _HomeScreenState extends State<HomeScreen>
     if (!_stillWantsNetwork(epoch)) return;
     await ensureRecvDir();
     if (!_stillWantsNetwork(epoch)) return;
-    if (restart) {
+    if (_restartPending) {
+      // Leave everything exactly as it is until the sockets are free: starting
+      // on the new port would rebind, and rebinding is what drops the session.
+      // _pruneSentFiles comes back here when the last transfer ends.
+      if (_transferBusy) return;
+      _restartPending = false;
       await discovery.stop();
       await receiveServer.stop();
       if (!_stillWantsNetwork(epoch)) return;
     }
     await receiveServer.start();
-    if (!_stillWantsNetwork(epoch)) {
-      await receiveServer.stop();
-      return;
-    }
+    if (!_stillWantsNetwork(epoch)) return;
     await discovery.start();
-    if (!_stillWantsNetwork(epoch)) {
-      await discovery.stop();
-      await receiveServer.stop();
-      return;
-    }
+    if (!_stillWantsNetwork(epoch)) return;
     manualPoller.start();
   }
 
   // Called after the port may have changed in settings.
   Future<void> _restartNetwork() async {
+    _restartPending = true;
+    // Rebinding drops the socket, so a transfer that is using it keeps the old
+    // port until it is done — said out loud, since the setting is already
+    // showing the new number.
+    if (_transferBusy) {
+      okInfoBarOrange(lw('The new port takes effect when the transfer ends'));
+    }
     _networkEpoch++;
-    _queueNetworkTransition(restart: true);
+    _queueNetworkTransition();
     await _networkTail;
   }
 

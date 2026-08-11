@@ -4,7 +4,7 @@ Each section below is a standalone implementation prompt. Preserve the deliberat
 
 Every finding below was read against the current code at the commit that introduced `ADD/tofix1.md`. Where a finding depends on an assumption rather than on a code fact, the section says so in its own words.
 
-## 1. P0 — Never restart the receive server while it is serving a session
+## 1. P0 — FIXED - Never restart the receive server while it is serving a session
 
 `_applyNetworkState()` in `lib/home_screen.dart` calls `await receiveServer.start()` on every transition into the desired-network state, and `ReceiveServer.start()` in `lib/net_server.dart` begins with `await stop()`, which cancels `_current` and deletes its `.easysend-part` file. Nothing on that path asks whether a transfer is already running.
 

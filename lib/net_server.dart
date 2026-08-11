@@ -66,6 +66,10 @@ class ReceiveServer {
   int? get boundPort => _http?.port;
 
   Future<bool> start() async {
+    // Already listening where the settings point: rebinding would abort the
+    // session in flight for nothing. Coming back to the foreground asks for a
+    // start on every resume, and an incoming transfer has to survive that.
+    if (running && boundPort == currentPort) return true;
     await stop();
     await ensureRecvDir();
     await cleanupOrphanParts(xvRecvDir);

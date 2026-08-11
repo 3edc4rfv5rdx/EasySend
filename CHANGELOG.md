@@ -2,6 +2,7 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+- E: Reopening the app no longer rebinds the receive server, so an incoming transfer survives being brought back to the screen, and a changed port waits for the running transfer instead of dropping it
 - I: ADD/tofix2.md, a second code audit of the whole app, twenty-one findings written as standalone implementation prompts
 - I: ADD/tofix1.md, the code audit the last twenty fixes came from, with every item marked as done
 - E: The file-versus-directory conflict in a manifest is found on Windows too, where the check used to compare paths that had already been normalized to backslashes
