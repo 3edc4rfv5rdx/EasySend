@@ -414,6 +414,10 @@ class _HomeScreenState extends State<HomeScreen>
     await receiveServer.stop();
     await discovery.stop();
     manualPoller.stop();
+    // A move or resize in the last 400 ms is still sitting in the debounce, and
+    // exit(0) below would take it with it: the window would come back where it
+    // was two positions ago, which reads as the feature not working.
+    if (_windowSaveTimer?.isActive ?? false) await _saveWindowBounds();
 
     if (Platform.isAndroid) {
       await SystemNavigator.pop();
@@ -438,7 +442,17 @@ class _HomeScreenState extends State<HomeScreen>
   void _scheduleWindowSave() {
     if (Platform.isAndroid) return;
     _windowSaveTimer?.cancel();
-    _windowSaveTimer = Timer(const Duration(milliseconds: 400), () async {
+    _windowSaveTimer = Timer(
+      const Duration(milliseconds: 400),
+      _saveWindowBounds,
+    );
+  }
+
+  Future<void> _saveWindowBounds() async {
+    if (Platform.isAndroid) return;
+    _windowSaveTimer?.cancel();
+    _windowSaveTimer = null;
+    try {
       final Offset position = await windowManager.getPosition();
       final Size size = await windowManager.getSize();
       xdef['.Window bounds'] = encodeWindowBounds(
@@ -448,7 +462,9 @@ class _HomeScreenState extends State<HomeScreen>
         height: size.height,
       );
       await saveSettings();
-    });
+    } catch (e) {
+      myPrint('cannot save window bounds: $e');
+    }
   }
 
   Future<void> _showFirstStartWarning() async {

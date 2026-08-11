@@ -2,6 +2,7 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+- E: Closing the window within a moment of moving or resizing it keeps the new geometry, which used to be lost with the debounce that had not fired yet
 - E: Changing the language or theme while an incoming transfer is being asked about no longer starts a second deadline for it and leaves the first one running after the question is answered
 - F: Leftover part files are swept once per run, as SPEC asks, instead of walking the whole receive folder every time the receive server binds, and a folder that cannot be listed no longer throws out of startup
 - F: The receive folder is canonicalized once per transfer instead of once per file, which took 281 ms of a 3000-file manifest before the consent dialog appeared, and a folder swapped underneath a running transfer is now refused

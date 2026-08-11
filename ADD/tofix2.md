@@ -217,7 +217,15 @@ Start the timer before `showFlatDialog`, cancel it in a `finally`, and let it co
 
 Add a test that rebuilds the app while the accept dialog is open and asserts exactly one pending timer and an unchanged deadline.
 
-## 19. P3 — Flush the window bounds before exiting
+## 19. P3 — FIXED - Flush the window bounds before exiting
+
+Verified by reading rather than by a test, and the reason is worth stating: the
+ordering runs between `windowManager.getPosition()` and `exit(0)`, so exercising
+it needs the `window_manager` method channel mocked *and* a full `HomeScreen`
+widget under test, which drags in the file picker, the sharing intent and the
+network. The arithmetic either side of it is already covered — `encodeWindowBounds`
+and `parseWindowBounds` round-trip in `first_launch_persistence_test.dart`, and
+the save itself goes through the queue tested in `serial_queue_test.dart`.
 
 `_scheduleWindowSave()` in `lib/home_screen.dart` debounces the save by 400 ms; `_exitApp()` calls `exit(0)` without cancelling that timer or writing what it was going to write. Move or resize the window and close it within 400 ms and the new geometry is lost — quietly, so it reads as the feature not working rather than as a race.
 
