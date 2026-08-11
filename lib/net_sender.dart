@@ -15,6 +15,11 @@ class _Cancelled implements Exception {
   const _Cancelled();
 }
 
+// How a file ended, and whether trying it again could change that. A checksum
+// that did not match is worth another go; a file that is no longer what the
+// manifest describes is not.
+enum _FileResult { sent, retry, hopeless }
+
 // Sending side. One transfer at a time, files strictly in sequence.
 class SendService {
   final Duration connectTimeout;
@@ -184,18 +189,22 @@ class SendService {
       final FileItem item = transfer.files[i];
       transfer.currentIndex = i;
 
-      bool ok = false;
+      _FileResult result = _FileResult.retry;
       // A failed checksum is almost always a fluke, so retry quietly before
       // bothering anyone; the rest of the queue is not held up either way.
-      for (int attempt = 0; attempt <= maxResendAttempts && !ok; attempt++) {
+      for (
+        int attempt = 0;
+        attempt <= maxResendAttempts && result == _FileResult.retry;
+        attempt++
+      ) {
         if (_cancelled) return;
-        ok = await _sendFile(peer, transfer, item, settled);
+        result = await _sendFile(peer, transfer, item, settled);
       }
       // Do not count an interrupted file as sent: the bar would run to the
       // end even though nothing arrived.
       if (_cancelled) return;
-      item.done = ok;
-      item.failed = !ok;
+      item.done = result == _FileResult.sent;
+      item.failed = !item.done;
       settled += item.size;
       transfer.noteProgress(settled);
       transfersChanged();
@@ -205,14 +214,30 @@ class SendService {
   // Streams one file, then hands over the checksum computed while reading it.
   // addStream keeps the pipe under backpressure, so a huge file never lands in
   // memory as a whole.
-  Future<bool> _sendFile(
+  Future<_FileResult> _sendFile(
     Device peer,
     TransferSession transfer,
     FileItem item,
     int settled,
   ) async {
     final String? source = item.sourcePath;
-    if (source == null) return false;
+    if (source == null) return _FileResult.hopeless;
+
+    // The size came from the moment the file was picked, and the request
+    // declares it up front. A file edited since then breaks that declaration
+    // halfway through, in a way no number of retries can mend, and the peer
+    // would only see a length that does not add up.
+    final FileStat stat = await File(source).stat();
+    if (stat.type != FileSystemEntityType.file) {
+      transfer.error = lw('A file is no longer there');
+      myPrint('${item.relativePath} is gone');
+      return _FileResult.hopeless;
+    }
+    if (stat.size != item.size) {
+      transfer.error = lw('A file changed on disk');
+      myPrint('${item.relativePath} is ${stat.size}, manifest says ${item.size}');
+      return _FileResult.hopeless;
+    }
 
     int crc = 0;
     int sent = 0;
@@ -244,7 +269,7 @@ class SendService {
       await _drainWithTimeout(resp);
       if (resp.statusCode != HttpStatus.ok) {
         myPrint('upload of ${item.relativePath} returned ${resp.statusCode}');
-        return false;
+        return _FileResult.retry;
       }
 
       final HttpClientResponse verify = await _post(
@@ -255,15 +280,17 @@ class SendService {
         }),
       );
       item.crc32 = crc;
-      return verify.statusCode == HttpStatus.ok;
+      return verify.statusCode == HttpStatus.ok
+          ? _FileResult.sent
+          : _FileResult.retry;
     } on _Cancelled {
       myPrint('upload of ${item.relativePath} cancelled');
-      return false;
+      return _FileResult.hopeless;
     } on SocketException {
       rethrow;
     } catch (e) {
       myPrint('sending ${item.relativePath} failed: $e');
-      return false;
+      return _FileResult.retry;
     }
   }
 

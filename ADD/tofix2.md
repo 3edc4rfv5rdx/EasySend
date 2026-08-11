@@ -108,7 +108,7 @@ Check the same limits when files are added, before anything is sent. Refuse the 
 
 Add tests: adding 1001 collected files is refused with a reason; a file whose relative path fails `sanitizeRelPath` never reaches the selection; a normal folder is unaffected.
 
-## 10. P2 — Detect a source file that changed between picking and sending
+## 10. P2 — FIXED - Detect a source file that changed between picking and sending
 
 `_sendFile()` in `lib/net_sender.dart` sets `req.contentLength = item.size` from the size captured by `collectFiles()` when the file was picked, then streams whatever `File(source).openRead()` currently holds. A file edited in between makes `dart:io` throw `HttpException` for content over or under the declared length; the throw is swallowed by the generic `catch (e)` and the file is quietly retried `maxResendAttempts` times before being marked failed with no reason the user can act on.
 

@@ -2,6 +2,7 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+- E: A file edited or deleted between being picked and being sent is named as such and skipped at once, instead of burning three attempts on a length that can no longer add up, and a partial transfer now says why it was partial
 - I: IDEAS.txt records sending by move instead of copy, as a tick that is never remembered
 - F: A transfer may carry 3000 files instead of 1000, and the prepare body grew with it so a full manifest of real paths still fits
 - E: A pick that the receiver would refuse is answered when it is made: too many files at once, too large a total, and names that cannot travel are counted and named instead of arriving as HTTP 400 halfway through a transfer

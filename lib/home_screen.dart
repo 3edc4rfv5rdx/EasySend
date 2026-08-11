@@ -1074,7 +1074,10 @@ class _HomeScreenState extends State<HomeScreen>
         return '${lw('Done')}: ${t.doneCount} — ${formatBytes(t.bytesTotal)}';
       case TransferStatus.partial:
         final String direction = t.incoming ? lw('Received') : lw('Sent');
-        return '$direction ${t.doneCount}/${t.files.length}, ${lw('failed')}: ${t.failedCount}';
+        // A partial transfer knows why only when something told it; counts
+        // alone leave the user guessing at what to do about it.
+        final String why = t.error == null ? '' : ' — ${t.error}';
+        return '$direction ${t.doneCount}/${t.files.length}, ${lw('failed')}: ${t.failedCount}$why';
       case TransferStatus.cancelled:
         return lw('Cancelled');
       case TransferStatus.failed:
