@@ -50,9 +50,9 @@ class SendService {
 
   // Returns how it ended, so the caller can decide whether to clear the
   // selection: a failed or cancelled transfer must leave it alone.
-  // `move` deletes each source once that file has been received and verified on
-  // the other side. It is a decision about this one batch, never a setting: the
-  // caller asks for it afresh every time.
+  // `move` deletes delivered sources only after the whole batch reaches a
+  // non-cancelled terminal result. It is a decision about this one batch, never
+  // a setting: the caller asks for it afresh every time.
   Future<TransferStatus> send({
     required Device peer,
     required List<FileItem> files,
@@ -91,13 +91,18 @@ class SendService {
       transfer.status = TransferStatus.active;
       transfersChanged();
 
-      await _sendOneByOne(peer, transfer, move: move);
+      await _sendOneByOne(peer, transfer);
       if (_cancelled) return transfer.status;
 
       await _post(_url(peer, 'finish', {'session': sessionId}));
       transfer.status = transfer.failedCount == 0
           ? TransferStatus.done
           : TransferStatus.partial;
+      if (move) {
+        for (final FileItem item in transfer.files.where((item) => item.done)) {
+          await _deleteSource(transfer, item);
+        }
+      }
     } on SocketException catch (e) {
       if (!_cancelled) {
         _fail(transfer, e.osError?.message ?? e.message);
@@ -195,11 +200,7 @@ class SendService {
     return null;
   }
 
-  Future<void> _sendOneByOne(
-    Device peer,
-    TransferSession transfer, {
-    required bool move,
-  }) async {
+  Future<void> _sendOneByOne(Device peer, TransferSession transfer) async {
     int settled = 0;
     for (int i = 0; i < transfer.files.length; i++) {
       if (_cancelled) return;
@@ -229,11 +230,6 @@ class SendService {
         file: item.relativePath,
         failure: !item.done,
       );
-      // The file is the unit of atomicity (SPEC 5.6), so it is also the unit of
-      // moving: this one is verified on the other side and nothing that happens
-      // to the rest of the queue can take that back. A file that did not make it
-      // stays where it is.
-      if (move && item.done) await _deleteSource(transfer, item);
       settled += item.size;
       transfer.noteProgress(settled);
       transfersChanged();

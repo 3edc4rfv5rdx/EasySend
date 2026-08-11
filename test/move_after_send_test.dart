@@ -13,6 +13,8 @@ void main() {
   // while the rest of the batch goes through.
   late Set<String> refuse;
   Completer<void>? holdUpload;
+  String? holdUploadFor;
+  Completer<void>? uploadHeld;
 
   setUp(() async {
     sandbox = await Directory.systemTemp.createTemp('easysend-move-');
@@ -22,6 +24,8 @@ void main() {
     xdef['Program language'] = 'en';
     refuse = <String>{};
     holdUpload = null;
+    holdUploadFor = null;
+    uploadHeld = null;
 
     server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     server.listen((HttpRequest request) async {
@@ -33,7 +37,11 @@ void main() {
         request.response.write('{"sessionId":"session"}');
       } else if (path.endsWith('/upload')) {
         final Completer<void>? hold = holdUpload;
-        if (hold != null) await hold.future;
+        if (hold != null && (holdUploadFor == null || holdUploadFor == file)) {
+          final Completer<void>? held = uploadHeld;
+          if (held != null && !held.isCompleted) held.complete();
+          await hold.future;
+        }
       } else if (path.endsWith('/verify') && refuse.contains(file)) {
         request.response.statusCode = HttpStatus.conflict;
       }
@@ -65,7 +73,10 @@ void main() {
 
   test('without the tick nothing is deleted', () async {
     final FileItem item = await pick('kept.txt');
-    expect(await SendService().send(peer: peer, files: [item]), TransferStatus.done);
+    expect(
+      await SendService().send(peer: peer, files: [item]),
+      TransferStatus.done,
+    );
     expect(await File(item.sourcePath!).exists(), isTrue);
   });
 
@@ -120,5 +131,31 @@ void main() {
     expect(await sending, TransferStatus.cancelled);
 
     expect(await File(item.sourcePath!).exists(), isTrue);
+  });
+
+  test('cancelling after one verified file preserves every source', () async {
+    final FileItem first = await pick('first.txt');
+    final FileItem second = await pick('second.txt');
+    final Completer<void> hold = Completer<void>();
+    final Completer<void> held = Completer<void>();
+    holdUpload = hold;
+    holdUploadFor = second.id;
+    uploadHeld = held;
+
+    final SendService service = SendService();
+    final Future<TransferStatus> sending = service.send(
+      peer: peer,
+      files: [first, second],
+      move: true,
+    );
+    await held.future;
+    expect(first.done, isTrue, reason: 'the first file was already verified');
+    expect(await File(first.sourcePath!).exists(), isTrue);
+
+    await service.cancel();
+    hold.complete();
+    expect(await sending, TransferStatus.cancelled);
+    expect(await File(first.sourcePath!).exists(), isTrue);
+    expect(await File(second.sourcePath!).exists(), isTrue);
   });
 }
