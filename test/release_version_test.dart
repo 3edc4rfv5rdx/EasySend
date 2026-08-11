@@ -31,11 +31,26 @@ void main() {
   });
 
   test('repository version sources agree in dry-run mode', () async {
+    // Derived from the file rather than written down: a build number spelled
+    // out here would make this test fail on the release after next.
+    final RegExpMatch? current = RegExp(
+      r'^version:\s*(\d+\.\d+)\.\d{6}\+(\d+)\s*$',
+      multiLine: true,
+    ).firstMatch(await File('pubspec.yaml').readAsString());
+    expect(current, isNotNull, reason: 'pubspec.yaml carries no version line');
+    final String line = current!.group(1)!;
+    final int nextBuild = int.parse(current.group(2)!) + 1;
+
     final result = await Process.run('bash', [
       '10-MakeRelease.sh',
       '--dry-run',
     ], workingDirectory: Directory.current.path);
+    // A non-zero exit is the script refusing pubspec.yaml and globals.dart
+    // after they drifted apart, which is the disagreement this test is for.
     expect(result.exitCode, 0, reason: '${result.stderr}');
-    expect(result.stdout, matches(RegExp(r'^0\.2\.\d{6}\+65\s*$')));
+    expect(
+      (result.stdout as String).trim(),
+      matches(RegExp('^${RegExp.escape(line)}\\.\\d{6}\\+$nextBuild\$')),
+    );
   });
 }
