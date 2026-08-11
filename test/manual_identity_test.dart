@@ -60,6 +60,18 @@ void main() {
     expect(device.lastSeen, isNull);
   });
 
+  test('an answer outside the protocol limits leaves it offline', () async {
+    device.lastSeen = DateTime.now();
+    response = '{"id":"expected","name":"Peer","port":70000}';
+    await poller.pollNow();
+    expect(device.lastSeen, isNull);
+
+    response = '{"id":"expected","name":"${'n' * (maxSenderNameBytes + 1)}"}';
+    await poller.pollNow();
+    expect(device.name, 'Saved');
+    expect(device.lastSeen, isNull);
+  });
+
   test('invalid explicit ports are rejected instead of replaced', () async {
     expect(await poller.addByAddress('127.0.0.1:not-a-port'), isFalse);
     expect(await poller.addByAddress('127.0.0.1:70000'), isFalse);

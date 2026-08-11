@@ -148,25 +148,30 @@ class DiscoveryService {
     if (event != RawSocketEvent.read) return;
     final Datagram? packet = _socket?.receive();
     if (packet == null) return;
+    // Nothing this app sends comes anywhere near that, and an oversized one is
+    // not worth decoding to find out.
+    if (packet.data.length > maxDiscoveryPacketBytes) return;
     try {
-      final Map<String, dynamic> msg = json.decode(utf8.decode(packet.data));
-      final String id = msg['id'] as String? ?? '';
+      final dynamic msg = json.decode(utf8.decode(packet.data));
+      // A stranger's word about itself, held to the same limits the transfer
+      // protocol holds a sender to.
+      final PeerInfo? peer = validatedPeerInfo(msg, fallbackPort: defaultPort);
       // Our own broadcast comes back to us; ignore it.
-      if (id.isEmpty || id == xvDeviceId) return;
+      if (peer == null || peer.id == xvDeviceId) return;
       // A neighbour on this same machine would be listed at an address that
       // points back here, so there is nothing to remember about it.
       if (!isReachableAddress(packet.address.address)) return;
 
       _touchDevice(
-        id: id,
-        name: msg['name'] as String? ?? id,
-        platform: msg['platform'] as String? ?? '',
+        id: peer.id,
+        name: peer.name.isEmpty ? peer.id : peer.name,
+        platform: peer.platform,
         address: packet.address.address,
-        port: msg['port'] as int? ?? defaultPort,
+        port: peer.port,
       );
 
       // Answer a newcomer at once so it does not wait for the next cycle.
-      if (msg['t'] == 'query') {
+      if (msg is Map && msg['t'] == 'query') {
         // Reply to the UDP source port. The port inside the payload is HTTP.
         _sendTo('announce', packet.address, packet.port);
       }
@@ -261,16 +266,17 @@ class ManualPoller {
           device.port,
         );
         if (info == null) continue;
-        final String id = info['id'] as String? ?? '';
-        if (id.isEmpty || id != device.id) {
-          // DHCP may have handed the saved address to somebody else. Keep the
-          // original identity/trust record but never mark it reachable.
+        final PeerInfo? peer = validatedPeerInfo(info, fallbackPort: device.port);
+        if (peer == null || peer.id != device.id) {
+          // DHCP may have handed the saved address to somebody else, or the
+          // answer is not one this protocol can use. Keep the original
+          // identity/trust record but never mark it reachable.
           device.lastSeen = null;
           devicesChanged();
           continue;
         }
-        device.name = info['name'] as String? ?? device.name;
-        device.platform = info['platform'] as String? ?? device.platform;
+        if (peer.name.isNotEmpty) device.name = peer.name;
+        if (peer.platform.isNotEmpty) device.platform = peer.platform;
         device.lastSeen = DateTime.now();
         devicesChanged();
       }
@@ -283,8 +289,8 @@ class ManualPoller {
 
   Future<bool> verifyIdentity(Device device) async {
     final Map<String, dynamic>? info = await _ask(device.address, device.port);
-    final String id = info?['id'] as String? ?? '';
-    if (id.isEmpty || id != device.id) {
+    final PeerInfo? peer = validatedPeerInfo(info, fallbackPort: device.port);
+    if (peer == null || peer.id != device.id) {
       device.lastSeen = null;
       devicesChanged();
       return false;
@@ -310,11 +316,10 @@ class ManualPoller {
     final int port = explicitPort ?? currentPort;
 
     final Map<String, dynamic>? info = await _ask(host, port);
-    if (info == null) return false;
-    final String id = info['id'] as String? ?? '';
-    if (id.isEmpty || id == xvDeviceId) return false;
+    final PeerInfo? peer = validatedPeerInfo(info, fallbackPort: port);
+    if (peer == null || peer.id == xvDeviceId) return false;
 
-    final int index = xvDevices.indexWhere((d) => d.id == id);
+    final int index = xvDevices.indexWhere((d) => d.id == peer.id);
     if (index >= 0) {
       final Device device = xvDevices[index];
       device.address = host;
@@ -324,9 +329,9 @@ class ManualPoller {
     } else {
       xvDevices.add(
         Device(
-          id: id,
-          name: info['name'] as String? ?? host,
-          platform: info['platform'] as String? ?? '',
+          id: peer.id,
+          name: peer.name.isEmpty ? host : peer.name,
+          platform: peer.platform,
           address: host,
           port: port,
           manual: true,

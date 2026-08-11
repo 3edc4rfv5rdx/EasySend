@@ -56,6 +56,9 @@ const int maxSenderNameBytes = 256;
 const int maxDeclaredFileBytes = 16 * 1024 * 1024 * 1024 * 1024;
 const int maxDeclaredTransferBytes = 64 * 1024 * 1024 * 1024 * 1024;
 const int maxInfoBodyBytes = 64 * 1024;
+const int maxPlatformBytes = 32;
+// An announce is a handful of short fields; anything larger is not one.
+const int maxDiscoveryPacketBytes = 4 * 1024;
 const int protocolBodyTimeoutSec = 5;
 const int networkConnectTimeoutSec = 3;
 const int networkHeaderTimeoutSec = 5;
@@ -203,6 +206,44 @@ List<TransferSession> xvTransfers = [];
 bool isReachableAddress(String address) {
   final InternetAddress? ip = InternetAddress.tryParse(address);
   return ip != null && !ip.isLoopback;
+}
+
+// What a peer says about itself, from a UDP announce or from an /info answer.
+// `name` is returned as it came, empty included: a discovered device falls back
+// to its id, a remembered one keeps the name it already had.
+typedef PeerInfo = ({String id, String name, String platform, int port});
+
+// Both channels are equally unauthenticated, so both are held to the shape the
+// transfer protocol holds a sender to. Deliberately not a UUID check: /prepare
+// accepts any bounded id, a stricter rule here would only disagree with it, and
+// an id is an identifier, not a credential.
+PeerInfo? validatedPeerInfo(dynamic decoded, {required int fallbackPort}) {
+  if (decoded is! Map) return null;
+  final dynamic id = decoded['id'];
+  final dynamic name = decoded['name'];
+  final dynamic platform = decoded['platform'];
+  final dynamic port = decoded['port'];
+  if (id is! String ||
+      id.isEmpty ||
+      utf8.encode(id).length > maxProtocolIdBytes) {
+    return null;
+  }
+  if (name != null &&
+      (name is! String || utf8.encode(name).length > maxSenderNameBytes)) {
+    return null;
+  }
+  if (platform != null &&
+      (platform is! String ||
+          utf8.encode(platform).length > maxPlatformBytes)) {
+    return null;
+  }
+  if (port != null && (port is! int || port < 1 || port > 65535)) return null;
+  return (
+    id: id,
+    name: name is String ? name : '',
+    platform: platform is String ? platform : '',
+    port: port is int ? port : fallbackPort,
+  );
 }
 
 bool isValidDeviceId(String value) => RegExp(

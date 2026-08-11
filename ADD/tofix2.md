@@ -50,7 +50,16 @@ Apply the same `timeout` to the error drain, and prefer `resp.detachSocket()`/de
 
 Add a fake-server test for a non-200 response whose body never ends: `_pollAll` must return within a few seconds, `polling` must go back to false, and a subsequent poll of a healthy device must succeed.
 
-## 6. P1 — Validate discovery payloads as strictly as HTTP protocol fields
+## 6. P1 — FIXED - Validate discovery payloads as strictly as HTTP protocol fields
+
+Fixed with one deviation from what this section asked for. The `isValidDeviceId`
+(UUID) requirement below was **not** implemented: `/api/v1/prepare` accepts any
+non-empty id within `maxProtocolIdBytes`, so demanding a UUID on the UDP side
+alone would have made the two channels disagree while buying nothing — an
+attacker types a UUID as easily as anything else, and an id is an identifier,
+not a credential. Both channels now share `validatedPeerInfo()`, which applies
+the transfer protocol's own limits: non-empty bounded id, bounded name and
+platform, port within range, and an oversized datagram dropped before decoding.
 
 `_onEvent()` in `lib/net_discovery.dart` takes `id`, `name`, `platform` and `port` straight out of a UDP datagram and hands them to `_touchDevice()`, which writes them into `xvDevices`. The HTTP side was hardened in the previous round (`maxProtocolIdBytes`, `maxSenderNameBytes`, `_senderPort` range check), and the UDP side never was. A datagram can therefore register a device with a 60 KB name, an `id` that is not a UUID at all, or a port of `0` or `999999` that no later code range-checks; if that device is later trusted, all of it is persisted into `settings.json`.
 
