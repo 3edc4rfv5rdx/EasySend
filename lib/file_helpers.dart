@@ -584,4 +584,5 @@ Future<String> uniquePath(
 }
 
 Future<bool> _taken(String path) async =>
-    await File(path).exists() || await Directory(path).exists();
+    await FileSystemEntity.type(path, followLinks: false) !=
+    FileSystemEntityType.notFound;

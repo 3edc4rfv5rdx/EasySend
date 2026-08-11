@@ -609,7 +609,7 @@ class ReceiveServer {
         radix: 16,
       );
       final int? ours = session.crc[fileId];
-      final String dest = session.finalPaths[fileId]!;
+      String dest = session.finalPaths[fileId]!;
       final File part = File(session.incompletePaths[fileId]!);
 
       if (theirs == null || ours == null || theirs != ours) {
@@ -626,6 +626,16 @@ class ReceiveServer {
 
       // Only now does the file get its real name: a partial file must never look
       // like a complete one.
+      if (await FileSystemEntity.type(dest, followLinks: false) !=
+          FileSystemEntityType.notFound) {
+        final Set<String> reserved = {
+          for (final entry in session.finalPaths.entries)
+            if (entry.key != fileId) pathEqualityKey(entry.value),
+        };
+        dest = await uniquePath(dest, reserved: reserved);
+        session.finalPaths[fileId] = dest;
+        item.destinationPath = dest;
+      }
       if (!await ensureSafeDestination(
             session.recvDir,
             dest,

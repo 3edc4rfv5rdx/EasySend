@@ -123,6 +123,36 @@ void main() {
     },
   );
 
+  test('a destination created after prepare is never overwritten', () async {
+    final prepared = await post('prepare', body: manifest('late.bin'));
+    final session = prepared.body['sessionId'] as String;
+
+    final uploadReq = await client.postUrl(
+      url('upload', {'session': session, 'file': 'file-1'}),
+    );
+    uploadReq.contentLength = 1;
+    uploadReq.add([7]);
+    final upload = await uploadReq.close();
+    expect(upload.statusCode, 200);
+    await upload.drain<void>();
+
+    final late = File(p.join(xvRecvDir, 'late.bin'));
+    await late.writeAsString('created after prepare');
+    final crc = getCrc32([7]).toRadixString(16);
+    expect(
+      (await post(
+        'verify',
+        query: {'session': session, 'file': 'file-1', 'crc': crc},
+      )).status,
+      200,
+    );
+
+    expect(await late.readAsString(), 'created after prepare');
+    final received = File(p.join(xvRecvDir, 'late (1).bin'));
+    expect(await received.readAsBytes(), [7]);
+    expect(xvTransfers.single.files.single.destinationPath, received.path);
+  });
+
   test(
     'cancel during upload waits for the writer and removes the part',
     () async {
