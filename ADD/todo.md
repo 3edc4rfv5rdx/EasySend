@@ -61,11 +61,32 @@ and makes anything else tested alongside it behave oddly. Do not confuse it with
 "приостановить исполнение кэшированных приложений", which freezes cached
 processes instead and would spoil the run.
 
-**What it decides.** If the phone stops answering queries while the Activity is
-dead, the lock has to move into `TransferService` (or the Application object)
-and be tied to whether discovery is running rather than to the Activity's
-lifetime. If it keeps answering, the finding is not real on this hardware and
-should be recorded as such — and the lock can arguably be dropped altogether.
+**A competing explanation, to rule out first.** `MainActivity` is a plain
+`FlutterActivity` with no cached engine, and such an activity creates its own
+`FlutterEngine` and destroys it in `onDestroy`. If that is what happens, the
+Dart isolate dies with the Activity and takes the HTTP server and discovery with
+it, while `TransferService` stays alive showing "Ready to receive" — a
+notification promising a receive that nothing is listening for, which would be a
+worse defect than the lock and would look exactly the same from the other
+device. This is reasoning from the class in use, not something observed: the run
+on 2026-08-11 had background receiving off and so could not tell.
+
+Ask it first, and by unicast, which needs no multicast at all: with the Activity
+dead, does `curl http://<phone>:15353/api/v1/info` still answer? No answer means
+the engine, not the lock, and nothing about multicast can be concluded until
+that is fixed.
+
+**What it decides.** Three outcomes:
+
+- Answers `/info` and appears by itself on a device that has never seen it: the
+  finding is not real on this hardware, record it as such — and the lock can
+  arguably be dropped altogether.
+- Answers `/info` but never appears until added by hand: it is the lock. Move it
+  into `TransferService` (or the Application object) and tie it to whether
+  discovery is running rather than to the Activity's lifetime.
+- Does not answer `/info` at all: it is the engine. That is a new finding of its
+  own — background receiving does not work at all once the Activity is gone, and
+  the fix is a cached `FlutterEngine` that outlives it.
 
 ### What was already established on 2026-08-11
 
