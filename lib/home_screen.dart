@@ -40,6 +40,49 @@ bool? networkDesiredFor(
   }
 }
 
+// A receiver destination may only occur once. Case folding also prevents a
+// selection that would collapse when the peer runs Windows.
+String targetKey(FileItem f) =>
+    f.relativePath.replaceAll(r'\', '/').toLowerCase();
+
+// What of a fresh pick can actually be sent, and how much of it cannot. Two
+// ways of picking the same thing twice: the same file on disk, and two files
+// that would land on the same place at the far end — the second one catches a
+// file added on its own and again inside its folder. Unusable ones are those
+// the receiver would refuse anyway, found here so the answer is a sentence
+// rather than a transfer that dies at 'HTTP 400'.
+({List<FileItem> fresh, int duplicates, int unusable}) sortPickedFiles(
+  List<FileItem> items,
+  List<FileItem> selected,
+) {
+  final Set<String> knownSources = selected
+      .map((f) => f.sourcePath)
+      .whereType<String>()
+      .toSet();
+  final Set<String> knownTargets = selected.map(targetKey).toSet();
+  final List<FileItem> fresh = [];
+  int duplicates = 0;
+  int unusable = 0;
+
+  for (final FileItem file in items) {
+    if (sanitizeRelPath(file.relativePath) == null ||
+        file.size > maxDeclaredFileBytes) {
+      unusable++;
+      continue;
+    }
+    final String? source = file.sourcePath;
+    // Both sets are asked before the verdict: && would skip the second add.
+    final bool newSource = source == null || knownSources.add(source);
+    final bool newTarget = knownTargets.add(targetKey(file));
+    if (!newSource || !newTarget) {
+      duplicates++;
+      continue;
+    }
+    fresh.add(file);
+  }
+  return (fresh: fresh, duplicates: duplicates, unusable: unusable);
+}
+
 // The whole application is this one screen: picking, devices, progress. No tabs
 // and no bottom navigation (SPEC 4).
 class HomeScreen extends StatefulWidget {
@@ -274,32 +317,30 @@ class _HomeScreenState extends State<HomeScreen>
   Future<void> _addPaths(List<String> paths) async {
     final List<FileItem> items = await collectFiles(paths);
     if (!mounted) return;
-    // Two ways of picking the same thing twice: the same file on disk, and two
-    // files that would land on the same place at the far end. The second one
-    // catches a file added on its own and again inside its folder, which the
-    // receiver would otherwise unpack as 'photo (1).jpg'.
-    final Set<String> knownSources = _selected
-        .map((f) => f.sourcePath)
-        .whereType<String>()
-        .toSet();
-    final Set<String> knownTargets = _selected.map(_targetKey).toSet();
-    final List<FileItem> fresh = items.where((f) {
-      final String? source = f.sourcePath;
-      // Both sets are asked before the verdict: && would skip the second add.
-      final bool newSource = source == null || knownSources.add(source);
-      final bool newTarget = knownTargets.add(_targetKey(f));
-      return newSource && newTarget;
-    }).toList();
+    final picked = sortPickedFiles(items, _selected);
 
-    setState(() => _selected.addAll(fresh));
-    final int skipped = items.length - fresh.length;
-    if (skipped > 0) okInfoBarOrange('${lw('Duplicates skipped')}: $skipped');
+    // The receiver refuses a manifest past these limits, and it refuses the
+    // whole thing. Said here, before anything is sent, it is one sentence
+    // instead of a transfer that gets as far as the other end and dies.
+    if (_selected.length + picked.fresh.length > maxManifestFiles) {
+      okInfoBarRed('${lw('Too many files at once')}: $maxManifestFiles');
+      return;
+    }
+    if (picked.fresh.fold(_totalBytes, (sum, f) => sum + f.size) >
+        maxDeclaredTransferBytes) {
+      okInfoBarRed(lw('The selection is too large'));
+      return;
+    }
+
+    setState(() => _selected.addAll(picked.fresh));
+    final List<String> notes = [
+      if (picked.duplicates > 0)
+        '${lw('Duplicates skipped')}: ${picked.duplicates}',
+      if (picked.unusable > 0)
+        '${lw('Some names cannot be sent')}: ${picked.unusable}',
+    ];
+    if (notes.isNotEmpty) okInfoBarOrange(notes.join('. '));
   }
-
-  // A receiver destination may only occur once. Case folding also prevents a
-  // selection that would collapse when the peer runs Windows.
-  static String _targetKey(FileItem f) =>
-      f.relativePath.replaceAll(r'\', '/').toLowerCase();
 
   // Clear resets the whole choice, files and target alike.
   void _clear() => setState(() {
