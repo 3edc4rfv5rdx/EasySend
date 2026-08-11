@@ -31,6 +31,8 @@ class _Incoming {
   // by the time a file lands, and every destination here was resolved against
   // this one — checking them against a newer root would refuse them all.
   final String recvDir;
+  // The same folder as the filesystem sees it, worked out once.
+  final String resolvedRoot;
   final TransferSession transfer;
   final Map<String, FileItem> byId;
   final Map<String, String> finalPaths; // fileId -> destination path
@@ -45,6 +47,7 @@ class _Incoming {
   _Incoming({
     required this.sessionId,
     required this.recvDir,
+    required this.resolvedRoot,
     required this.transfer,
     required this.byId,
     required this.finalPaths,
@@ -253,11 +256,25 @@ class ReceiveServer {
       // read once here and carried by the session from now on.
       final String recvDir = xvRecvDir;
       final Map<String, String> finalPaths;
+      final String root;
       try {
+        final String? resolved = await resolveReceiveRoot(recvDir);
+        if (resolved == null) {
+          throw const DestinationPlanException('receive folder unavailable');
+        }
+        root = resolved;
         finalPaths = await buildDestinationPlan(recvDir, files);
         for (final String dest in finalPaths.values) {
-          if (!await ensureSafeDestination(recvDir, dest) ||
-              !await ensureSafeDestination(recvDir, '$dest$partSuffix')) {
+          if (!await ensureSafeDestination(
+                recvDir,
+                dest,
+                resolvedRoot: root,
+              ) ||
+              !await ensureSafeDestination(
+                recvDir,
+                '$dest$partSuffix',
+                resolvedRoot: root,
+              )) {
             throw const DestinationPlanException('unsafe filesystem component');
           }
         }
@@ -304,6 +321,7 @@ class ReceiveServer {
       _current = _Incoming(
         sessionId: transfer.id,
         recvDir: recvDir,
+        resolvedRoot: root,
         transfer: transfer,
         byId: {for (final FileItem f in files) f.id: f},
         finalPaths: finalPaths,
@@ -445,11 +463,13 @@ class ReceiveServer {
             session.recvDir,
             dest,
             createParents: true,
+            resolvedRoot: session.resolvedRoot,
           ) ||
           !await ensureSafeDestination(
             session.recvDir,
             partPath,
             createParents: true,
+            resolvedRoot: session.resolvedRoot,
           )) {
         session.phase = _ReceivePhase.ready;
         return _status(req, HttpStatus.badRequest);
@@ -478,11 +498,14 @@ class ReceiveServer {
           }
           crc = getCrc32(chunk, crc);
           sink.add(chunk);
-          _touch(session);
 
           final DateTime now = DateTime.now();
           if (now.difference(lastTick).inMilliseconds >= 100) {
             lastTick = now;
+            // Refreshed on the same tick as the progress, not on every chunk:
+            // a stalled upload is already caught by the stream's own idle
+            // timeout, and this deadline only has to outlive that.
+            _touch(session);
             session.transfer.noteProgress(session.settledBytes + written);
             transfersChanged();
           }
@@ -564,8 +587,16 @@ class ReceiveServer {
 
       // Only now does the file get its real name: a partial file must never look
       // like a complete one.
-      if (!await ensureSafeDestination(session.recvDir, dest) ||
-          !await ensureSafeDestination(session.recvDir, part.path)) {
+      if (!await ensureSafeDestination(
+            session.recvDir,
+            dest,
+            resolvedRoot: session.resolvedRoot,
+          ) ||
+          !await ensureSafeDestination(
+            session.recvDir,
+            part.path,
+            resolvedRoot: session.resolvedRoot,
+          )) {
         await _deleteQuietly(part);
         session.phase = _ReceivePhase.ready;
         return _status(req, HttpStatus.conflict);

@@ -105,6 +105,9 @@ class TransferSession {
   // after the device changed its address.
   final String peerId;
   final List<FileItem> files;
+  // Fixed once the manifest is: nothing adds to a session's list afterwards,
+  // and the progress bar asks for this several times a second.
+  final int bytesTotal;
 
   int bytesDone = 0;
   int currentIndex = 0;
@@ -153,9 +156,8 @@ class TransferSession {
     required this.peerName,
     required this.files,
     this.peerId = '',
-  });
+  }) : bytesTotal = files.fold(0, (int sum, FileItem f) => sum + f.size);
 
-  int get bytesTotal => files.fold(0, (sum, f) => sum + f.size);
   int get doneCount => files.where((f) => f.done).length;
   int get failedCount => files.where((f) => f.failed).length;
 

@@ -12,6 +12,14 @@ lock is gone, but `DiscoveryService` is still running and still believes it
 holds one. Whether that actually stops multicast and broadcast datagrams from
 arriving is device-dependent: some ROMs deliver them without the lock at all.
 
+**Not on the emulator.** The lock turns off multicast filtering in a real Wi-Fi
+chipset. An emulator's Wi-Fi is virtual and behind NAT, broadcast and multicast
+do not reach the host's LAN from it, and `createMulticastLock` there is close to
+a no-op — so it would report success whether or not the lock is held. The
+emulator can still answer the other half: that destroying the Activity does not
+break the foreground service or a transfer to an address that is already known,
+since polling a manually added device over `/info` needs no multicast at all.
+
 **Check.** Two phones, or a phone and the desktop build. On the phone: switch
 `Receive in background` on, put the app in the background, then get the Activity
 destroyed (Developer options → "Don't keep activities", or push it out of memory

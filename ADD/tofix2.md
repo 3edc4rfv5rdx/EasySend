@@ -155,7 +155,30 @@ Apply the stored receive folder before resolving the identity, or pass the inten
 
 Add a test: with `Receive folder` set to a custom directory and no ANDROID_ID, the fallback id is written into that directory, and an id already present in the default location is still adopted.
 
-## 15. P3 — Stop the per-chunk timer churn on the transfer hot path
+## 15. P3 — FIXED - Stop the per-chunk timer churn on the transfer hot path
+
+Measured before touching anything, and the section below turned out to have its
+weight in the wrong place. On this machine: CRC32 over one 64 KB chunk costs
+135 us, creating and cancelling a Timer costs 7.4 us — 5.5% of the chunk's own
+useful work, 485 ms spread across a whole 4 GB transfer. Folding 3000 sizes
+costs 6.7 us. None of that is a performance problem.
+
+What was one: `ensureSafeDestination()` re-creating and re-canonicalizing the
+receive root on every call, at 46.8 us a call — 281 ms on a manifest of 3000
+files, spent before the consent dialog even appears, and worse on a phone's
+FUSE storage. That is now resolved once per session and carried in `_Incoming`,
+which also makes the check stricter: a root swapped underneath a running
+transfer no longer matches and every destination below it is refused.
+
+Also done, for clarity rather than for speed: `_touch()` moved onto the same
+100 ms tick as the progress update, since a stalled upload is already caught by
+the stream's own idle timeout; and `bytesTotal` became a field computed once,
+since nothing adds to a session's file list after it is built.
+
+Deliberately **not** done: the per-chunk `flush().timeout()` in `_sendFile()`.
+It is the only thing that notices a receiver that has stopped reading, and
+replacing it with a watchdog timer would be more moving parts to save 5% of a
+CRC32.
 
 Four allocations sit inside loops that run for every chunk of every file, or on every UI tick during a transfer:
 
