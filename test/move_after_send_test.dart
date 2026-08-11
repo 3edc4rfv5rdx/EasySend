@@ -15,6 +15,9 @@ void main() {
   Completer<void>? holdUpload;
   String? holdUploadFor;
   Completer<void>? uploadHeld;
+  Completer<void>? holdVerify;
+  Completer<void>? verifyHeld;
+  String? holdVerifyFor;
 
   setUp(() async {
     sandbox = await Directory.systemTemp.createTemp('easysend-move-');
@@ -26,6 +29,9 @@ void main() {
     holdUpload = null;
     holdUploadFor = null;
     uploadHeld = null;
+    holdVerify = null;
+    verifyHeld = null;
+    holdVerifyFor = null;
 
     server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     server.listen((HttpRequest request) async {
@@ -42,8 +48,16 @@ void main() {
           if (held != null && !held.isCompleted) held.complete();
           await hold.future;
         }
-      } else if (path.endsWith('/verify') && refuse.contains(file)) {
-        request.response.statusCode = HttpStatus.conflict;
+      } else if (path.endsWith('/verify')) {
+        final Completer<void>? hold = holdVerify;
+        if (hold != null && (holdVerifyFor == null || holdVerifyFor == file)) {
+          final Completer<void>? held = verifyHeld;
+          if (held != null && !held.isCompleted) held.complete();
+          await hold.future;
+        }
+        if (refuse.contains(file)) {
+          request.response.statusCode = HttpStatus.conflict;
+        }
       }
       await request.response.close();
     });
@@ -157,5 +171,39 @@ void main() {
     expect(await sending, TransferStatus.cancelled);
     expect(await File(first.sourcePath!).exists(), isTrue);
     expect(await File(second.sourcePath!).exists(), isTrue);
+  });
+
+  test('Move preserves a same-size replacement that was never sent', () async {
+    final FileItem item = await pick('replace.txt');
+    final File source = File(item.sourcePath!);
+    final File original = File('${source.path}.original');
+    final Completer<void> hold = Completer<void>();
+    final Completer<void> held = Completer<void>();
+    holdVerify = hold;
+    holdVerifyFor = item.id;
+    verifyHeld = held;
+
+    final Future<TransferStatus> sending = SendService().send(
+      peer: peer,
+      files: [item],
+      move: true,
+    );
+    await held.future;
+    await source.rename(original.path);
+    await source.writeAsString('XXXXXXXXXXX');
+    expect(await source.length(), item.size);
+    hold.complete();
+
+    expect(await sending, TransferStatus.done);
+    expect(await source.readAsString(), 'XXXXXXXXXXX');
+    expect(await original.readAsString(), 'replace.txt');
+    expect(
+      xvTransfers.single.events.any(
+        (event) =>
+            event.file == item.relativePath &&
+            event.message == 'Could not delete it here',
+      ),
+      isTrue,
+    );
   });
 }

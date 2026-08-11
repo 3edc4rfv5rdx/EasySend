@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:archive/archive.dart';
+import 'package:crypto/crypto.dart';
 import 'package:uuid/uuid.dart';
 
 import 'globals.dart';
@@ -20,6 +21,27 @@ class _Cancelled implements Exception {
 // manifest describes is not.
 enum _FileResult { sent, retry, hopeless }
 
+class _SourceFingerprint {
+  final int size;
+  final DateTime modified;
+  final DateTime changed;
+  final int mode;
+  final Digest digest;
+
+  _SourceFingerprint(FileStat stat, this.digest)
+    : size = stat.size,
+      modified = stat.modified,
+      changed = stat.changed,
+      mode = stat.mode;
+
+  bool matches(FileStat stat) =>
+      stat.type == FileSystemEntityType.file &&
+      stat.size == size &&
+      stat.modified == modified &&
+      stat.changed == changed &&
+      stat.mode == mode;
+}
+
 // Sending side. One transfer at a time, files strictly in sequence.
 class SendService {
   final Duration connectTimeout;
@@ -32,6 +54,7 @@ class SendService {
   Device? _peer;
   bool _cancelled = false;
   bool _inFlight = false;
+  final Map<String, _SourceFingerprint> _sentSources = {};
 
   SendService({
     this.connectTimeout = const Duration(seconds: networkConnectTimeoutSec),
@@ -61,6 +84,7 @@ class SendService {
     if (_inFlight) return TransferStatus.failed;
     _inFlight = true;
     _cancelled = false;
+    _sentSources.clear();
     _peer = peer;
     _client = HttpClient()..connectionTimeout = connectTimeout;
 
@@ -91,7 +115,7 @@ class SendService {
       transfer.status = TransferStatus.active;
       transfersChanged();
 
-      await _sendOneByOne(peer, transfer);
+      await _sendOneByOne(peer, transfer, fingerprintSources: move);
       if (_cancelled) return transfer.status;
 
       await _post(_url(peer, 'finish', {'session': sessionId}));
@@ -124,6 +148,7 @@ class SendService {
       _peer = null;
       _client?.close(force: true);
       _client = null;
+      _sentSources.clear();
       _inFlight = false;
       transfersChanged();
     }
@@ -200,7 +225,11 @@ class SendService {
     return null;
   }
 
-  Future<void> _sendOneByOne(Device peer, TransferSession transfer) async {
+  Future<void> _sendOneByOne(
+    Device peer,
+    TransferSession transfer, {
+    required bool fingerprintSources,
+  }) async {
     int settled = 0;
     for (int i = 0; i < transfer.files.length; i++) {
       if (_cancelled) return;
@@ -216,7 +245,13 @@ class SendService {
         attempt++
       ) {
         if (_cancelled) return;
-        result = await _sendFile(peer, transfer, item, settled);
+        result = await _sendFile(
+          peer,
+          transfer,
+          item,
+          settled,
+          fingerprintSource: fingerprintSources,
+        );
       }
       // Do not count an interrupted file as sent: the bar would run to the
       // end even though nothing arrived.
@@ -241,7 +276,31 @@ class SendService {
   Future<void> _deleteSource(TransferSession transfer, FileItem item) async {
     final String? source = item.sourcePath;
     if (source == null) return;
-    final bool gone = await deleteQuietly(File(source));
+    final File file = File(source);
+    final _SourceFingerprint? sent = _sentSources[item.id];
+    bool sameSource = sent != null;
+    if (sameSource) {
+      final FileStat before = await file.stat();
+      sameSource = sent.matches(before);
+      if (sameSource) {
+        try {
+          sameSource = await sha256.bind(file.openRead()).first == sent.digest;
+          if (sameSource) sameSource = sent.matches(await file.stat());
+        } catch (_) {
+          sameSource = false;
+        }
+      }
+    }
+    if (!sameSource) {
+      transfer.log(
+        'Could not delete it here',
+        file: item.relativePath,
+        detail: lw('A file changed on disk'),
+        failure: true,
+      );
+      return;
+    }
+    final bool gone = await deleteQuietly(file);
     transfer.log(
       gone ? 'Deleted here' : 'Could not delete it here',
       file: item.relativePath,
@@ -256,8 +315,9 @@ class SendService {
     Device peer,
     TransferSession transfer,
     FileItem item,
-    int settled,
-  ) async {
+    int settled, {
+    required bool fingerprintSource,
+  }) async {
     final String? source = item.sourcePath;
     if (source == null) return _FileResult.hopeless;
 
@@ -289,6 +349,15 @@ class SendService {
     int crc = 0;
     int sent = 0;
     DateTime lastTick = DateTime.now();
+    Digest? sourceDigest;
+    final digestOutput = fingerprintSource
+        ? ChunkedConversionSink<Digest>.withCallback(
+            (digests) => sourceDigest = digests.single,
+          )
+        : null;
+    final digestInput = digestOutput == null
+        ? null
+        : sha256.startChunkedConversion(digestOutput);
 
     try {
       final HttpClientRequest req = await _client!
@@ -300,6 +369,7 @@ class SendService {
       await for (final List<int> chunk in File(source).openRead()) {
         if (_cancelled) throw const _Cancelled();
         crc = getCrc32(chunk, crc);
+        digestInput?.add(chunk);
         sent += chunk.length;
         req.add(chunk);
         // Flush is the per-progress inactivity boundary. It resets for every
@@ -312,6 +382,7 @@ class SendService {
           transfersChanged();
         }
       }
+      digestInput?.close();
       final HttpClientResponse resp = await req.close().timeout(headerTimeout);
       await _drainWithTimeout(resp);
       if (resp.statusCode != HttpStatus.ok) {
@@ -332,7 +403,13 @@ class SendService {
         }),
       );
       item.crc32 = crc;
-      if (verify.statusCode == HttpStatus.ok) return _FileResult.sent;
+      if (verify.statusCode == HttpStatus.ok) {
+        final Digest? digest = sourceDigest;
+        if (fingerprintSource && digest != null) {
+          _sentSources[item.id] = _SourceFingerprint(stat, digest);
+        }
+        return _FileResult.sent;
+      }
       // Each failed attempt writes its own line, so the number of them is what
       // says how many tries the file took.
       transfer.log(
