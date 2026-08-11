@@ -233,7 +233,19 @@ Write the pending bounds synchronously (or await the save) in `_exitApp` and in 
 
 Add a test around the debounce helper: a pending save that is flushed on exit produces the same stored string as one that fired on its own.
 
-## 20. P3 — Decide what a backslash in a manifest path means
+## 20. P3 — FIXED - Decide what a backslash in a manifest path means
+
+Decided on 2026-08-11: refused, on every platform, like every other name this
+sanitizer will not repair. SPEC 5.7 now says so outright. The mangling was
+happening a step earlier than this section knew — `collectFiles()` replaced
+backslashes while walking a picked folder, so the name was already cut in two
+before the sanitizer ever saw it; it now splits by the platform's own rule.
+
+The refusal grew a face while it was at it, at the user's request: picking files
+whose names cannot travel opens a dialog naming each one with its own reason,
+and offers to replace a backslash with a dash — the only one of those reasons a
+repair can honestly answer. Length cannot be repaired that way and is never
+truncated.
 
 `sanitizeRelPath()` in `lib/file_helpers.dart` starts with `raw.replaceAll(r'\', '/')` on every platform, so a Linux file legitimately named `back\slash.txt` arrives as a directory `back` containing `slash.txt`. SPEC 5.7 says the backslash is *rejected* on Windows, not silently reinterpreted everywhere. The current behaviour is the safe direction — nothing escapes the receive folder — but it invents a folder structure the sender never had, and the sender-side `_targetKey` in `lib/home_screen.dart` performs the same substitution, so the two agree on the wrong answer.
 

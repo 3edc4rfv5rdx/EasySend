@@ -360,6 +360,112 @@ Future<(bool, bool)> showAcceptDialog({
   }
 }
 
+String _refusalReason(PickProblem problem) => switch (problem) {
+  PickProblem.tooLong => lw('the name is too long'),
+  PickProblem.backslash => lw('a backslash in the name'),
+  PickProblem.reserved => lw('a name Windows reserves'),
+  PickProblem.notPortable => lw('characters that cannot travel'),
+  PickProblem.tooLarge => lw('the file is too large'),
+};
+
+// Which picked files cannot be sent under their own names, and why — said when
+// they are picked rather than when a transfer dies halfway. Returns true when
+// the user asked for the repairable ones to be repaired.
+Future<bool> showRefusedNamesDialog(List<RefusedPick> refused) async {
+  final bool repairable = refused.any(
+    (RefusedPick r) => r.problem == PickProblem.backslash,
+  );
+  bool repair = repairable;
+  final ScrollController scroll = ScrollController();
+
+  final bool? answer = await showFlatDialog<bool>(
+    builder: (BuildContext dialogContext) => StatefulBuilder(
+      builder: (BuildContext context, StateSetter setState) => AlertDialog(
+        backgroundColor: clFill,
+        shape: dialogShape,
+        title: Row(
+          children: [
+            Icon(Icons.report_gmailerrorred_outlined, color: clWarning),
+            const SizedBox(width: 8),
+            Expanded(child: Text(lw('Invalid names'), style: tsLarge)),
+          ],
+        ),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('${lw('These files cannot be sent')}:', style: tsNormal),
+              const SizedBox(height: 8),
+              Flexible(
+                child: Scrollbar(
+                  controller: scroll,
+                  child: ListView.builder(
+                    controller: scroll,
+                    shrinkWrap: true,
+                    itemCount: refused.length,
+                    itemBuilder: (BuildContext context, int index) {
+                      final RefusedPick item = refused[index];
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 6),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Whole, wrapped over as many lines as it takes:
+                            // the name is what this list is for, and two files
+                            // in one folder often differ only at the end.
+                            Text(item.file.relativePath, style: tsNormal),
+                            Text(
+                              _refusalReason(item.problem),
+                              style: tsSmall.copyWith(color: clFrame),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+              if (repairable) ...[
+                const SizedBox(height: 4),
+                CheckboxListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  controlAffinity: ListTileControlAffinity.leading,
+                  value: repair,
+                  activeColor: clAccent,
+                  checkColor: onColor(clAccent),
+                  title: Text(
+                    lw('replace the backslash with a dash'),
+                    style: tsSmall,
+                  ),
+                  onChanged: (bool? v) => setState(() => repair = v ?? false),
+                ),
+              ],
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            style: dialogCancelStyle,
+            child: Text(repairable ? lw('Cancel') : lw('Ok')),
+          ),
+          if (repairable)
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, repair),
+              style: dialogButtonStyle,
+              child: Text(lw('Fix')),
+            ),
+        ],
+      ),
+    ),
+  );
+  scroll.dispose();
+  return answer ?? false;
+}
+
 // Single-field prompt, used for the device name, the port and manual IPs.
 Future<String?> showInputDialog({
   required String title,

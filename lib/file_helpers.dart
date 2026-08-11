@@ -16,7 +16,10 @@ const int maxPathDepth = 64;
 // bytes. Counting bytes would refuse a Cyrillic name of 150 letters that every
 // filesystem involved would have taken.
 const int maxPathComponentChars = 255;
-final RegExp _windowsForbidden = RegExp(r'[<>:"|?*\x00-\x1f]');
+// The backslash is in here on every platform: it is a separator on Windows and
+// an ordinary character on Linux, so a name carrying one cannot mean the same
+// thing at both ends of a transfer (SPEC 5.7).
+final RegExp _windowsForbidden = RegExp(r'[<>:"|?*\\\x00-\x1f]');
 
 // The same channel the foreground service talks over.
 const MethodChannel _androidChannel = MethodChannel('easysend/service');
@@ -160,10 +163,14 @@ Future<List<FileItem>> collectFiles(List<String> paths) async {
           items.add(
             FileItem(
               id: _uuid.v4(),
-              // Relative to the folder's parent, so the folder itself is included.
+              // Relative to the folder's parent, so the folder itself is
+              // included. Split by the platform's own rule rather than by
+              // replacing backslashes: on Linux a backslash is an ordinary
+              // character in a name, and replacing it would turn one file into
+              // a folder before the manifest was even built.
               relativePath: p
-                  .relative(entity.path, from: parent)
-                  .replaceAll(r'\', '/'),
+                  .split(p.relative(entity.path, from: parent))
+                  .join('/'),
               size: stat.size,
               sourcePath: entity.path,
               modified: stat.modified,
@@ -230,13 +237,15 @@ Future<({List<FileItem> files, int missing})> restoreFileSnapshot(
 // stripped, because a mangled path is a broken transfer, not a fixed one.
 String? sanitizeRelPath(String raw) {
   if (raw.isEmpty || utf8.encode(raw).length > maxPathUtf8Bytes) return null;
-  final String unified = raw.replaceAll(r'\', '/');
-  if (unified.startsWith('/') || RegExp(r'^[a-zA-Z]:').hasMatch(unified)) {
+  if (raw.startsWith('/') || RegExp(r'^[a-zA-Z]:').hasMatch(raw)) {
     return null;
   }
 
   final List<String> parts = [];
-  for (final String segment in unified.split('/')) {
+  // '/' is the separator on the wire, whatever the two ends run. A backslash is
+  // refused below with the rest of the non-portable characters, not quietly
+  // turned into a second separator.
+  for (final String segment in raw.split('/')) {
     if (segment.isEmpty || segment == '.') continue;
     if (segment == '..') return null;
     // Reject lossy or non-portable names instead of silently mapping two
@@ -261,13 +270,34 @@ String? sanitizeRelPath(String raw) {
 bool isPathTooLong(String raw) {
   if (utf8.encode(raw).length > maxPathUtf8Bytes) return true;
   final List<String> parts = raw
-      .replaceAll(r'\', '/')
       .split('/')
       .where((String segment) => segment.isNotEmpty && segment != '.')
       .toList();
   return parts.length > maxPathDepth ||
       parts.any((String segment) => segment.length > maxPathComponentChars);
 }
+
+// Which of the rules above a name broke, asked only once the name is known to
+// be refused. Order matters: length cannot be repaired by anything, so it wins
+// over a backslash that could otherwise have been offered a dash.
+PickProblem classifyRefusal(String raw, {int size = 0}) {
+  if (size > maxDeclaredFileBytes) return PickProblem.tooLarge;
+  if (isPathTooLong(raw)) return PickProblem.tooLong;
+  if (raw.contains(r'\')) return PickProblem.backslash;
+  for (final String segment in raw.split('/')) {
+    if (_reservedNames.contains(segment.split('.').first.toLowerCase())) {
+      return PickProblem.reserved;
+    }
+  }
+  return PickProblem.notPortable;
+}
+
+// The one refusal worth offering a repair for. Everything else on that list is
+// either dangerous or genuinely impossible; a backslash is only ambiguous, and
+// a dash carries the name across without inventing a folder. Offered, never
+// applied on its own: the file arrives under a name its owner did not choose.
+String repairBackslashes(String relativePath) =>
+    relativePath.replaceAll(r'\', '-');
 
 // Full lexical destination for a manifest entry. Filesystem containment is
 // checked separately immediately before any directory/file operation.

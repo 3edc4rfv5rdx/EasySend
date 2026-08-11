@@ -10,6 +10,9 @@ void main() {
     sourcePath: source ?? '/tmp/$relativePath',
   );
 
+  List<PickProblem> problemsOf(List<RefusedPick> refused) =>
+      refused.map((RefusedPick r) => r.problem).toList();
+
   test('a clean pick is taken whole', () {
     final picked = sortPickedFiles([
       item('a.txt'),
@@ -17,7 +20,7 @@ void main() {
     ], <FileItem>[]);
     expect(picked.fresh, hasLength(2));
     expect(picked.duplicates, 0);
-    expect(picked.unusable, 0);
+    expect(picked.refused, isEmpty);
   });
 
   test('the same file on disk is counted once', () {
@@ -41,53 +44,61 @@ void main() {
     expect(picked.duplicates, 2);
   });
 
-  test('names the receiver would refuse never enter the selection', () {
+  test('every refusal is named with its own reason', () {
     final picked = sortPickedFiles([
       item('../escape.txt'),
-      item('/absolute.txt'),
       item('CON'),
-      item('trailing.'),
-      item('ok.txt'),
-    ], <FileItem>[]);
-    expect(picked.fresh.single.relativePath, 'ok.txt');
-    expect(picked.unusable, 4);
-    expect(picked.tooLong, 0);
-    expect(picked.duplicates, 0);
-  });
-
-  test('a name that is merely too long is counted as such', () {
-    // Told apart from the rest, because it is nobody's mistake and the answer
-    // to it is a shorter name rather than a different file.
-    final picked = sortPickedFiles([
+      item(r'report\draft.pdf'),
       item('${'a' * (maxPathComponentChars + 1)}.txt'),
-      item('folder/${'я' * (maxPathComponentChars + 1)}.bin'),
-      item('${List.filled(maxPathDepth + 1, 'd').join('/')}/x.txt'),
-      item('CON'),
+      item('huge.bin', size: maxDeclaredFileBytes + 1),
       item('ok.txt'),
     ], <FileItem>[]);
+
     expect(picked.fresh.single.relativePath, 'ok.txt');
-    expect(picked.tooLong, 3);
-    expect(picked.unusable, 1, reason: 'a reserved name is not a long one');
+    expect(problemsOf(picked.refused), [
+      PickProblem.notPortable,
+      PickProblem.reserved,
+      PickProblem.backslash,
+      PickProblem.tooLong,
+      PickProblem.tooLarge,
+    ]);
+    // The name travels with the reason: the dialog shows it as it was picked.
+    expect(picked.refused[2].file.relativePath, r'report\draft.pdf');
   });
 
-  test('a file larger than the protocol declares is refused', () {
-    final picked = sortPickedFiles([
-      item('huge.bin', size: maxDeclaredFileBytes + 1),
-      item('big.bin', size: maxDeclaredFileBytes),
-    ], <FileItem>[]);
-    expect(picked.fresh.single.relativePath, 'big.bin');
-    expect(picked.unusable, 1);
+  test('a backslash is refused rather than turned into a folder', () {
+    // It is an ordinary character in a POSIX name and a separator elsewhere,
+    // so the same name cannot mean one thing at both ends.
+    expect(sanitizeRelPath(r'report\draft.pdf'), isNull);
+    expect(classifyRefusal(r'report\draft.pdf'), PickProblem.backslash);
+    // Repaired, it is an ordinary name again.
+    expect(repairBackslashes(r'report\draft.pdf'), 'report-draft.pdf');
+    expect(sanitizeRelPath('report-draft.pdf'), 'report-draft.pdf');
   });
 
-  test('what survives the sort is what a manifest may carry', () {
-    // Every fresh item must pass the receiver's own path check, since that is
-    // the rule this sort exists to apply early.
-    final picked = sortPickedFiles([
-      for (int i = 0; i < 20; i++) item('deep/folder/file-$i.bin'),
-    ], <FileItem>[]);
-    expect(picked.fresh, hasLength(20));
-    for (final FileItem file in picked.fresh) {
-      expect(sanitizeRelPath(file.relativePath), isNotNull);
-    }
+  test('length beats a backslash, since no dash can shorten a name', () {
+    final String long = '${'a' * maxPathComponentChars}\\x.txt';
+    expect(classifyRefusal(long), PickProblem.tooLong);
+  });
+
+  test('a repaired name still has to pass everything else', () {
+    // Two files differing only by the backslash collapse onto one name once it
+    // is replaced, and the second is then an ordinary duplicate.
+    final List<FileItem> repaired = [
+      item(r'a\b.txt', source: '/tmp/one').renamed('a-b.txt'),
+      item('a-b.txt', source: '/tmp/two'),
+    ];
+    final picked = sortPickedFiles(repaired, <FileItem>[]);
+    expect(picked.fresh, hasLength(1));
+    expect(picked.duplicates, 1);
+  });
+
+  test('renaming keeps everything else about the file', () {
+    final FileItem original = item(r'x\y.bin', source: '/tmp/x', size: 42);
+    final FileItem renamed = original.renamed('x-y.bin');
+    expect(renamed.relativePath, 'x-y.bin');
+    expect(renamed.id, original.id);
+    expect(renamed.sourcePath, original.sourcePath);
+    expect(renamed.size, 42);
   });
 }

@@ -235,7 +235,9 @@ class SendService {
     }
     if (stat.size != item.size) {
       transfer.error = lw('A file changed on disk');
-      myPrint('${item.relativePath} is ${stat.size}, manifest says ${item.size}');
+      myPrint(
+        '${item.relativePath} is ${stat.size}, manifest says ${item.size}',
+      );
       return _FileResult.hopeless;
     }
 

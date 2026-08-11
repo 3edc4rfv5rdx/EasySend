@@ -57,8 +57,7 @@ SendButtonMode sendButtonMode({
 
 // A receiver destination may only occur once. Case folding also prevents a
 // selection that would collapse when the peer runs Windows.
-String targetKey(FileItem f) =>
-    f.relativePath.replaceAll(r'\', '/').toLowerCase();
+String targetKey(FileItem f) => f.relativePath.toLowerCase();
 
 // What of a fresh pick can actually be sent, and how much of it cannot. Two
 // ways of picking the same thing twice: the same file on disk, and two files
@@ -66,7 +65,7 @@ String targetKey(FileItem f) =>
 // file added on its own and again inside its folder. Unusable ones are those
 // the receiver would refuse anyway, found here so the answer is a sentence
 // rather than a transfer that dies at 'HTTP 400'.
-({List<FileItem> fresh, int duplicates, int unusable, int tooLong})
+({List<FileItem> fresh, int duplicates, List<RefusedPick> refused})
 sortPickedFiles(List<FileItem> items, List<FileItem> selected) {
   final Set<String> knownSources = selected
       .map((f) => f.sourcePath)
@@ -74,18 +73,16 @@ sortPickedFiles(List<FileItem> items, List<FileItem> selected) {
       .toSet();
   final Set<String> knownTargets = selected.map(targetKey).toSet();
   final List<FileItem> fresh = [];
+  final List<RefusedPick> refused = [];
   int duplicates = 0;
-  int unusable = 0;
-  int tooLong = 0;
 
   for (final FileItem file in items) {
     if (sanitizeRelPath(file.relativePath) == null ||
         file.size > maxDeclaredFileBytes) {
-      if (isPathTooLong(file.relativePath)) {
-        tooLong++;
-      } else {
-        unusable++;
-      }
+      refused.add((
+        file: file,
+        problem: classifyRefusal(file.relativePath, size: file.size),
+      ));
       continue;
     }
     final String? source = file.sourcePath;
@@ -98,12 +95,7 @@ sortPickedFiles(List<FileItem> items, List<FileItem> selected) {
     }
     fresh.add(file);
   }
-  return (
-    fresh: fresh,
-    duplicates: duplicates,
-    unusable: unusable,
-    tooLong: tooLong,
-  );
+  return (fresh: fresh, duplicates: duplicates, refused: refused);
 }
 
 // The whole application is this one screen: picking, devices, progress. No tabs
@@ -360,15 +352,38 @@ class _HomeScreenState extends State<HomeScreen>
     }
 
     setState(() => _selected.addAll(picked.fresh));
-    final List<String> notes = [
-      if (picked.duplicates > 0)
-        '${lw('Duplicates skipped')}: ${picked.duplicates}',
-      if (picked.tooLong > 0)
-        '${lw('Names too long')}: ${picked.tooLong} — ${lw('the limit is')} $maxPathComponentChars',
-      if (picked.unusable > 0)
-        '${lw('Some names cannot be sent')}: ${picked.unusable}',
+    if (picked.duplicates > 0) {
+      okInfoBarOrange('${lw('Duplicates skipped')}: ${picked.duplicates}');
+    }
+    if (picked.refused.isEmpty) return;
+
+    // Named one by one, with the reason, before anything is sent. The only
+    // repair on offer is the backslash; whoever says yes to it is agreeing to
+    // a file arriving under a name they did not choose.
+    if (!await showRefusedNamesDialog(picked.refused)) return;
+    final List<FileItem> repaired = [
+      for (final RefusedPick item in picked.refused)
+        if (item.problem == PickProblem.backslash)
+          item.file.renamed(repairBackslashes(item.file.relativePath)),
     ];
-    if (notes.isNotEmpty) okInfoBarOrange(notes.join('. '));
+    if (!mounted || repaired.isEmpty) return;
+    // Through the same sort again: a repaired name can collide with something
+    // already picked, and it still has to pass every other rule.
+    await _addRepaired(repaired);
+  }
+
+  Future<void> _addRepaired(List<FileItem> repaired) async {
+    final picked = sortPickedFiles(repaired, _selected);
+    if (_selected.length + picked.fresh.length > maxManifestFiles) {
+      okInfoBarRed('${lw('Too many files at once')}: $maxManifestFiles');
+      return;
+    }
+    setState(() => _selected.addAll(picked.fresh));
+    if (picked.refused.isNotEmpty) {
+      okInfoBarOrange(
+        '${lw('Some names cannot be sent')}: ${picked.refused.length}',
+      );
+    }
   }
 
   // Clear resets the whole choice, files and target alike.

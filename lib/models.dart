@@ -75,6 +75,16 @@ class FileItem {
     this.destinationPath,
   });
 
+  // The same file under a name that can travel, when the user has agreed to
+  // the change. Everything else about it is what was picked.
+  FileItem renamed(String path) => FileItem(
+    id: id,
+    relativePath: path,
+    size: size,
+    sourcePath: sourcePath,
+    modified: modified,
+  );
+
   String get name {
     final int slash = relativePath.lastIndexOf('/');
     return slash < 0 ? relativePath : relativePath.substring(slash + 1);
@@ -92,6 +102,12 @@ class FileItem {
     size: j['size'] as int? ?? 0,
   );
 }
+
+// Why a picked file cannot travel under its own name. Only the backslash is
+// worth offering a repair for; the rest are either impossible or unsafe.
+enum PickProblem { tooLong, backslash, reserved, notPortable, tooLarge }
+
+typedef RefusedPick = ({FileItem file, PickProblem problem});
 
 enum TransferStatus { pending, active, done, partial, cancelled, failed }
 

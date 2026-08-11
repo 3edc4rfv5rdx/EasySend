@@ -316,10 +316,10 @@ Future<void> initIdentity({bool? android}) async {
     xvRecvDir = xdef['Receive folder'];
   }
 
-  xvDeviceId = await _resolveDeviceId(onAndroid, <String>{
-    xvRecvDir,
-    defaultRecvDir,
-  }.toList());
+  xvDeviceId = await _resolveDeviceId(
+    onAndroid,
+    <String>{xvRecvDir, defaultRecvDir}.toList(),
+  );
   if (xdef['.Device id'] != xvDeviceId) {
     xdef['.Device id'] = xvDeviceId;
   }

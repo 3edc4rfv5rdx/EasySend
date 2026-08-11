@@ -264,11 +264,7 @@ class ReceiveServer {
         root = resolved;
         finalPaths = await buildDestinationPlan(recvDir, files);
         for (final String dest in finalPaths.values) {
-          if (!await ensureSafeDestination(
-                recvDir,
-                dest,
-                resolvedRoot: root,
-              ) ||
+          if (!await ensureSafeDestination(recvDir, dest, resolvedRoot: root) ||
               !await ensureSafeDestination(
                 recvDir,
                 '$dest$partSuffix',

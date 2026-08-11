@@ -2,6 +2,8 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+- N: Files whose names cannot travel are named one by one in a dialog when they are picked, each with its own reason, and a backslash can be replaced with a dash on the spot
+- E: A backslash is refused on every platform instead of quietly becoming a second separator, so a Linux file with one in its name no longer arrives as a folder
 - E: Closing the window within a moment of moving or resizing it keeps the new geometry, which used to be lost with the debounce that had not fired yet
 - E: Changing the language or theme while an incoming transfer is being asked about no longer starts a second deadline for it and leaves the first one running after the question is answered
 - F: Leftover part files are swept once per run, as SPEC asks, instead of walking the whole receive folder every time the receive server binds, and a folder that cannot be listed no longer throws out of startup
