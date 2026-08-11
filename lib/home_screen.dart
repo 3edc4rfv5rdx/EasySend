@@ -40,6 +40,21 @@ bool? networkDesiredFor(
   }
 }
 
+enum SendButtonMode { send, stop, stopping }
+
+// What the one button at the bottom is at this moment. Cancelling marks the
+// transfer cancelled straight away, while the send holds its client until the
+// request it was in the middle of has unwound. Without the state in between,
+// the button offered Send in that gap and did nothing at all when pressed.
+SendButtonMode sendButtonMode({
+  required bool transferRunning,
+  required bool senderBusy,
+}) {
+  if (transferRunning) return SendButtonMode.stop;
+  if (senderBusy) return SendButtonMode.stopping;
+  return SendButtonMode.send;
+}
+
 // A receiver destination may only occur once. Case folding also prevents a
 // selection that would collapse when the peer runs Windows.
 String targetKey(FileItem f) =>
@@ -1112,13 +1127,19 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Widget _buildSendButton() {
-    final TransferSession? active = _running;
-    final bool stopping = active != null;
-    final String label = stopping
-        ? lw('Stop')
-        : _selected.isEmpty
-        ? lw('Send')
-        : '${lw('Send')}  ${_selected.length} — ${formatBytes(_totalBytes)}';
+    final SendButtonMode mode = sendButtonMode(
+      transferRunning: _running != null,
+      senderBusy: sender.busy,
+    );
+    final bool ending = mode != SendButtonMode.send;
+    final String label = switch (mode) {
+      SendButtonMode.stop => lw('Stop'),
+      SendButtonMode.stopping => lw('Stopping'),
+      SendButtonMode.send =>
+        _selected.isEmpty
+            ? lw('Send')
+            : '${lw('Send')}  ${_selected.length} — ${formatBytes(_totalBytes)}',
+    };
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(48, 6, 48, 10),
@@ -1127,12 +1148,13 @@ class _HomeScreenState extends State<HomeScreen>
           child: ElevatedButton(
             // Never disabled: a transfer in flight has already turned this into
             // Stop, and with a piece still missing the button says which one it
-            // is instead of sitting there grey and mute.
-            onPressed: stopping ? _stop : _sendOrPickTarget,
+            // is instead of sitting there grey and mute. Pressing it while the
+            // stop is still unwinding asks again, which costs nothing.
+            onPressed: ending ? _stop : _sendOrPickTarget,
             style: ElevatedButton.styleFrom(
               // Grey while a target is still missing: pressing it then only
               // asks for one.
-              backgroundColor: stopping
+              backgroundColor: ending
                   ? clError
                   : _canSend
                   ? clAccent
@@ -1148,7 +1170,7 @@ class _HomeScreenState extends State<HomeScreen>
                 fontSize: fsLarge,
                 // Whatever the button is painted with decides the lettering:
                 // an accent light enough for dark text is a valid palette.
-                color: stopping
+                color: ending
                     ? onColor(clError)
                     : _canSend
                     ? onColor(clAccent)

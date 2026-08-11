@@ -139,7 +139,7 @@ Wrap each handler body, answer `result.error(...)` on failure, and have `Android
 
 Add a Dart-side test with a mocked channel that throws, asserting the service state machine recovers and the app keeps running.
 
-## 13. P2 — Say something when Send is pressed while the previous send is still unwinding
+## 13. P2 — FIXED - Say something when Send is pressed while the previous send is still unwinding
 
 `SendService.send()` returns `TransferStatus.failed` immediately when `_inFlight` is set, without creating a transfer, setting an error, or telling anyone. That path is reachable through the UI: `cancel()` sets the transfer's status to `cancelled` at once while `_inFlight` stays true until the cancelled future has unwound (which is deliberate, from the previous audit round). In that window `_running` is null, so the main button turns back into `Send`, and pressing it does nothing whatsoever — no message, no row, no reaction.
 
