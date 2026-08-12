@@ -2,6 +2,7 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+- E: Android's Flutter engine and service channel belong to the Application, so destroying and recreating the Activity no longer kills background receiving or duplicates handlers
 - E: A failed network lifecycle transition is logged and dropped from the serial queue, so later pause, resume, rebind, and shutdown requests still run
 - E: Android idle background receiving uses `specialUse`, so Android 15 no longer spends the six-hour `dataSync` allowance while merely listening
 - E: A foreground-service timeout releases locks, stops background networking without crashing, and reports temporary unavailability while preserving the user's setting

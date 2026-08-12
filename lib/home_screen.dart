@@ -254,7 +254,21 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Future<void> _startNetwork() async {
-    _setNetworkDesired(true);
+    bool desired = true;
+    if (Platform.isAndroid) {
+      // The Application-owned engine starts before the first Activity attaches.
+      // Foreground-only networking must wait for resumed instead of asking an
+      // Activity-bound permission plugin while there is no Activity yet.
+      final AppLifecycleState state =
+          WidgetsBinding.instance.lifecycleState ?? AppLifecycleState.detached;
+      desired =
+          networkDesiredFor(
+            state,
+            receiveInBackground: xdef['Receive in background'] == 'true',
+          ) ??
+          false;
+    }
+    _setNetworkDesired(desired);
     await _networkTail;
   }
 

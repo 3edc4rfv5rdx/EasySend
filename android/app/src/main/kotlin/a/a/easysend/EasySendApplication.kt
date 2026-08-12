@@ -2,7 +2,12 @@ package a.a.easysend
 
 import android.app.Application
 import android.content.Context
+import android.content.Intent
 import android.net.wifi.WifiManager
+import android.os.Build
+import io.flutter.embedding.engine.FlutterEngine
+import io.flutter.embedding.engine.dart.DartExecutor
+import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 
 /**
@@ -24,19 +29,91 @@ import io.flutter.plugin.common.MethodChannel
 class EasySendApplication : Application() {
 
     private var multicastLock: WifiManager.MulticastLock? = null
-    private var serviceChannel: MethodChannel? = null
+    private lateinit var serviceChannel: MethodChannel
+    private var activity: MainActivity? = null
+    lateinit var flutterEngine: FlutterEngine
+        private set
 
     companion object {
         private const val SERVICE_PREFS = "easysend_service"
         private const val SERVICE_TIMED_OUT = "timed_out"
+        private const val CHANNEL = "easysend/service"
     }
 
-    fun attachServiceChannel(channel: MethodChannel) {
-        serviceChannel = channel
+    override fun onCreate() {
+        super.onCreate()
+        flutterEngine = FlutterEngine(this)
+        serviceChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
+        serviceChannel.setMethodCallHandler { call, result ->
+            try {
+                handle(call, result)
+            } catch (e: Exception) {
+                result.error("easysend", e.message, call.method)
+            }
+        }
+        flutterEngine.dartExecutor.executeDartEntrypoint(
+            DartExecutor.DartEntrypoint.createDefault(),
+        )
     }
 
-    fun detachServiceChannel(channel: MethodChannel) {
-        if (serviceChannel === channel) serviceChannel = null
+    fun attachActivity(value: MainActivity) {
+        activity = value
+    }
+
+    fun detachActivity(value: MainActivity) {
+        if (activity === value) activity = null
+    }
+
+    private fun handle(call: MethodCall, result: MethodChannel.Result) {
+        when (call.method) {
+            "start", "update" -> {
+                val intent = Intent(this, TransferService::class.java).apply {
+                    action = if (call.method == "start") {
+                        TransferService.ACTION_START
+                    } else {
+                        TransferService.ACTION_UPDATE
+                    }
+                    putExtra(TransferService.EXTRA_TITLE, call.argument<String>("title"))
+                    putExtra(TransferService.EXTRA_TEXT, call.argument<String>("text"))
+                    putExtra(TransferService.EXTRA_PROGRESS, call.argument<Int>("progress") ?: -1)
+                }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    startForegroundService(intent)
+                } else {
+                    startService(intent)
+                }
+                result.success(true)
+            }
+
+            "stop" -> {
+                startService(Intent(this, TransferService::class.java).apply {
+                    action = TransferService.ACTION_STOP
+                })
+                result.success(true)
+            }
+
+            "takeServiceTimeout" -> result.success(takeServiceTimeout())
+
+            "openFile" -> result.success(
+                activity?.openFile(call.argument<String>("path")) ?: false,
+            )
+
+            "openFolder" -> result.success(
+                activity?.openFolder(call.argument<String>("path")) ?: false,
+            )
+
+            "acquireMulticast" -> {
+                acquireMulticast()
+                result.success(true)
+            }
+
+            "releaseMulticast" -> {
+                releaseMulticast()
+                result.success(true)
+            }
+
+            else -> result.notImplemented()
+        }
     }
 
     fun reportServiceTimeout(fgsType: Int) {
@@ -44,7 +121,7 @@ class EasySendApplication : Application() {
             .edit()
             .putBoolean(SERVICE_TIMED_OUT, true)
             .apply()
-        serviceChannel?.invokeMethod(
+        serviceChannel.invokeMethod(
             "serviceTimeout",
             fgsType,
             object : MethodChannel.Result {
