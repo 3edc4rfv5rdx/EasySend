@@ -2,6 +2,7 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+- E: Dart now starts with the first Activity instead of from the Application, so `main()` no longer races the platform channels it awaits before `runApp` and the app cannot hang on its splash screen
 - E: Exiting with the ✕ button now clears the network state and stops the foreground service, so reopening the app rebinds the sockets instead of showing a working screen that receives nothing behind a "Ready to receive" notification
 - E: Android release version bumps now commit only after all three non-empty APKs are staged, published under final names, and listed; any earlier collection failure restores versions and build outputs without overwriting old artifacts
 - E: Transfer progress now follows monotonic manifest offsets on both peers, so retries cannot move the bar backwards or create negative speed and partial transfers finish at the same bounded total

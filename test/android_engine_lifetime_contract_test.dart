@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test(
-    'Android Application owns and starts exactly one Flutter engine',
+    'Android Application owns exactly one Flutter engine, started by the Activity',
     () async {
       final String application = await File(
         'android/app/src/main/kotlin/a/a/easysend/EasySendApplication.kt',
@@ -14,7 +14,12 @@ void main() {
       ).readAsString();
 
       expect(application, contains('flutterEngine = FlutterEngine(this)'));
-      expect(application, contains('executeDartEntrypoint'));
+      // Built by the Application, started by the first Activity. main() calls
+      // into the platform before runApp, and those calls answer only once an
+      // Activity is attached and the plugins are registered; starting the
+      // entrypoint here raced that and could hang the app on its splash screen.
+      // The delegate runs the entrypoint on first attach instead.
+      expect(application, isNot(contains('executeDartEntrypoint')));
       expect(application, contains('setMethodCallHandler'));
       expect(activity, contains('override fun provideFlutterEngine'));
       expect(activity, contains('.flutterEngine'));

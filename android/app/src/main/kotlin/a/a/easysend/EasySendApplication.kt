@@ -6,7 +6,6 @@ import android.content.Intent
 import android.net.wifi.WifiManager
 import android.os.Build
 import io.flutter.embedding.engine.FlutterEngine
-import io.flutter.embedding.engine.dart.DartExecutor
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 
@@ -40,6 +39,24 @@ class EasySendApplication : Application() {
         private const val CHANNEL = "easysend/service"
     }
 
+    /**
+     * The engine is built here so it outlives any Activity, but Dart is
+     * deliberately not started here.
+     *
+     * `main()` talks to the platform before `runApp` — `SystemChrome` and the
+     * notification plugin among others — and those calls only have an answering
+     * end once an Activity is attached and `GeneratedPluginRegistrant` has run.
+     * Starting the entrypoint from `onCreate` raced the first Activity into
+     * existence: usually Dart lost the race while loading settings and themes
+     * off disk and everything worked, but when it won, `await
+     * SystemChrome.setPreferredOrientations` never returned and the app sat on
+     * its splash screen for good.
+     *
+     * `FlutterActivityAndFragmentDelegate.doInitialFlutterViewRun` starts the
+     * entrypoint itself whenever the engine is not already executing Dart, so
+     * the first Activity does it in the right order. The engine still belongs
+     * to the process, and Dart keeps running after that Activity is destroyed.
+     */
     override fun onCreate() {
         super.onCreate()
         flutterEngine = FlutterEngine(this)
@@ -51,9 +68,6 @@ class EasySendApplication : Application() {
                 result.error("easysend", e.message, call.method)
             }
         }
-        flutterEngine.dartExecutor.executeDartEntrypoint(
-            DartExecutor.DartEntrypoint.createDefault(),
-        )
     }
 
     fun attachActivity(value: MainActivity) {
