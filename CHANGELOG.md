@@ -2,6 +2,7 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+- E: UDP discovery now bounds transient peers, rate-limits new identities per source and globally, batches UI updates, and ignores unknown message types while preserving manual and trusted devices
 - E: Discovery now reconciles IPv4 interfaces while running and immediately queries and announces after connectivity changes, without duplicating memberships or timers
 - E: Incoming file writes now apply disk backpressure per chunk, preventing slow storage from growing an unbounded memory queue while keeping cancellation serialized with the active write
 - E: Prepare request and response bodies have a total wall-clock deadline as well as an inactivity timeout, so drip-fed bytes cannot hold either transfer slot forever

@@ -21,6 +21,15 @@ Map<String, dynamic> buildDiscoveryPayload({
   'port': transferPort,
 };
 
+const int maxTransientDiscoveryDevices = 128;
+const int maxNewDiscoveryPeersPerWindow = 64;
+const int maxNewDiscoveryPeersPerSource = 16;
+const Duration discoveryAdmissionWindow = Duration(seconds: 5);
+const Duration discoveryUiUpdateInterval = Duration(milliseconds: 100);
+
+bool isSupportedDiscoveryMessage(dynamic message) =>
+    message is Map && (message['t'] == 'announce' || message['t'] == 'query');
+
 // UDP presence on the local subnet. Broadcast never crosses a router, so
 // devices behind one are added by hand instead (SPEC 5.2, 5.4).
 class DiscoveryService {
@@ -29,12 +38,22 @@ class DiscoveryService {
   final void Function(NetworkInterface interface)? _joinOverride;
   final void Function(NetworkInterface interface)? _leaveOverride;
   final void Function(String type)? _broadcastOverride;
+  final int maxTransientDevices;
+  final int maxNewPeersPerWindow;
+  final int maxNewPeersPerSource;
+  final Duration admissionWindow;
+  final Duration uiUpdateInterval;
+  final DateTime Function() _now;
   RawDatagramSocket? _socket;
   Timer? _announceTimer;
   int _port = 0;
   Map<String, NetworkInterface> _interfaces = const {};
   final Set<String> _joinedInterfaces = <String>{};
   bool _tickRunning = false;
+  Timer? _deviceUpdateTimer;
+  DateTime? _admissionWindowStarted;
+  int _newPeersInWindow = 0;
+  final Map<String, int> _newPeersBySource = <String, int>{};
   final InternetAddress _group = InternetAddress(discoveryMulticastGroup);
 
   DiscoveryService({
@@ -43,10 +62,17 @@ class DiscoveryService {
     void Function(NetworkInterface interface)? joinOverride,
     void Function(NetworkInterface interface)? leaveOverride,
     void Function(String type)? broadcastOverride,
+    this.maxTransientDevices = maxTransientDiscoveryDevices,
+    this.maxNewPeersPerWindow = maxNewDiscoveryPeersPerWindow,
+    this.maxNewPeersPerSource = maxNewDiscoveryPeersPerSource,
+    this.admissionWindow = discoveryAdmissionWindow,
+    this.uiUpdateInterval = discoveryUiUpdateInterval,
+    DateTime Function()? now,
   }) : _interfaceProvider = interfaceProvider ?? _activeIpv4Interfaces,
        _joinOverride = joinOverride,
        _leaveOverride = leaveOverride,
-       _broadcastOverride = broadcastOverride;
+       _broadcastOverride = broadcastOverride,
+       _now = now ?? DateTime.now;
 
   bool get running => _socket != null;
 
@@ -93,6 +119,13 @@ class DiscoveryService {
     _socket = null;
     _interfaces = const {};
     _joinedInterfaces.clear();
+    final Timer? pendingDeviceUpdate = _deviceUpdateTimer;
+    pendingDeviceUpdate?.cancel();
+    _deviceUpdateTimer = null;
+    if (pendingDeviceUpdate != null) devicesChanged();
+    _admissionWindowStarted = null;
+    _newPeersInWindow = 0;
+    _newPeersBySource.clear();
     await setDiscoveryMulticastEnabled(false);
   }
 
@@ -253,6 +286,7 @@ class DiscoveryService {
     if (packet.data.length > maxDiscoveryPacketBytes) return;
     try {
       final dynamic msg = json.decode(utf8.decode(packet.data));
+      if (!isSupportedDiscoveryMessage(msg)) return;
       // A stranger's word about itself, held to the same limits the transfer
       // protocol holds a sender to.
       final PeerInfo? peer = validatedPeerInfo(msg, fallbackPort: defaultPort);
@@ -289,6 +323,19 @@ class DiscoveryService {
   }) {
     final int index = xvDevices.indexWhere((d) => d.id == id);
     if (index < 0) {
+      if (maxTransientDevices <= 0) return;
+      final DateTime now = _now();
+      if (!_admitNewPeer(address, now)) return;
+      final List<Device> transient = xvDevices
+          .where((device) => !device.manual && !device.trusted)
+          .toList();
+      if (transient.length >= maxTransientDevices) {
+        transient.sort(
+          (a, b) => (a.lastSeen ?? DateTime.fromMillisecondsSinceEpoch(0))
+              .compareTo(b.lastSeen ?? DateTime.fromMillisecondsSinceEpoch(0)),
+        );
+        xvDevices.remove(transient.first);
+      }
       xvDevices.add(
         Device(
           id: id,
@@ -296,7 +343,7 @@ class DiscoveryService {
           platform: platform,
           address: address,
           port: port,
-          lastSeen: DateTime.now(),
+          lastSeen: now,
         ),
       );
     } else {
@@ -305,10 +352,50 @@ class DiscoveryService {
       device.platform = platform;
       device.address = address;
       device.port = port;
-      device.lastSeen = DateTime.now();
+      device.lastSeen = _now();
     }
-    devicesChanged();
+    _scheduleDevicesChanged();
   }
+
+  bool _admitNewPeer(String source, DateTime now) {
+    final DateTime? started = _admissionWindowStarted;
+    if (started == null || now.difference(started) >= admissionWindow) {
+      _admissionWindowStarted = now;
+      _newPeersInWindow = 0;
+      _newPeersBySource.clear();
+    }
+    final int fromSource = _newPeersBySource[source] ?? 0;
+    if (_newPeersInWindow >= maxNewPeersPerWindow ||
+        fromSource >= maxNewPeersPerSource) {
+      return false;
+    }
+    _newPeersInWindow++;
+    _newPeersBySource[source] = fromSource + 1;
+    return true;
+  }
+
+  void _scheduleDevicesChanged() {
+    if (_deviceUpdateTimer != null) return;
+    _deviceUpdateTimer = Timer(uiUpdateInterval, () {
+      _deviceUpdateTimer = null;
+      devicesChanged();
+    });
+  }
+
+  @visibleForTesting
+  void touchDeviceForTesting({
+    required String id,
+    required String address,
+    String name = '',
+    String platform = '',
+    int port = defaultPort,
+  }) => _touchDevice(
+    id: id,
+    name: name.isEmpty ? id : name,
+    platform: platform,
+    address: address,
+    port: port,
+  );
 
   // Devices worth remembering stay in the list while offline; the rest are
   // dropped a minute after going quiet.
