@@ -108,6 +108,12 @@ class EasySendApplication : Application() {
 
             "takeServiceTimeout" -> result.success(takeServiceTimeout())
 
+            // Answers whether the picker opened, not what was picked: the
+            // Activity showing it may be destroyed and re-created before the
+            // user has chosen, so the choice comes back later through
+            // deliverPickedFiles instead of as this call's result.
+            "pickFiles" -> result.success(activity?.pickFiles() ?: false)
+
             "openFile" -> result.success(
                 activity?.openFile(call.argument<String>("path")) ?: false,
             )
@@ -128,6 +134,17 @@ class EasySendApplication : Application() {
 
             else -> result.notImplemented()
         }
+    }
+
+    /**
+     * Hands the picked paths to Dart, empty list for a cancelled pick.
+     *
+     * Sent from here rather than from the Activity because the Activity that
+     * receives the result may be a different instance from the one that opened
+     * the picker, while this channel and its engine belong to the process.
+     */
+    fun deliverPickedFiles(paths: List<String>) {
+        serviceChannel.invokeMethod("filesPicked", paths)
     }
 
     fun reportServiceTimeout(fgsType: Int) {

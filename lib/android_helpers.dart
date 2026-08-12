@@ -57,6 +57,45 @@ void _onNotificationResponse(NotificationResponse response) {
 bool get appInForeground =>
     WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
 
+// The choice comes back as its own call rather than as the answer to the
+// request, because the Activity that opened the picker is often destroyed while
+// the user is still choosing — see MainActivity.pickFiles. Only the engine is
+// certain to still be here, so the waiting completer lives with it.
+Completer<List<String>>? _pickCompleter;
+
+/// Picked paths, empty when the user backed out, null when nothing opened.
+Future<List<String>?> pickFilesFromActivity() async {
+  if (!Platform.isAndroid) return null;
+  // A pick that is still waiting is answered as cancelled: whatever arrives
+  // from now on belongs to this newer request.
+  _completePick(const []);
+  final Completer<List<String>> completer = Completer<List<String>>();
+  _pickCompleter = completer;
+  try {
+    final bool opened =
+        await _serviceChannel.invokeMethod<bool>('pickFiles') ?? false;
+    if (!opened) {
+      _pickCompleter = null;
+      return null;
+    }
+  } on PlatformException catch (e) {
+    myPrint('opening the file picker failed: ${e.message}');
+    _pickCompleter = null;
+    return null;
+  } on MissingPluginException catch (e) {
+    myPrint('the file picker is unavailable: ${e.message}');
+    _pickCompleter = null;
+    return null;
+  }
+  return completer.future;
+}
+
+void _completePick(List<String> paths) {
+  final Completer<List<String>>? completer = _pickCompleter;
+  _pickCompleter = null;
+  if (completer != null && !completer.isCompleted) completer.complete(paths);
+}
+
 // With the app off screen there is no one to show a dialog to, so the question
 // goes out as a notification with two buttons (SPEC 7).
 Future<bool> askAcceptViaNotification({
@@ -266,12 +305,20 @@ class AndroidService {
   }
 
   Future<dynamic> _handleNativeCall(MethodCall call) async {
-    if (call.method != 'serviceTimeout') {
-      throw MissingPluginException(
-        'Unknown native service call: ${call.method}',
-      );
+    switch (call.method) {
+      case 'serviceTimeout':
+        await noteServiceTimeout();
+      case 'filesPicked':
+        _completePick(
+          (call.arguments as List<Object?>? ?? const <Object?>[])
+              .whereType<String>()
+              .toList(),
+        );
+      default:
+        throw MissingPluginException(
+          'Unknown native service call: ${call.method}',
+        );
     }
-    await noteServiceTimeout();
   }
 
   Future<void> noteServiceTimeout() async {

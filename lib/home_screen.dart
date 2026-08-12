@@ -387,14 +387,48 @@ class _HomeScreenState extends State<HomeScreen>
   bool get _canSend => _selected.isNotEmpty && _target != null && !sender.busy;
 
   Future<void> _pickFiles() async {
-    final FilePickerResult? result = await FilePicker.platform.pickFiles(
-      allowMultiple: true,
-    );
+    // Android goes through the Activity rather than through file_picker: the
+    // system destroys the Activity while the picker is open on both phones
+    // here, and the plugin drops the pending result with it. See
+    // MainActivity.pickFiles.
+    if (Platform.isAndroid) {
+      final List<String>? picked = await pickFilesFromActivity();
+      if (picked == null) {
+        okInfoBarRed(lw('Could not open the file manager'));
+        return;
+      }
+      // Empty is the user backing out, which needs no comment.
+      if (picked.isEmpty) return;
+      await _addPaths(picked);
+      return;
+    }
+
+    final FilePickerResult? result;
+    try {
+      result = await FilePicker.platform.pickFiles(allowMultiple: true);
+    } catch (e) {
+      // Whatever the picker throws, the user is owed a sentence: the file
+      // manager closing with nothing to show for it reads as the button being
+      // broken.
+      myPrint('picking files failed: $e');
+      okInfoBarRed(lw('Could not open the file manager'));
+      return;
+    }
+    // null is the user backing out, which needs no comment.
     if (result == null) return;
     final List<String> paths = result.files
         .map((f) => f.path)
         .whereType<String>()
         .toList();
+    // A picked file with no path of its own: the plugin could not put a copy
+    // where dart:io can reach it. Silently dropping it is what made picking
+    // look like it did nothing at all.
+    if (paths.isEmpty) {
+      if (result.files.isNotEmpty) {
+        okInfoBarRed(lw('The file manager returned no usable path'));
+      }
+      return;
+    }
     await _addPaths(paths);
   }
 
@@ -407,6 +441,14 @@ class _HomeScreenState extends State<HomeScreen>
   Future<void> _addPaths(List<String> paths) async {
     final List<FileItem> items = await collectFiles(paths);
     if (!mounted) return;
+    // collectFiles skips anything that is neither a file nor a directory by the
+    // time it looks — a path that never materialised, or one this process may
+    // not read. Coming back with nothing at all is not a selection the user can
+    // be left to guess about.
+    if (items.isEmpty && paths.isNotEmpty) {
+      okInfoBarRed(lw('The selection could not be read'));
+      return;
+    }
     final picked = sortPickedFiles(items, _selected);
 
     // The receiver refuses a manifest past these limits, and it refuses the

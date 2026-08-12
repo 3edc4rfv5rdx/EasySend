@@ -54,4 +54,30 @@ void main() {
     expect(home, contains('lifecycleState ?? AppLifecycleState.detached'));
     expect(home, contains("xdef['Receive in background'] == 'true'"));
   });
+
+  // Both phones here destroy the Activity while the document picker is on
+  // screen, and a plugin holding the pending result in Activity-scoped state
+  // loses it silently. The result must therefore be taken by the Activity and
+  // handed on through the process-owned channel, which survives that.
+  test('picking files survives the Activity that opened the picker', () async {
+    final String activity = await File(
+      'android/app/src/main/kotlin/a/a/easysend/MainActivity.kt',
+    ).readAsString();
+    final String application = await File(
+      'android/app/src/main/kotlin/a/a/easysend/EasySendApplication.kt',
+    ).readAsString();
+    final String helpers = await File('lib/android_helpers.dart').readAsString();
+    final String home = await File('lib/home_screen.dart').readAsString();
+
+    expect(activity, contains('override fun onActivityResult'));
+    // Other request codes still belong to the plugins, the folder picker among
+    // them, so the delegate has to be called as well.
+    expect(activity, contains('super.onActivityResult'));
+    expect(activity, contains('ACTION_OPEN_DOCUMENT'));
+    expect(activity, contains('deliverPickedFiles'));
+    expect(application, contains('serviceChannel.invokeMethod("filesPicked"'));
+    expect(helpers, contains("case 'filesPicked':"));
+    expect(helpers, contains('pickFilesFromActivity'));
+    expect(home, contains('pickFilesFromActivity'));
+  });
 }
