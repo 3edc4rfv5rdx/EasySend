@@ -209,9 +209,13 @@ class TransferSession {
   final List<(DateTime, int)> _samples = [];
 
   void noteProgress(int totalBytesDone) {
-    bytesDone = totalBytesDone;
+    // Retries revisit an interval of the manifest; they never rewind completed
+    // queue work. Clamp late or invalid samples at both ends so the bar, speed
+    // and ETA share one monotonic invariant on sender and receiver.
+    final int bounded = totalBytesDone.clamp(bytesDone, bytesTotal);
+    bytesDone = bounded;
     final DateTime now = DateTime.now();
-    _samples.add((now, totalBytesDone));
+    _samples.add((now, bounded));
     final DateTime cutoff = now.subtract(
       const Duration(seconds: speedWindowSec),
     );
@@ -228,7 +232,7 @@ class TransferSession {
         .inMicroseconds;
     if (micros <= 0) return 0;
     final int bytes = _samples.last.$2 - _samples.first.$2;
-    return bytes * 1000000 / micros;
+    return bytes <= 0 ? 0 : bytes * 1000000 / micros;
   }
 
   // Seconds left, or null while there is not enough data to guess.
@@ -254,7 +258,12 @@ class TransferSession {
   // files would jump a third of the bar for the picture alone.
   double get progress {
     final int total = bytesTotal;
-    return total == 0 ? 0 : (bytesDone / total).clamp(0.0, 1.0);
+    if (total == 0) {
+      return status == TransferStatus.done || status == TransferStatus.partial
+          ? 1
+          : 0;
+    }
+    return bytesDone / total;
   }
 
   bool get isRunning =>

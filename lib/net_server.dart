@@ -74,8 +74,8 @@ class _Incoming {
   final Map<String, FileItem> byId;
   final Map<String, String> finalPaths; // fileId -> destination path
   final Map<String, String> incompletePaths; // fileId -> owned temporary path
+  final Map<String, int> progressOffsets; // fileId -> prior manifest bytes
   final Map<String, int> crc = {}; // fileId -> checksum computed here
-  int settledBytes = 0; // bytes of files already finished
   bool cancelled = false; // set when the user stops the receive
   _ReceivePhase phase = _ReceivePhase.ready;
   String? activeFileId;
@@ -91,6 +91,7 @@ class _Incoming {
     required this.byId,
     required this.finalPaths,
     required this.incompletePaths,
+    required this.progressOffsets,
   });
 }
 
@@ -389,6 +390,7 @@ class ReceiveServer {
           for (int i = 0; i < files.length; i++)
             files[i].id: incompleteFilePath(recvDir, transfer.id, i),
         },
+        progressOffsets: _manifestProgressOffsets(files),
       );
       _touch(_current!);
       return _json(req, {'sessionId': transfer.id});
@@ -598,7 +600,9 @@ class ReceiveServer {
             // a stalled upload is already caught by the stream's own idle
             // timeout, and this deadline only has to outlive that.
             _touch(session);
-            session.transfer.noteProgress(session.settledBytes + written);
+            session.transfer.noteProgress(
+              session.progressOffsets[fileId]! + written,
+            );
             transfersChanged();
           }
         }
@@ -627,7 +631,7 @@ class ReceiveServer {
       session.crc[fileId] = crc;
       _touch(session);
       session.phase = _ReceivePhase.awaitingVerification;
-      session.transfer.noteProgress(session.settledBytes + written);
+      session.transfer.noteProgress(session.progressOffsets[fileId]! + written);
       transfersChanged();
       return _json(req, {'ok': true});
     } on TimeoutException {
@@ -743,8 +747,9 @@ class ReceiveServer {
       item.done = true;
       item.failed = false;
       session.transfer.log('Received', file: item.relativePath);
-      session.settledBytes += item.size;
-      session.transfer.noteProgress(session.settledBytes);
+      session.transfer.noteProgress(
+        session.progressOffsets[fileId]! + item.size,
+      );
       _touch(session);
       session.phase = _ReceivePhase.ready;
       transfersChanged();
@@ -778,6 +783,7 @@ class ReceiveServer {
     transfer.status = transfer.failedCount == 0
         ? TransferStatus.done
         : TransferStatus.partial;
+    transfer.noteProgress(transfer.bytesTotal);
     await notifyTransferFinished(
       transfer.failedCount == 0
           ? '${lw('Received')}: ${transfer.doneCount} — ${formatBytes(transfer.bytesTotal)}'
@@ -885,6 +891,16 @@ class ReceiveServer {
       throw const _ProtocolProblem(HttpStatus.badRequest, 'sender-port');
     }
     return value;
+  }
+
+  Map<String, int> _manifestProgressOffsets(List<FileItem> files) {
+    int offset = 0;
+    final Map<String, int> result = {};
+    for (final FileItem file in files) {
+      result[file.id] = offset;
+      offset += file.size;
+    }
+    return result;
   }
 
   Future<String> _readRequestText(HttpRequest request, int limit) async {

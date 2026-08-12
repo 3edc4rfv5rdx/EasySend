@@ -307,4 +307,58 @@ void main() {
     expect(await upload(), HttpStatus.internalServerError);
     expect(writers, 2);
   });
+
+  test('receiver progress uses manifest offsets after a failed file', () async {
+    final Reply prepared = await post(
+      'prepare',
+      body: {
+        'senderId': 'trusted-sender',
+        'senderName': 'Sender',
+        'files': [
+          {'id': 'first', 'path': 'first.bin', 'size': 3},
+          {'id': 'second', 'path': 'second.bin', 'size': 2},
+        ],
+      },
+    );
+    final String session = prepared.body['sessionId'] as String;
+
+    Future<int> upload(String id, List<int> bytes) async {
+      final HttpClientRequest request = await client.postUrl(
+        url('upload', {'session': session, 'file': id}),
+      );
+      request.contentLength = bytes.length;
+      request.add(bytes);
+      final HttpClientResponse response = await request.close();
+      await response.drain<void>();
+      return response.statusCode;
+    }
+
+    expect(await upload('first', [1, 2, 3]), HttpStatus.ok);
+    expect(xvTransfers.single.bytesDone, 3);
+    expect(
+      (await post(
+        'verify',
+        query: {'session': session, 'file': 'first', 'crc': 'bad'},
+      )).status,
+      HttpStatus.conflict,
+    );
+    expect(xvTransfers.single.bytesDone, 3);
+
+    expect(await upload('second', [4, 5]), HttpStatus.ok);
+    expect(xvTransfers.single.bytesDone, 5);
+    expect(
+      (await post(
+        'verify',
+        query: {
+          'session': session,
+          'file': 'second',
+          'crc': getCrc32([4, 5]).toRadixString(16),
+        },
+      )).status,
+      HttpStatus.ok,
+    );
+    expect((await post('finish', query: {'session': session})).status, 200);
+    expect(xvTransfers.single.status, TransferStatus.partial);
+    expect(xvTransfers.single.bytesDone, xvTransfers.single.bytesTotal);
+  });
 }

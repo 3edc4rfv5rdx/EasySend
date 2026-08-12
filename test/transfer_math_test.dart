@@ -39,4 +39,40 @@ void main() {
     transfer.noteProgress(1000);
     expect(transfer.progress, 1);
   });
+
+  test(
+    'retry samples cannot move progress backwards or make speed negative',
+    () async {
+      final TransferSession transfer = TransferSession(
+        id: 'retry',
+        incoming: false,
+        peerName: 'Peer',
+        files: [FileItem(id: 'one', relativePath: 'one', size: 100)],
+      );
+
+      transfer.noteProgress(80);
+      await Future<void>.delayed(const Duration(milliseconds: 2));
+      transfer.noteProgress(20);
+      expect(transfer.bytesDone, 80);
+      expect(transfer.progress, 0.8);
+      expect(transfer.speed, greaterThanOrEqualTo(0));
+
+      transfer.noteProgress(1000);
+      expect(transfer.bytesDone, 100);
+      expect(transfer.progress, 1);
+      expect(transfer.etaSeconds, 0);
+    },
+  );
+
+  test('a terminal zero-byte transfer has complete progress', () {
+    final TransferSession transfer = TransferSession(
+      id: 'empty',
+      incoming: true,
+      peerName: 'Peer',
+      files: [FileItem(id: 'empty', relativePath: 'empty', size: 0)],
+    );
+    expect(transfer.progress, 0);
+    transfer.status = TransferStatus.partial;
+    expect(transfer.progress, 1);
+  });
 }

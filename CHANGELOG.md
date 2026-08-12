@@ -2,6 +2,7 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+- E: Transfer progress now follows monotonic manifest offsets on both peers, so retries cannot move the bar backwards or create negative speed and partial transfers finish at the same bounded total
 - E: Receiver discovery now starts only after both the HTTP port and receive folder are usable; failures stop advertising, show an actionable banner, and leave manual peers and outgoing sends available
 - E: Senders now validate bounded finish responses, report rejected or broken finalization truthfully, and make remote cleanup best-effort instead of declaring the transfer done
 - E: Device names now use one 256-byte UTF-8/control-character validator in settings, persistence, discovery, and prepare; invalid edits stay open with a specific error and are not saved
