@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:archive/archive.dart';
 import 'package:crypto/crypto.dart';
+import 'package:path/path.dart' as p;
 import 'package:uuid/uuid.dart';
 
 import 'control_body.dart';
@@ -87,6 +88,7 @@ class SendService {
     required Device peer,
     required List<FileItem> files,
     bool move = false,
+    bool moveFolders = false,
   }) async {
     if (_inFlight) return TransferStatus.failed;
     _inFlight = true;
@@ -130,9 +132,13 @@ class SendService {
           ? TransferStatus.done
           : TransferStatus.partial;
       if (move) {
-        for (final FileItem item in transfer.files.where((item) => item.done)) {
+        final List<FileItem> delivered = transfer.files
+            .where((item) => item.done)
+            .toList();
+        for (final FileItem item in delivered) {
           await _deleteSource(transfer, item);
         }
+        if (moveFolders) await _deleteEmptySourceDirs(transfer, delivered);
       }
     } on SocketException catch (e) {
       if (!_cancelled) {
@@ -314,8 +320,34 @@ class SendService {
     }
   }
 
-  // Empty folders are left standing: the user asked for the files to move, and
-  // removing what held them is a second decision nobody made here.
+  // Folders the move emptied, when the user asked for those too. Deepest first,
+  // and each one is checked for being empty at the moment it is reached: a file
+  // that failed to send, or one that was never part of this batch, keeps the
+  // folder holding it and everything above it.
+  Future<void> _deleteEmptySourceDirs(
+    TransferSession transfer,
+    List<FileItem> delivered,
+  ) async {
+    for (final String path in prunableSourceDirs(delivered)) {
+      final Directory dir = Directory(path);
+      try {
+        if (!await dir.exists()) continue;
+        if (!await dir.list(followLinks: false).isEmpty) continue;
+        await dir.delete();
+        transfer.log('Deleted here', file: p.basename(path));
+      } catch (e) {
+        transfer.log(
+          'Could not delete it here',
+          file: p.basename(path),
+          detail: '$e',
+          failure: true,
+        );
+      }
+    }
+  }
+
+  // Empty folders are left standing unless the move was asked to take them:
+  // removing what held the files is a second decision, and it is made in the UI.
   Future<void> _deleteSource(TransferSession transfer, FileItem item) async {
     final String? source = item.sourcePath;
     if (source == null) return;

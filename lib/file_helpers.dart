@@ -140,6 +140,36 @@ const Set<String> _reservedNames = {
   'lpt9',
 };
 
+// Directories a finished move is allowed to take with it, deepest first: the
+// folders inside a picked folder, and the picked folder itself.
+//
+// A file picked on its own contributes nothing. Its relative path is a bare
+// name, so the directory holding it is the user's, not part of what was sent,
+// and emptying it is no reason to remove it. Depth comes from the relative path
+// rather than from the source, which is what keeps the walk from ever stepping
+// above the folder the user actually chose.
+//
+// Being a candidate is not being deleted: the caller removes only the ones that
+// are empty by the time it looks.
+List<String> prunableSourceDirs(Iterable<FileItem> items) {
+  final Set<String> dirs = <String>{};
+  for (final FileItem item in items) {
+    final String? source = item.sourcePath;
+    if (source == null) continue;
+    // Relative paths are built with '/' on every platform (see collectFiles),
+    // so they are split by that rather than by the platform separator.
+    final int depth = item.relativePath.split('/').length - 1;
+    String dir = p.dirname(source);
+    for (int i = 0; i < depth; i++) {
+      dirs.add(dir);
+      dir = p.dirname(dir);
+    }
+  }
+  // A folder can only be empty once the folders under it are gone.
+  return dirs.toList()
+    ..sort((a, b) => p.split(b).length.compareTo(p.split(a).length));
+}
+
 // Build the transfer manifest out of picked files and folders. A folder keeps
 // its own name as the top level, so the structure arrives intact.
 Future<List<FileItem>> collectFiles(List<String> paths) async {

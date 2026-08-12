@@ -85,6 +85,85 @@ void main() {
     );
   }
 
+  // A file picked as part of a folder: its relative path carries the structure,
+  // which is what tells a move how far up it may clean.
+  Future<FileItem> pickInFolder(String relative) async {
+    final File file = File('${sandbox.path}/$relative');
+    await file.parent.create(recursive: true);
+    await file.writeAsString(relative);
+    return FileItem(
+      id: relative,
+      relativePath: relative,
+      size: relative.length,
+      sourcePath: file.path,
+    );
+  }
+
+  test('the folders tick takes the folders the move emptied', () async {
+    final FileItem item = await pickInFolder('box/inner/moved.txt');
+    expect(
+      await SendService().send(
+        peer: peer,
+        files: [item],
+        move: true,
+        moveFolders: true,
+      ),
+      TransferStatus.done,
+    );
+
+    expect(await File(item.sourcePath!).exists(), isFalse);
+    expect(await Directory('${sandbox.path}/box/inner').exists(), isFalse);
+    expect(await Directory('${sandbox.path}/box').exists(), isFalse);
+    // Never above the folder that was picked.
+    expect(await sandbox.exists(), isTrue);
+  });
+
+  test('without the folders tick the emptied folder stays', () async {
+    final FileItem item = await pickInFolder('box/moved.txt');
+    expect(
+      await SendService().send(peer: peer, files: [item], move: true),
+      TransferStatus.done,
+    );
+
+    expect(await File(item.sourcePath!).exists(), isFalse);
+    expect(await Directory('${sandbox.path}/box').exists(), isTrue);
+  });
+
+  test('a folder still holding something is left standing', () async {
+    final FileItem item = await pickInFolder('box/moved.txt');
+    final File bystander = File('${sandbox.path}/box/stays.txt');
+    await bystander.writeAsString('stays');
+
+    expect(
+      await SendService().send(
+        peer: peer,
+        files: [item],
+        move: true,
+        moveFolders: true,
+      ),
+      TransferStatus.done,
+    );
+
+    expect(await Directory('${sandbox.path}/box').exists(), isTrue);
+    expect(await bystander.exists(), isTrue);
+  });
+
+  test('a file picked on its own never takes the folder it sat in', () async {
+    final FileItem item = await pick('alone.txt');
+    expect(
+      await SendService().send(
+        peer: peer,
+        files: [item],
+        move: true,
+        moveFolders: true,
+      ),
+      TransferStatus.done,
+    );
+
+    expect(await File(item.sourcePath!).exists(), isFalse);
+    expect(await sandbox.exists(), isTrue);
+  });
+
   test('without the tick nothing is deleted', () async {
     final FileItem item = await pick('kept.txt');
     expect(

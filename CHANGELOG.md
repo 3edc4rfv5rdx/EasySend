@@ -2,6 +2,7 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+- N: An "Including folders" tick under "Delete originals" lets a move remove the folders it emptied, up to and including the picked folder but never above it; folders still holding anything are left alone
 - I: Release artifacts are named `<title>-<version>-<build>-<arch>` throughout — APKs now match the AppImage, the fat APK is `-universal`, checksum files follow their APK, and artifacts under the previous naming are cleared on the next build
 - I: The hardware notes record the two-phone discovery run that confirms the multicast lock on one path, and the picker defect found on the other
 - I: 00-MakeAll.sh links the newest AppImage and arm64 APK into OUT/ under fixed names and clears links left from earlier namings or removed builds

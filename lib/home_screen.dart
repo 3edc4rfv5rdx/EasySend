@@ -126,6 +126,9 @@ class _HomeScreenState extends State<HomeScreen>
   // Delete each source once the other side has it. Never persisted and never
   // carried over: see _buildMoveTick.
   bool _move = false;
+  // Only meaningful while _move is on: whether the move also takes the folders
+  // it emptied.
+  bool _moveFolders = false;
   // Immutable source/relative-path pairs preserve folder structure while
   // current size/date are re-read when the batch is restored.
   List<FileSnapshot> _lastSent = [];
@@ -653,10 +656,14 @@ class _HomeScreenState extends State<HomeScreen>
       peer: target,
       files: batch,
       move: _move,
+      moveFolders: _move && _moveFolders,
     );
     if (!mounted) return;
-    // Whatever came of it, the tick does not carry into the next transfer.
-    setState(() => _move = false);
+    // Whatever came of it, the ticks do not carry into the next transfer.
+    setState(() {
+      _move = false;
+      _moveFolders = false;
+    });
     // Everything arrived: drop the target too, so the next send starts clean.
     // After a partial or failed one it stays selected, together with the files
     // still in the list, ready for another attempt.
@@ -1303,26 +1310,71 @@ class _HomeScreenState extends State<HomeScreen>
   // about one batch, so it is cleared once the transfer is over: the next send
   // has to ask for it again instead of quietly deleting a second set of files.
   Widget _buildMoveTick() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _moveTickRow(
+          value: _move,
+          label: lw('Delete originals'),
+          onChanged: (bool v) => setState(() {
+            _move = v;
+            // The folders tick means nothing on its own, so it goes down with
+            // the mode it qualifies rather than waiting, ticked, for a move
+            // nobody asked for yet.
+            if (!v) _moveFolders = false;
+          }),
+        ),
+        // Only ever a qualifier on the tick above: with originals kept there is
+        // nothing to empty, so it is shown greyed rather than hidden, and the
+        // pair reads as one decision with two levels.
+        _moveTickRow(
+          value: _moveFolders,
+          label: lw('Including folders'),
+          enabled: _move,
+          onChanged: (bool v) => setState(() => _moveFolders = v),
+        ),
+      ],
+    );
+  }
+
+  Widget _moveTickRow({
+    required bool value,
+    required String label,
+    required void Function(bool) onChanged,
+    bool enabled = true,
+  }) {
     return InkWell(
-      onTap: () => setState(() => _move = !_move),
+      onTap: enabled ? () => onChanged(!value) : null,
       borderRadius: BorderRadius.circular(btnRadius),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Checkbox(
-            value: _move,
+            value: value,
             activeColor: clAccent,
             checkColor: onColor(clAccent),
             visualDensity: VisualDensity.compact,
             materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            onChanged: (bool? v) => setState(() => _move = v ?? false),
+            onChanged: enabled ? (bool? v) => onChanged(v ?? false) : null,
           ),
           const SizedBox(width: 4),
           // Wrapped rather than laid out in one line: at body size the label
           // would take a fifth of the width away from the button beside it.
+          // Wide enough that the shorter, qualifying label stays on one line
+          // even when the system scales text up a step — broken after its first
+          // word it read as two separate options rather than one.
           SizedBox(
-            width: 84,
-            child: Text(lw('Delete originals'), style: tsNormal, maxLines: 2),
+            width: 100,
+            child: Text(
+              label,
+              // Dimmed from the theme's own text colour rather than a fixed
+              // grey, so it stays legible in the dark palettes too.
+              style: enabled
+                  ? tsNormal
+                  : tsNormal.copyWith(color: clText.withValues(alpha: 0.45)),
+              maxLines: 2,
+            ),
           ),
           const SizedBox(width: 4),
         ],
