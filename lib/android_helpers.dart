@@ -64,7 +64,16 @@ Future<bool> askAcceptViaNotification({
   required int fileCount,
   required int totalBytes,
   Future<void>? cancelled,
+  Future<bool> Function()? permissionCheck,
+  Future<void> Function()? showNotification,
 }) async {
+  final bool permitted =
+      await (permissionCheck?.call() ?? notificationPermissionGranted());
+  if (!permitted) {
+    myPrint('notification consent refused: permission is not granted');
+    return false;
+  }
+
   final Completer<bool> completer = Completer<bool>();
   _askCompleter = completer;
   // The receiver withdrawing the question counts as no, and takes the buttons
@@ -73,36 +82,47 @@ Future<bool> askAcceptViaNotification({
     if (!completer.isCompleted) completer.complete(false);
   });
 
-  await _notifications.show(
-    _askNotificationId,
-    lw('Incoming files'),
-    '$senderName — $fileCount, ${formatBytes(totalBytes)}',
-    NotificationDetails(
-      android: AndroidNotificationDetails(
-        _askChannelId,
-        'Incoming requests',
-        channelDescription: 'Asks whether to accept incoming files',
-        importance: Importance.high,
-        priority: Priority.high,
-        ongoing: true,
-        actions: <AndroidNotificationAction>[
-          // The pending receive session and its completer live on the main
-          // isolate. Opening the UI makes the plugin deliver both actions to
-          // onDidReceiveNotificationResponse instead of a background engine.
-          AndroidNotificationAction(
-            _declineAction,
-            lw('Decline'),
-            showsUserInterface: true,
+  try {
+    if (showNotification != null) {
+      await showNotification();
+    } else {
+      await _notifications.show(
+        _askNotificationId,
+        lw('Incoming files'),
+        '$senderName — $fileCount, ${formatBytes(totalBytes)}',
+        NotificationDetails(
+          android: AndroidNotificationDetails(
+            _askChannelId,
+            'Incoming requests',
+            channelDescription: 'Asks whether to accept incoming files',
+            importance: Importance.high,
+            priority: Priority.high,
+            ongoing: true,
+            actions: <AndroidNotificationAction>[
+              // The pending receive session and its completer live on the main
+              // isolate. Opening the UI makes the plugin deliver both actions
+              // to onDidReceiveNotificationResponse instead of a background
+              // engine.
+              AndroidNotificationAction(
+                _declineAction,
+                lw('Decline'),
+                showsUserInterface: true,
+              ),
+              AndroidNotificationAction(
+                _acceptAction,
+                lw('Accept'),
+                showsUserInterface: true,
+              ),
+            ],
           ),
-          AndroidNotificationAction(
-            _acceptAction,
-            lw('Accept'),
-            showsUserInterface: true,
-          ),
-        ],
-      ),
-    ),
-  );
+        ),
+      );
+    }
+  } catch (e) {
+    _askCompleter = null;
+    myPrint('notification consent failed: $e');
+    return false;
+  }
 
   // Same deadline as the dialog: an unanswered request must not hold the sender.
   final bool accepted = await completer.future.timeout(
@@ -110,7 +130,11 @@ Future<bool> askAcceptViaNotification({
     onTimeout: () => false,
   );
   _askCompleter = null;
-  await _notifications.cancel(_askNotificationId);
+  try {
+    await _notifications.cancel(_askNotificationId);
+  } catch (e) {
+    myPrint('notification consent cleanup failed: $e');
+  }
   return accepted;
 }
 
@@ -147,10 +171,35 @@ Future<bool> ensureStoragePermission() async {
   return status.isGranted;
 }
 
-Future<void> ensureNotificationPermission() async {
-  if (!Platform.isAndroid) return;
-  if (await Permission.notification.isGranted) return;
-  await Permission.notification.request();
+Future<bool> notificationPermissionGranted({
+  bool? android,
+  Future<PermissionStatus> Function()? status,
+}) async {
+  if (!(android ?? Platform.isAndroid)) return true;
+  try {
+    return (await (status?.call() ?? Permission.notification.status)).isGranted;
+  } catch (e) {
+    myPrint('notification permission check failed: $e');
+    return false;
+  }
+}
+
+Future<bool> ensureNotificationPermission({
+  bool? android,
+  Future<PermissionStatus> Function()? status,
+  Future<PermissionStatus> Function()? request,
+}) async {
+  if (!(android ?? Platform.isAndroid)) return true;
+  if (await notificationPermissionGranted(android: true, status: status)) {
+    return true;
+  }
+  try {
+    return (await (request?.call() ?? Permission.notification.request()))
+        .isGranted;
+  } catch (e) {
+    myPrint('notification permission request failed: $e');
+    return false;
+  }
 }
 
 Future<void> setDiscoveryMulticastEnabled(bool enabled) async {
@@ -282,6 +331,10 @@ class AndroidService {
 
     // No transfer: keep listening only if the user asked for it.
     if (xdef['Receive in background'] == 'true') {
+      if (!await notificationPermissionGranted()) {
+        await _stop();
+        return;
+      }
       final bool leavingTransfer = _transferMode;
       await _push(
         title: 'EasySend',

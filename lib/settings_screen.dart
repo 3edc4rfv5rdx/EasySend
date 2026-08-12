@@ -283,6 +283,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 style: tsSmall,
               ),
               onChanged: (v) async {
+                if (v && !await ensureNotificationPermission()) {
+                  okInfoBarRed(
+                    lw(
+                      'Notification permission is required for background receiving',
+                    ),
+                  );
+                  return;
+                }
                 await _apply(() => xdef['Receive in background'] = '$v');
                 await androidService.sync();
                 // Doze still cuts connections on a long idle unless the app is

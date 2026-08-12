@@ -309,8 +309,24 @@ class _HomeScreenState extends State<HomeScreen>
     // without storage access the receive folder cannot be written at all.
     await ensureStoragePermission();
     if (!_stillWantsNetwork(epoch)) return;
-    await ensureNotificationPermission();
-    if (!_stillWantsNetwork(epoch)) return;
+    if (Platform.isAndroid && xdef['Receive in background'] == 'true') {
+      if (!await ensureNotificationPermission()) {
+        xdef['Receive in background'] = 'false';
+        await saveSettings();
+        rebuildApp();
+        await androidService.sync();
+        okInfoBarRed(
+          lw('Notification permission is required for background receiving'),
+        );
+        final AppLifecycleState state =
+            WidgetsBinding.instance.lifecycleState ??
+            AppLifecycleState.detached;
+        final bool desired =
+            networkDesiredFor(state, receiveInBackground: false) ?? false;
+        if (desired != _networkDesired) _setNetworkDesired(desired);
+        if (!_stillWantsNetwork(epoch)) return;
+      }
+    }
     await ensureRecvDir();
     if (!_stillWantsNetwork(epoch)) return;
     // Here rather than at main(), because on Android the folder cannot even be
