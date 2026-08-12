@@ -2,6 +2,7 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+- E: Exiting with the ✕ button now clears the network state and stops the foreground service, so reopening the app rebinds the sockets instead of showing a working screen that receives nothing behind a "Ready to receive" notification
 - E: Android release version bumps now commit only after all three non-empty APKs are staged, published under final names, and listed; any earlier collection failure restores versions and build outputs without overwriting old artifacts
 - E: Transfer progress now follows monotonic manifest offsets on both peers, so retries cannot move the bar backwards or create negative speed and partial transfers finish at the same bounded total
 - E: Receiver discovery now starts only after both the HTTP port and receive folder are usable; failures stop advertising, show an actionable banner, and leave manual peers and outgoing sends available

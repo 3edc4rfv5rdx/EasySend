@@ -291,6 +291,12 @@ class AndroidService {
 
   Future<void> sync() => _syncQueue.add(_syncNow);
 
+  // Leaving the app has to take the service with it. The engine outlives the
+  // Activity now, so `SystemNavigator.pop()` ends the screen and nothing else
+  // ever stops the service: its "Ready to receive" notification would go on
+  // promising a receiver whose sockets the exit has already closed.
+  Future<void> stopService() => _syncQueue.add(_stop);
+
   Future<void> _syncNow() async {
     if (!android) return;
 

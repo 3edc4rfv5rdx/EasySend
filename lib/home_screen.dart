@@ -497,9 +497,20 @@ class _HomeScreenState extends State<HomeScreen>
       if (!yes) return;
     }
 
+    // Tell the network state machine rather than going around it. On Android
+    // the engine belongs to EasySendApplication and outlives this Activity, so
+    // everything here survives the exit — and _setNetworkDesired returns early
+    // when the flag already holds the value asked for. Leaving it at true while
+    // the sockets are closed means reopening the app can never rebind them, and
+    // only killing the process recovers.
+    _networkDesired = false;
+    _networkEpoch++;
     await receiveServer.stop();
     await discovery.stop();
     manualPoller.stop();
+    // The foreground service outlives the Activity for the same reason, and its
+    // notification claims a receiver that just stopped listening.
+    if (Platform.isAndroid) await androidService.stopService();
     // A move or resize in the last 400 ms is still sitting in the debounce, and
     // exit(0) below would take it with it: the window would come back where it
     // was two positions ago, which reads as the feature not working.
