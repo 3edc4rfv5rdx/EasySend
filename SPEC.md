@@ -292,7 +292,9 @@ id = uuid_v5(EASYSEND_NAMESPACE, ANDROID_ID)
 повторить.
 
 **`POST /api/v1/finish?session=<id>`** — закрытие сессии: приёмник снимает
-foreground service и показывает итоговое уведомление.
+foreground service и показывает итоговое уведомление. Только успешный bounded
+ответ позволяет отправителю показать `done`; отказ, timeout, разрыв или слишком
+большое тело дают terminal error и best-effort `cancel`.
 
 **`POST /api/v1/cancel?session=<id>`** — отмена всей сессии любой из сторон.
 

@@ -22,6 +22,8 @@ class _Cancelled implements Exception {
 // manifest describes is not.
 enum _FileResult { sent, retry, hopeless }
 
+typedef _ProtocolResponse = ({int status, String body});
+
 class _SourceFingerprint {
   final int size;
   final DateTime modified;
@@ -123,8 +125,8 @@ class SendService {
       await _sendOneByOne(peer, transfer, fingerprintSources: move);
       if (_cancelled) return transfer.status;
 
-      await _post(_url(peer, 'finish', {'session': sessionId}));
-      transfer.status = transfer.failedCount == 0
+      final bool finished = await _finishRemote(peer, transfer, sessionId);
+      transfer.status = finished && transfer.failedCount == 0
           ? TransferStatus.done
           : TransferStatus.partial;
       if (move) {
@@ -172,6 +174,38 @@ class SendService {
       return '${lw('Connection timed out')}$detail';
     }
     return '$error';
+  }
+
+  Future<bool> _finishRemote(
+    Device peer,
+    TransferSession transfer,
+    String sessionId,
+  ) async {
+    try {
+      final _ProtocolResponse response = await _post(
+        _url(peer, 'finish', {'session': sessionId}),
+      );
+      if (response.status == HttpStatus.ok) return true;
+      final String detail = response.body.isEmpty
+          ? 'HTTP ${response.status}'
+          : 'HTTP ${response.status}: ${response.body}';
+      transfer.error = 'HTTP ${response.status}';
+      transfer.log(
+        'The receiver did not finish the transfer',
+        detail: detail,
+        failure: true,
+      );
+    } catch (error) {
+      final String detail = _describeError(error);
+      transfer.error = detail;
+      transfer.log(
+        'The receiver did not finish the transfer',
+        detail: detail,
+        failure: true,
+      );
+    }
+    await _cancelRemoteBestEffort(peer);
+    return false;
   }
 
   // Ask permission first: nothing is streamed until the peer said yes.
@@ -404,7 +438,7 @@ class SendService {
         return _FileResult.retry;
       }
 
-      final HttpClientResponse verify = await _post(
+      final _ProtocolResponse verify = await _post(
         _url(peer, 'verify', {
           'session': _sessionId!,
           'file': item.id,
@@ -412,7 +446,7 @@ class SendService {
         }),
       );
       item.crc32 = crc;
-      if (verify.statusCode == HttpStatus.ok) {
+      if (verify.status == HttpStatus.ok) {
         final Digest? digest = sourceDigest;
         if (fingerprintSource && digest != null) {
           _sentSources[item.id] = _SourceFingerprint(stat, digest);
@@ -443,14 +477,18 @@ class SendService {
     }
   }
 
-  Future<HttpClientResponse> _post(Uri uri) async {
+  Future<_ProtocolResponse> _post(Uri uri) async {
     final HttpClientRequest req = await _client!
         .postUrl(uri)
         .timeout(connectTimeout);
     req.contentLength = 0;
     final HttpClientResponse resp = await req.close().timeout(headerTimeout);
-    await _drainWithTimeout(resp);
-    return resp;
+    final String body = await _readSmallBody(
+      resp,
+      inactivityTimeout: headerTimeout,
+      totalTimeout: controlBodyTimeout,
+    );
+    return (status: resp.statusCode, body: body);
   }
 
   Future<void> _drainWithTimeout(HttpClientResponse response) async {
@@ -488,7 +526,17 @@ class SendService {
       final HttpClientResponse response = await req.close().timeout(
         headerTimeout,
       );
-      await response.drain<void>().timeout(headerTimeout);
+      await readBoundedControlBytes(
+        response,
+        limit: maxInfoBodyBytes,
+        inactivityTimeout: headerTimeout,
+        totalTimeout: controlBodyTimeout,
+        tooLarge: () => const FormatException('response body too large'),
+        inactivityExpired: () =>
+            TimeoutException('control body stopped', headerTimeout),
+        totalExpired: () =>
+            TimeoutException('control body deadline', controlBodyTimeout),
+      );
     } catch (e) {
       _current?.log('The receiver was not told', detail: '$e', failure: true);
     } finally {

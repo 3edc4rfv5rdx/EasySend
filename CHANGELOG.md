@@ -2,6 +2,7 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+- E: Senders now validate bounded finish responses, report rejected or broken finalization truthfully, and make remote cleanup best-effort instead of declaring the transfer done
 - E: Device names now use one 256-byte UTF-8/control-character validator in settings, persistence, discovery, and prepare; invalid edits stay open with a specific error and are not saved
 - E: UDP discovery now bounds transient peers, rate-limits new identities per source and globally, batches UI updates, and ignores unknown message types while preserving manual and trusted devices
 - E: Discovery now reconciles IPv4 interfaces while running and immediately queries and announces after connectivity changes, without duplicating memberships or timers
