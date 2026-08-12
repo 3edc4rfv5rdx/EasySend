@@ -2,6 +2,7 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+- I: Release artifacts are named `<title>-<version>-<build>-<arch>` throughout — APKs now match the AppImage, the fat APK is `-universal`, checksum files follow their APK, and artifacts under the previous naming are cleared on the next build
 - I: The hardware notes record the two-phone discovery run that confirms the multicast lock on one path, and the picker defect found on the other
 - I: 00-MakeAll.sh links the newest AppImage and arm64 APK into OUT/ under fixed names and clears links left from earlier namings or removed builds
 - E: Android picks files through the Activity and the process-owned channel instead of the plugin, so a system that destroys the Activity while the picker is open no longer swallows the choice; the picker opens at the top of internal storage, and a pick that brings back nothing usable now says so

@@ -83,8 +83,8 @@ echo "--------------------------------------------------"
 # ------------------------------------------------------------
 # Real APK file names on disk (EasySend-*, named by 10-MakeRelease.sh)
 # ------------------------------------------------------------
-SRC_APK_MAIN="${PROJ_TITLE}-release-${VERSION}-${BUILD}.apk"
-SRC_APK_ARM64="${PROJ_TITLE}-arm64-v8a-release-${VERSION}-${BUILD}.apk"
+SRC_APK_MAIN="${PROJ_TITLE}-${VERSION}-${BUILD}-universal.apk"
+SRC_APK_ARM64="${PROJ_TITLE}-${VERSION}-${BUILD}-arm64-v8a.apk"
 
 # The Linux build of the same number, packed by 14-MakeAppImage.sh.
 SRC_APPIMAGE="${PROJ_TITLE}-${VERSION}-${BUILD}-x86_64.AppImage"
@@ -92,17 +92,17 @@ SRC_APPIMAGE="${PROJ_TITLE}-${VERSION}-${BUILD}-x86_64.AppImage"
 # ------------------------------------------------------------
 # SHA256 files we will generate locally
 # ------------------------------------------------------------
-SRC_SHA_MAIN="${PROJ_TITLE}-release.apk.sha256"
-SRC_SHA_ARM64="${PROJ_TITLE}-arm64-v8a-release.apk.sha256"
+SRC_SHA_MAIN="${SRC_APK_MAIN}.sha256"
+SRC_SHA_ARM64="${SRC_APK_ARM64}.sha256"
 
 # ------------------------------------------------------------
 # Target file names in GitHub Release (EasySend-*)
 # ------------------------------------------------------------
-DST_APK_MAIN="${PROJ_TITLE}-release-${VERSION}-${BUILD}.apk"
-DST_SHA_MAIN="${PROJ_TITLE}-release.apk.sha256"
+DST_APK_MAIN="$SRC_APK_MAIN"
+DST_SHA_MAIN="$SRC_SHA_MAIN"
 
-DST_APK_ARM64="${PROJ_TITLE}-arm64-v8a-release-${VERSION}-${BUILD}.apk"
-DST_SHA_ARM64="${PROJ_TITLE}-arm64-v8a-release.apk.sha256"
+DST_APK_ARM64="$SRC_APK_ARM64"
+DST_SHA_ARM64="$SRC_SHA_ARM64"
 
 DST_APPIMAGE="${PROJ_TITLE}-${VERSION}-${BUILD}-x86_64.AppImage"
 

@@ -17,7 +17,7 @@ APK_DIR="build/app/outputs/flutter-apk"
 
 # Phones are arm64-v8a — pick that split, fall back to the universal APK
 apk=$(ls -t "$APK_DIR"/*arm64-v8a*.apk 2>/dev/null | head -1)
-[ -z "$apk" ] && apk=$(ls -t "$APK_DIR/$PROJ_TITLE"-release-*.apk 2>/dev/null | head -1)
+[ -z "$apk" ] && apk=$(ls -t "$APK_DIR/$PROJ_TITLE"-*-universal.apk 2>/dev/null | head -1)
 [ -z "$apk" ] && apk=$(ls -t "$APK_DIR"/*.apk 2>/dev/null | head -1)
 
 if [ -z "$apk" ]; then

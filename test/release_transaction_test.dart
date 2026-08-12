@@ -65,7 +65,7 @@ esac
       'mv': r'''#!/usr/bin/env bash
 if [ "$RELEASE_FAKE_RENAME_FAIL" = "true" ]; then
   case "$2" in
-    build/app/outputs/flutter-apk/TestApp-x86_64-release-*) exit 9 ;;
+    build/app/outputs/flutter-apk/TestApp-*-x86_64.apk) exit 9 ;;
   esac
 fi
 /bin/mv "$@"
@@ -208,7 +208,7 @@ fi
         'app',
         'outputs',
         'flutter-apk',
-        'TestApp-release-0.2.$date-73.apk',
+        'TestApp-0.2.$date-73-universal.apk',
       ),
     );
     await existing.writeAsString('old exact artifact');

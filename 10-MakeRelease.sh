@@ -112,11 +112,15 @@ flutter build apk --release --target-platform android-arm64,android-x64
 flutter build apk --release --split-per-abi --target-platform android-arm64,android-x64
 
 # ---------- collect ----------
-# Flutter always writes app-<abi>-release.apk; rename to the project title so
-# the files are recognisable once they leave the build directory.
+# Flutter always writes app-<abi>-release.apk; rename to
+# <title>-<version>-<build>-<arch>.apk, the same shape the AppImage already has,
+# so every artifact of this project sorts and reads alike once it leaves the
+# build directory. The fat APK carries both ABIs and so is named for that rather
+# than for one of them. Everything here is a release build, which is why the
+# word is not in the name.
 for abi in "" "-arm64-v8a" "-x86_64"; do
     SOURCE_ARTIFACTS+=("$APK_PATH/app${abi}-release.apk")
-    FINAL_ARTIFACTS+=("$APK_PATH/$PROJ_TITLE${abi}-release-$VERSION-$BUILD.apk")
+    FINAL_ARTIFACTS+=("$APK_PATH/$PROJ_TITLE-$VERSION-$BUILD${abi:--universal}.apk")
 done
 
 # Refuse a partial set and never replace an artifact from an earlier run.
@@ -161,8 +165,12 @@ rm -f "$APK_PATH/"*.sha1
 # the three APKs. The app-* files from before the rename go with them.
 KEEP=3
 rm -f "$APK_PATH/"app-*.apk
-for abi in "" "-arm64-v8a" "-x86_64"; do
-    ls -t "$APK_PATH/$PROJ_TITLE${abi}-release-"*.apk 2>/dev/null | tail -n +$((KEEP + 1)) | while read -r old; do
+# Artifacts from the previous naming (<title>-<abi>-release-<version>-<build>)
+# match none of the patterns below, so they would never be pruned and would sit
+# here for good.
+rm -f "$APK_PATH/$PROJ_TITLE"*-release-*.apk
+for abi in "-universal" "-arm64-v8a" "-x86_64"; do
+    ls -t "$APK_PATH/$PROJ_TITLE-"*"$abi.apk" 2>/dev/null | tail -n +$((KEEP + 1)) | while read -r old; do
         echo "Removing older APK: $(basename "$old")"
         rm -f "$old"
     done
