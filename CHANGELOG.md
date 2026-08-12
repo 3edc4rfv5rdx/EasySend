@@ -2,6 +2,7 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+- I: 00-MakeAll.sh links the newest AppImage and arm64 APK into OUT/ under fixed names and clears links left from earlier namings or removed builds
 - E: Android picks files through the Activity and the process-owned channel instead of the plugin, so a system that destroys the Activity while the picker is open no longer swallows the choice; the picker opens at the top of internal storage, and a pick that brings back nothing usable now says so
 - E: Dart now starts with the first Activity instead of from the Application, so `main()` no longer races the platform channels it awaits before `runApp` and the app cannot hang on its splash screen
 - E: Exiting with the ✕ button now clears the network state and stops the foreground service, so reopening the app rebinds the sockets instead of showing a working screen that receives nothing behind a "Ready to receive" notification
