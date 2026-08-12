@@ -127,12 +127,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final String? name = await showInputDialog(
       title: lw('Device name'),
       initial: xdef['Device name'],
+      validator: (String value) {
+        return switch (validateDeviceName(value)) {
+          DeviceNameProblem.empty => lw('Device name cannot be empty'),
+          DeviceNameProblem.tooLong => lw(
+            'Device name is too long (maximum 256 UTF-8 bytes)',
+          ),
+          DeviceNameProblem.controlCharacter => lw(
+            'Device name cannot contain control characters',
+          ),
+          null => null,
+        };
+      },
     );
-    if (name == null || name.isEmpty) return;
-    await _apply(() {
-      xdef['Device name'] = name;
-      xvDeviceName = name;
-    });
+    if (name == null) return;
+    await _apply(() => updateDeviceName(name));
   }
 
   // A receive in flight has already planned where every one of its files goes.

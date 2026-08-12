@@ -258,7 +258,7 @@ class ReceiveServer {
           rawSenderId.isEmpty ||
           utf8.encode(rawSenderId).length > maxProtocolIdBytes ||
           rawSenderName is! String ||
-          utf8.encode(rawSenderName).length > maxSenderNameBytes ||
+          !isValidDeviceName(rawSenderName, allowEmpty: true) ||
           rawManifest is! List ||
           rawManifest.isEmpty ||
           rawManifest.length > maxManifestFiles) {

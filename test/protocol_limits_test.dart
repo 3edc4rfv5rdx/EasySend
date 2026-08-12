@@ -44,11 +44,10 @@ void main() {
     return response.statusCode;
   }
 
-  Map<String, dynamic> manifest(List<Object> files) => {
-    'senderId': 'sender',
-    'senderName': 'Sender',
-    'files': files,
-  };
+  Map<String, dynamic> manifest(
+    List<Object> files, {
+    String senderName = 'Sender',
+  }) => {'senderId': 'sender', 'senderName': senderName, 'files': files};
 
   test('rejects wrong content type and non-object JSON', () async {
     expect(await send({}, type: ContentType.text), 415);
@@ -84,6 +83,23 @@ void main() {
         ]),
       ),
       400,
+    );
+  });
+
+  test('prepare uses the shared UTF-8 device name contract', () async {
+    final files = [
+      {'id': 'x', 'path': 'x.txt', 'size': 0},
+    ];
+    expect(await send(manifest(files, senderName: 'bad\nname')), 400);
+    expect(
+      await send(
+        manifest(files, senderName: '😀' * (maxSenderNameBytes ~/ 4 + 1)),
+      ),
+      400,
+    );
+    expect(
+      await send(manifest(files, senderName: '😀' * (maxSenderNameBytes ~/ 4))),
+      200,
     );
   });
 

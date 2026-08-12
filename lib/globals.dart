@@ -76,6 +76,24 @@ const int speedWindowSec = 5;
 // each, and only the tail of that is ever read.
 const int maxTransferEvents = 500;
 
+enum DeviceNameProblem { empty, tooLong, controlCharacter }
+
+DeviceNameProblem? validateDeviceName(String value, {bool allowEmpty = false}) {
+  if (value.isEmpty) {
+    return allowEmpty ? null : DeviceNameProblem.empty;
+  }
+  if (utf8.encode(value).length > maxSenderNameBytes) {
+    return DeviceNameProblem.tooLong;
+  }
+  if (value.contains(RegExp(r'[\x00-\x1f\x7f-\x9f]'))) {
+    return DeviceNameProblem.controlCharacter;
+  }
+  return null;
+}
+
+bool isValidDeviceName(String value, {bool allowEmpty = false}) =>
+    validateDeviceName(value, allowEmpty: allowEmpty) == null;
+
 // Subdirectory created inside the system downloads folder.
 const String recvDirName = 'EasySend';
 
@@ -236,7 +254,7 @@ PeerInfo? validatedPeerInfo(dynamic decoded, {required int fallbackPort}) {
     return null;
   }
   if (name != null &&
-      (name is! String || utf8.encode(name).length > maxSenderNameBytes)) {
+      (name is! String || !isValidDeviceName(name, allowEmpty: true))) {
     return null;
   }
   if (platform != null &&

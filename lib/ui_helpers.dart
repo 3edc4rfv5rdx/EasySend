@@ -462,43 +462,71 @@ Future<String?> showInputDialog({
   String initial = '',
   TextInputType? keyboardType,
   String? hint,
+  String? Function(String value)? validator,
 }) async {
   final TextEditingController controller = TextEditingController(text: initial);
+  String? validationError;
   final String? result = await showFlatDialog<String>(
     builder: (BuildContext context) {
-      return AlertDialog(
-        backgroundColor: clFill,
-        shape: dialogShape,
-        title: Text(title, style: tsLarge),
-        content: TextField(
-          controller: controller,
-          keyboardType: keyboardType,
-          autofocus: true,
-          style: TextStyle(color: clText, fontSize: fsNormal),
-          onSubmitted: (value) => Navigator.pop(context, value.trim()),
-          decoration: InputDecoration(
-            hintText: hint,
-            hintStyle: TextStyle(color: clFrame),
-            enabledBorder: OutlineInputBorder(
-              borderSide: BorderSide(color: clFrame),
+      return StatefulBuilder(
+        builder: (BuildContext context, StateSetter setDialogState) {
+          void submit() {
+            final String value = controller.text.trim();
+            final String? error = validator?.call(value);
+            if (error != null) {
+              setDialogState(() => validationError = error);
+              return;
+            }
+            Navigator.pop(context, value);
+          }
+
+          return AlertDialog(
+            backgroundColor: clFill,
+            shape: dialogShape,
+            title: Text(title, style: tsLarge),
+            content: TextField(
+              controller: controller,
+              keyboardType: keyboardType,
+              autofocus: true,
+              style: TextStyle(color: clText, fontSize: fsNormal),
+              onChanged: (_) {
+                if (validationError != null) {
+                  setDialogState(() => validationError = null);
+                }
+              },
+              onSubmitted: (_) => submit(),
+              decoration: InputDecoration(
+                hintText: hint,
+                errorText: validationError,
+                hintStyle: TextStyle(color: clFrame),
+                enabledBorder: OutlineInputBorder(
+                  borderSide: BorderSide(color: clFrame),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderSide: BorderSide(color: clAccent),
+                ),
+                errorBorder: OutlineInputBorder(
+                  borderSide: BorderSide(color: clError),
+                ),
+                focusedErrorBorder: OutlineInputBorder(
+                  borderSide: BorderSide(color: clError),
+                ),
+              ),
             ),
-            focusedBorder: OutlineInputBorder(
-              borderSide: BorderSide(color: clAccent),
-            ),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            style: dialogCancelStyle,
-            child: Text(lw('Cancel')),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, controller.text.trim()),
-            style: dialogButtonStyle,
-            child: Text(lw('Ok')),
-          ),
-        ],
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                style: dialogCancelStyle,
+                child: Text(lw('Cancel')),
+              ),
+              TextButton(
+                onPressed: submit,
+                style: dialogButtonStyle,
+                child: Text(lw('Ok')),
+              ),
+            ],
+          );
+        },
       );
     },
   );

@@ -84,9 +84,7 @@ String? _validSetting(String key, dynamic value) {
     case '.External id fallback':
       return value == 'true' || value == 'false' ? value : null;
     case 'Device name':
-      return value.length <= 128 && !value.contains(RegExp(r'[\x00-\x1f]'))
-          ? value
-          : null;
+      return isValidDeviceName(value, allowEmpty: true) ? value : null;
     case 'Receive folder':
       return value.length <= 4096 && !value.contains('\u0000') ? value : null;
     case '.Device id':
@@ -118,6 +116,7 @@ Device? _validDevice(dynamic raw) {
       id.isEmpty ||
       name is! String ||
       name.isEmpty ||
+      !isValidDeviceName(name) ||
       address is! String ||
       port is! int ||
       port < 1 ||
@@ -202,6 +201,13 @@ Future<void> loadSettings() async {
 
 Future<void> saveSettings() => _saveQueue.add(_saveSettingsNow);
 
+bool updateDeviceName(String value) {
+  if (!isValidDeviceName(value)) return false;
+  xdef['Device name'] = value;
+  xvDeviceName = value;
+  return true;
+}
+
 Future<void> _saveSettingsNow() async {
   File? temporary;
   try {
@@ -256,13 +262,13 @@ Future<String> _defaultDeviceName() async {
     if (Platform.isAndroid) {
       final AndroidDeviceInfo info = await DeviceInfoPlugin().androidInfo;
       final String model = info.model.trim();
-      if (model.isNotEmpty) return model;
+      if (isValidDeviceName(model)) return model;
     }
   } catch (e) {
     myPrint('device_info failed: $e');
   }
   final String host = Platform.localHostname.trim();
-  return host.isEmpty ? 'EasySend' : host;
+  return isValidDeviceName(host) ? host : 'EasySend';
 }
 
 // A random UUID would be lost on Android, where uninstalling wipes private
