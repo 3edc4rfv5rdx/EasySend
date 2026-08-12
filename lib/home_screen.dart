@@ -151,6 +151,7 @@ class _HomeScreenState extends State<HomeScreen>
     if (!Platform.isAndroid) windowManager.addListener(this);
     devicesTick.addListener(_dropOfflineTarget);
     transfersTick.addListener(_pruneSentFiles);
+    androidServiceStateTick.addListener(_handleAndroidServiceState);
     androidService.attach();
     _startNetwork();
     _listenForShares();
@@ -224,6 +225,7 @@ class _HomeScreenState extends State<HomeScreen>
     if (!Platform.isAndroid) windowManager.removeListener(this);
     devicesTick.removeListener(_dropOfflineTarget);
     transfersTick.removeListener(_pruneSentFiles);
+    androidServiceStateTick.removeListener(_handleAndroidServiceState);
     _shareSub?.cancel();
     _selectedScroll.dispose();
     _windowSaveTimer?.cancel();
@@ -232,6 +234,22 @@ class _HomeScreenState extends State<HomeScreen>
     discovery.stop();
     manualPoller.stop();
     super.dispose();
+  }
+
+  void _handleAndroidServiceState() {
+    if (_disposed || androidService.backgroundReady || appInForeground) return;
+    unawaited(_stopNetworkAfterServiceTimeout());
+  }
+
+  Future<void> _stopNetworkAfterServiceTimeout() async {
+    // A timed-out foreground service may not leave sockets and transfers
+    // silently running as an ordinary background process. End current work
+    // first; the normal serialized transition then closes every listener.
+    await sender.cancel();
+    await receiveServer.cancelCurrent();
+    if (_disposed || appInForeground) return;
+    _setNetworkDesired(false);
+    await _networkTail;
   }
 
   Future<void> _startNetwork() async {

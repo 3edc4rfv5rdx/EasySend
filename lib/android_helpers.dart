@@ -11,6 +11,13 @@ import 'globals.dart';
 
 const MethodChannel _serviceChannel = MethodChannel('easysend/service');
 
+class AndroidServiceStateTick extends ChangeNotifier {
+  void changed() => notifyListeners();
+}
+
+final AndroidServiceStateTick androidServiceStateTick =
+    AndroidServiceStateTick();
+
 final FlutterLocalNotificationsPlugin _notifications =
     FlutterLocalNotificationsPlugin();
 
@@ -168,6 +175,7 @@ class AndroidService {
   bool _screenHeld = false;
   bool _attached = false;
   bool _transferMode = false;
+  bool _dataSyncTimedOut = false;
   final SerialQueue _syncQueue = SerialQueue('service sync');
   DateTime _lastPush = DateTime.fromMillisecondsSinceEpoch(0);
   String _lastText = '';
@@ -175,13 +183,15 @@ class AndroidService {
   AndroidService({bool? android}) : android = android ?? Platform.isAndroid;
 
   bool get attached => _attached;
+  bool get backgroundReady => !_dataSyncTimedOut;
 
   void attach() {
     if (_attached) return;
     _attached = true;
     if (!android) return;
+    _serviceChannel.setMethodCallHandler(_handleNativeCall);
     transfersTick.addListener(sync);
-    sync();
+    unawaited(_restoreTimeoutAndSync());
   }
 
   void detach() {
@@ -189,6 +199,45 @@ class AndroidService {
     _attached = false;
     if (!android) return;
     transfersTick.removeListener(sync);
+    _serviceChannel.setMethodCallHandler(null);
+  }
+
+  Future<void> _restoreTimeoutAndSync() async {
+    try {
+      final bool timedOut =
+          await _serviceChannel.invokeMethod<bool>('takeServiceTimeout') ??
+          false;
+      if (timedOut) await noteServiceTimeout();
+    } on PlatformException catch (e) {
+      myPrint('foreground service status failed: ${e.message}');
+    } on MissingPluginException catch (e) {
+      myPrint('foreground service status unavailable: ${e.message}');
+    }
+    await sync();
+  }
+
+  Future<dynamic> _handleNativeCall(MethodCall call) async {
+    if (call.method != 'serviceTimeout') {
+      throw MissingPluginException(
+        'Unknown native service call: ${call.method}',
+      );
+    }
+    await noteServiceTimeout();
+  }
+
+  Future<void> noteServiceTimeout() async {
+    if (_dataSyncTimedOut) return;
+    _dataSyncTimedOut = true;
+    _serviceUp = false;
+    _transferMode = false;
+    _lastText = '';
+    await _keepScreenOn(false);
+    final String message = lw(
+      'Background receiving is temporarily unavailable',
+    );
+    myPrint(message);
+    okInfoBarOrange(message);
+    androidServiceStateTick.changed();
   }
 
   Future<void> sync() => _syncQueue.add(_syncNow);
@@ -205,6 +254,14 @@ class AndroidService {
     }
 
     if (active != null) {
+      // Starting another dataSync service while its rolling quota is exhausted
+      // throws. The quota resets when the app returns to the foreground; until
+      // then the transfer may continue without falsely restoring the service.
+      if (_dataSyncTimedOut && !appInForeground) {
+        await _keepScreenOn(false);
+        return;
+      }
+      _dataSyncTimedOut = false;
       final bool enteringTransfer = !_transferMode;
       await _keepScreenOn(true);
       final int percent = (active.progress * 100).round();
@@ -233,6 +290,9 @@ class AndroidService {
         starting: !_serviceUp,
         force: leavingTransfer,
       );
+      // specialUse has no dataSync quota. Once the idle listener is really up,
+      // background readiness has recovered without changing the user's switch.
+      if (_serviceUp) _dataSyncTimedOut = false;
       _transferMode = false;
     } else {
       await _stop();

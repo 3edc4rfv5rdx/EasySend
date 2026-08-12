@@ -74,4 +74,19 @@ void main() {
     await service.sync();
     expect(calls, ['start', 'update']);
   });
+
+  test('a timeout preserves intent and idle specialUse can recover', () async {
+    final AndroidService service = AndroidService(android: true);
+
+    await service.noteServiceTimeout();
+    expect(service.backgroundReady, isFalse);
+    expect(xdef['Receive in background'], 'true');
+
+    // With no data transfer running, Android can immediately use the unbounded
+    // specialUse listener instead of retrying the exhausted dataSync type.
+    await service.sync();
+    expect(calls, ['start']);
+    expect(service.backgroundReady, isTrue);
+    expect(xdef['Receive in background'], 'true');
+  });
 }

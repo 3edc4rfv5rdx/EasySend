@@ -14,6 +14,8 @@ import java.io.File
 
 class MainActivity : FlutterActivity() {
 
+    private var serviceChannel: MethodChannel? = null
+
     private companion object {
         const val CHANNEL = "easysend/service"
         const val PRIMARY_STORAGE = "/storage/emulated/0"
@@ -23,8 +25,10 @@ class MainActivity : FlutterActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
-            .setMethodCallHandler { call, result ->
+        val channel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
+        serviceChannel = channel
+        (application as EasySendApplication).attachServiceChannel(channel)
+        channel.setMethodCallHandler { call, result ->
                 // A handler that throws takes the whole process down with it,
                 // and these calls do throw: startService from the background
                 // when the service is not already up, and
@@ -69,6 +73,9 @@ class MainActivity : FlutterActivity() {
                 result.success(true)
             }
 
+            "takeServiceTimeout" ->
+                result.success((application as EasySendApplication).takeServiceTimeout())
+
             "openFile" -> result.success(openFile(call.argument<String>("path")))
 
             "openFolder" -> result.success(openFolder(call.argument<String>("path")))
@@ -88,6 +95,15 @@ class MainActivity : FlutterActivity() {
 
             else -> result.notImplemented()
         }
+    }
+
+    override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
+        serviceChannel?.let { channel ->
+            channel.setMethodCallHandler(null)
+            (application as EasySendApplication).detachServiceChannel(channel)
+        }
+        serviceChannel = null
+        super.cleanUpFlutterEngine(flutterEngine)
     }
 
     // Sending our own file path out would raise FileUriExposedException, so the

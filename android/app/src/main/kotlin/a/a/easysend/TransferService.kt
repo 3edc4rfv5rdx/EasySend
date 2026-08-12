@@ -96,11 +96,22 @@ class TransferService : Service() {
 
         val notification: Notification = builder.build()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
+            startForeground(NOTIFICATION_ID, notification, foregroundType(progress))
         } else {
             startForeground(NOTIFICATION_ID, notification)
         }
     }
+
+    // Android 15 limits dataSync services to six hours per rolling day. An
+    // idle LAN listener is not a data transfer, so Android 14+ uses the
+    // explicitly declared specialUse type for that user-enabled mode. Older
+    // releases do not know specialUse and do not enforce the dataSync quota.
+    private fun foregroundType(progress: Int): Int =
+        if (progress in 0..100 || Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+        } else {
+            ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
+        }
 
     private fun createChannel() {
         val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -146,6 +157,16 @@ class TransferService : Service() {
         wakeLock = null
         wifiLock?.let { if (it.isHeld) it.release() }
         wifiLock = null
+    }
+
+    override fun onTimeout(startId: Int, fgsType: Int) {
+        // Android gives only a few seconds before raising a fatal
+        // RemoteServiceException. Stop synchronously, and leave a durable
+        // notice for Dart in case no Activity/channel is attached right now.
+        releaseLocks()
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        (application as EasySendApplication).reportServiceTimeout(fgsType)
+        stopSelf()
     }
 
     override fun onDestroy() {
