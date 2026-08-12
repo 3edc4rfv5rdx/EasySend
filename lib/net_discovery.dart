@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart' show visibleForTesting;
+
 import 'android_helpers.dart';
 import 'globals.dart';
 
@@ -22,17 +24,38 @@ Map<String, dynamic> buildDiscoveryPayload({
 // UDP presence on the local subnet. Broadcast never crosses a router, so
 // devices behind one are added by hand instead (SPEC 5.2, 5.4).
 class DiscoveryService {
+  final int bindPort;
+  final Future<List<NetworkInterface>> Function() _interfaceProvider;
+  final void Function(NetworkInterface interface)? _joinOverride;
+  final void Function(NetworkInterface interface)? _leaveOverride;
+  final void Function(String type)? _broadcastOverride;
   RawDatagramSocket? _socket;
   Timer? _announceTimer;
   int _port = 0;
-  List<NetworkInterface> _interfaces = const [];
+  Map<String, NetworkInterface> _interfaces = const {};
+  final Set<String> _joinedInterfaces = <String>{};
+  bool _tickRunning = false;
   final InternetAddress _group = InternetAddress(discoveryMulticastGroup);
+
+  DiscoveryService({
+    this.bindPort = discoveryPort,
+    Future<List<NetworkInterface>> Function()? interfaceProvider,
+    void Function(NetworkInterface interface)? joinOverride,
+    void Function(NetworkInterface interface)? leaveOverride,
+    void Function(String type)? broadcastOverride,
+  }) : _interfaceProvider = interfaceProvider ?? _activeIpv4Interfaces,
+       _joinOverride = joinOverride,
+       _leaveOverride = leaveOverride,
+       _broadcastOverride = broadcastOverride;
 
   bool get running => _socket != null;
 
+  @visibleForTesting
+  Set<String> get activeInterfaceKeys => Set.unmodifiable(_interfaces.keys);
+
   Future<bool> start() async {
     await stop();
-    _port = discoveryPort;
+    _port = bindPort;
     try {
       _socket = await RawDatagramSocket.bind(
         InternetAddress.anyIPv4,
@@ -43,14 +66,8 @@ class DiscoveryService {
       _socket!.broadcastEnabled = true;
       _socket!.multicastHops = 1;
       _socket!.multicastLoopback = true;
-      _interfaces = await _activeIpv4Interfaces();
-      for (final NetworkInterface interface in _interfaces) {
-        try {
-          _socket!.joinMulticast(_group, interface);
-        } catch (e) {
-          myPrint('multicast join ${interface.name} failed: $e');
-        }
-      }
+      if (_port == 0) _port = _socket!.port;
+      await _reconcileInterfaces();
       await setDiscoveryMulticastEnabled(true);
       _socket!.listen(_onEvent);
     } catch (e) {
@@ -63,7 +80,7 @@ class DiscoveryService {
     _broadcast('announce');
     _announceTimer = Timer.periodic(
       const Duration(seconds: announceIntervalSec),
-      (_) => _tick(),
+      (_) => unawaited(_tick()),
     );
     myPrint('discovery started on $_port');
     return true;
@@ -74,17 +91,33 @@ class DiscoveryService {
     _announceTimer = null;
     _socket?.close();
     _socket = null;
-    _interfaces = const [];
+    _interfaces = const {};
+    _joinedInterfaces.clear();
     await setDiscoveryMulticastEnabled(false);
   }
 
-  void _tick() {
-    _broadcast('announce');
-    _forgetStaleDevices();
-    // Going offline is a silent event: nothing arrives to signal it. Without a
-    // nudge here the list would keep showing a dead device as reachable.
-    devicesChanged();
+  Future<void> _tick() async {
+    if (_tickRunning) return;
+    _tickRunning = true;
+    final RawDatagramSocket? socket = _socket;
+    try {
+      final bool changed = await _reconcileInterfaces();
+      // A stop/restart may finish while interface enumeration is in flight.
+      // That obsolete tick must not broadcast through the replacement socket.
+      if (socket == null || _socket != socket) return;
+      if (changed) _broadcast('query');
+      _broadcast('announce');
+      _forgetStaleDevices();
+      // Going offline is a silent event: nothing arrives to signal it. Without
+      // a nudge here the list would keep showing a dead device as reachable.
+      devicesChanged();
+    } finally {
+      _tickRunning = false;
+    }
   }
+
+  @visibleForTesting
+  Future<void> tickNow() => _tick();
 
   Map<String, dynamic> _payload(String type) => buildDiscoveryPayload(
     type: type,
@@ -97,6 +130,11 @@ class DiscoveryService {
   void _broadcast(String type) {
     final RawDatagramSocket? socket = _socket;
     if (socket == null) return;
+    final void Function(String type)? override = _broadcastOverride;
+    if (override != null) {
+      override(type);
+      return;
+    }
     final List<int> data = utf8.encode(json.encode(_payload(type)));
     // Limited broadcast remains as a compatibility fallback. Multicast does
     // not depend on an assumed /24 netmask and is sent on every interface.
@@ -112,21 +150,83 @@ class DiscoveryService {
     }
   }
 
-  Future<List<NetworkInterface>> _activeIpv4Interfaces() async {
-    try {
-      return await NetworkInterface.list(
+  static Future<List<NetworkInterface>> _activeIpv4Interfaces() =>
+      NetworkInterface.list(
         type: InternetAddressType.IPv4,
         includeLoopback: false,
         includeLinkLocal: false,
       );
-    } catch (e) {
-      myPrint('interface list failed: $e');
-      return const [];
+
+  String _interfaceKey(NetworkInterface interface) {
+    final List<String> addresses =
+        interface.addresses
+            .where((address) => address.type == InternetAddressType.IPv4)
+            .map((address) => address.address)
+            .toList()
+          ..sort();
+    return '${interface.index}|${interface.name}|${addresses.join(',')}';
+  }
+
+  Future<bool> _reconcileInterfaces() async {
+    final RawDatagramSocket? socket = _socket;
+    if (socket == null) return false;
+    late final List<NetworkInterface> listed;
+    try {
+      listed = await _interfaceProvider();
+    } catch (error) {
+      // A transient enumeration failure must not tear down memberships that
+      // may still be the only route to peers.
+      myPrint('interface list failed: $error');
+      return false;
     }
+    if (_socket != socket) return false;
+
+    final Map<String, NetworkInterface> next = {
+      for (final NetworkInterface interface in listed)
+        _interfaceKey(interface): interface,
+    };
+    final bool changed =
+        !next.keys.toSet().containsAll(_interfaces.keys) ||
+        !_interfaces.keys.toSet().containsAll(next.keys);
+
+    for (final MapEntry<String, NetworkInterface> old in _interfaces.entries) {
+      if (next.containsKey(old.key)) continue;
+      if (_joinedInterfaces.remove(old.key)) {
+        try {
+          final leave = _leaveOverride;
+          if (leave != null) {
+            leave(old.value);
+          } else {
+            socket.leaveMulticast(_group, old.value);
+          }
+        } catch (error) {
+          myPrint('multicast leave ${old.value.name} failed: $error');
+        }
+      }
+    }
+
+    for (final MapEntry<String, NetworkInterface> current in next.entries) {
+      if (_joinedInterfaces.contains(current.key)) continue;
+      try {
+        final join = _joinOverride;
+        if (join != null) {
+          join(current.value);
+        } else {
+          socket.joinMulticast(_group, current.value);
+        }
+        _joinedInterfaces.add(current.key);
+      } catch (error) {
+        // Keep it active for per-interface sends and retry membership on the
+        // next tick: route setup can lag behind interface enumeration.
+        myPrint('multicast join ${current.value.name} failed: $error');
+      }
+    }
+    _interfaces = next;
+    return changed;
   }
 
   Future<void> _sendMulticast(List<int> data) async {
-    for (final NetworkInterface interface in _interfaces) {
+    for (final NetworkInterface interface in List.of(_interfaces.values)) {
       for (final InternetAddress address in interface.addresses) {
         RawDatagramSocket? sender;
         try {
