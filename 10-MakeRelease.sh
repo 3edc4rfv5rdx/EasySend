@@ -66,12 +66,29 @@ fi
 VERSION_BACKUP=$(mktemp -d)
 cp "$PUB_FILE" "$VERSION_BACKUP/pubspec.yaml"
 cp "$GLOB_FILE" "$VERSION_BACKUP/globals.dart"
-BUILD_SUCCEEDED=false
+RELEASE_COMMITTED=false
+COLLECT_DIR=""
+SOURCE_ARTIFACTS=()
+FINAL_ARTIFACTS=()
 cleanup_release() {
-    if [ "$BUILD_SUCCEEDED" != true ]; then
+    if [ "$RELEASE_COMMITTED" != true ]; then
         cp "$VERSION_BACKUP/pubspec.yaml" "$PUB_FILE"
         cp "$VERSION_BACKUP/globals.dart" "$GLOB_FILE"
+        # Collection moves build outputs through a private staging directory.
+        # Put every one back if publishing or verification stopped halfway.
+        for i in "${!SOURCE_ARTIFACTS[@]}"; do
+            SRC="${SOURCE_ARTIFACTS[$i]}"
+            FINAL="${FINAL_ARTIFACTS[$i]}"
+            STAGED=""
+            [ -z "$COLLECT_DIR" ] || STAGED="$COLLECT_DIR/$(basename "$FINAL")"
+            if [ -f "$FINAL" ] && [ ! -e "$SRC" ]; then
+                mv "$FINAL" "$SRC" || true
+            elif [ -n "$STAGED" ] && [ -f "$STAGED" ] && [ ! -e "$SRC" ]; then
+                mv "$STAGED" "$SRC" || true
+            fi
+        done
     fi
+    [ -z "$COLLECT_DIR" ] || rmdir "$COLLECT_DIR" 2>/dev/null || true
     rm -f "$VERSION_BACKUP/pubspec.yaml" "$VERSION_BACKUP/globals.dart"
     rmdir "$VERSION_BACKUP"
 }
@@ -94,15 +111,49 @@ dart run flutter_launcher_icons
 flutter build apk --release --target-platform android-arm64,android-x64
 flutter build apk --release --split-per-abi --target-platform android-arm64,android-x64
 
-BUILD_SUCCEEDED=true
-
 # ---------- collect ----------
 # Flutter always writes app-<abi>-release.apk; rename to the project title so
 # the files are recognisable once they leave the build directory.
 for abi in "" "-arm64-v8a" "-x86_64"; do
-    SRC="$APK_PATH/app${abi}-release.apk"
-    [ -f "$SRC" ] && mv "$SRC" "$APK_PATH/$PROJ_TITLE${abi}-release-$VERSION-$BUILD.apk"
+    SOURCE_ARTIFACTS+=("$APK_PATH/app${abi}-release.apk")
+    FINAL_ARTIFACTS+=("$APK_PATH/$PROJ_TITLE${abi}-release-$VERSION-$BUILD.apk")
 done
+
+# Refuse a partial set and never replace an artifact from an earlier run.
+for i in "${!SOURCE_ARTIFACTS[@]}"; do
+    [ -s "${SOURCE_ARTIFACTS[$i]}" ] || {
+        echo "Missing or empty release artifact: ${SOURCE_ARTIFACTS[$i]}" >&2
+        exit 1
+    }
+    [ ! -e "${FINAL_ARTIFACTS[$i]}" ] || {
+        echo "Release artifact already exists: ${FINAL_ARTIFACTS[$i]}" >&2
+        exit 1
+    }
+done
+
+COLLECT_DIR=$(mktemp -d "$APK_PATH/.release-collect.XXXXXX")
+for i in "${!SOURCE_ARTIFACTS[@]}"; do
+    mv "${SOURCE_ARTIFACTS[$i]}" "$COLLECT_DIR/$(basename "${FINAL_ARTIFACTS[$i]}")"
+done
+for i in "${!FINAL_ARTIFACTS[@]}"; do
+    mv "$COLLECT_DIR/$(basename "${FINAL_ARTIFACTS[$i]}")" "${FINAL_ARTIFACTS[$i]}"
+done
+
+for artifact in "${FINAL_ARTIFACTS[@]}"; do
+    [ -s "$artifact" ] || {
+        echo "Release artifact verification failed: $artifact" >&2
+        exit 1
+    }
+done
+
+echo
+echo "Release APKs:"
+ls -1 "${FINAL_ARTIFACTS[@]}"
+
+# This is the transaction commit point: all requested deliverables now exist
+# under final names and both version sources still agree. Later pruning and the
+# optional git amend are maintenance around a release that already completed.
+RELEASE_COMMITTED=true
 rm -f "$APK_PATH/"*.sha1
 
 # ---------- prune ----------
@@ -116,10 +167,6 @@ for abi in "" "-arm64-v8a" "-x86_64"; do
         rm -f "$old"
     done
 done
-
-echo
-echo "Release APKs:"
-ls -1 "$APK_PATH"/*-"$VERSION"-"$BUILD".apk 2>/dev/null
 
 # ---------- version bump in git ----------
 # Fold the bump into the previous commit when that is safe. Safe = HEAD is not
