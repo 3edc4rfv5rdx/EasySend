@@ -2,6 +2,7 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+- I: The build scripts read the package name from pubspec.yaml and the title from the Android label instead of naming EasySend, so they copy into another Flutter project unchanged
 - I: Release APKs are named EasySend-* instead of app-*, and 10-MakeRelease.sh keeps only the three newest builds
 
 ## v0.2.260811+72

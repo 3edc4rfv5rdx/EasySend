@@ -12,8 +12,13 @@
 set -e
 cd "$(dirname "$0")"
 
-PROJ_NAME="easysend"
-PROJ_TITLE="EasySend"
+# Nothing below is EasySend-specific: the package name comes from pubspec.yaml,
+# the display title from the Android label. Copy the script to another Flutter
+# project as it is.
+PROJ_NAME=$(grep -oP '^name:\s*\K\S+' pubspec.yaml) || { echo "No name: in pubspec.yaml" >&2; exit 1; }
+PROJ_TITLE=$(grep -oP 'android:label="\K[^"]+' android/app/src/main/AndroidManifest.xml 2>/dev/null || true)
+[ -n "$PROJ_TITLE" ] || PROJ_TITLE="$PROJ_NAME"
+
 GLOB_FILE="lib/globals.dart"
 BUNDLE="build/linux/x64/release/bundle"
 APPDIR="build/linux/AppDir"
@@ -93,10 +98,10 @@ Terminal=false
 DESKTOP
 cp "$APPDIR/$PROJ_NAME.desktop" "$APPDIR/usr/share/applications/"
 
-cat > "$APPDIR/AppRun" <<'APPRUN'
+cat > "$APPDIR/AppRun" <<APPRUN
 #!/bin/sh
-HERE=$(dirname "$(readlink -f "$0")")
-exec "$HERE/usr/bin/easysend" "$@"
+HERE=\$(dirname "\$(readlink -f "\$0")")
+exec "\$HERE/usr/bin/$PROJ_NAME" "\$@"
 APPRUN
 chmod +x "$APPDIR/AppRun"
 

@@ -1,8 +1,15 @@
 #!/usr/bin/env bash
 set -e
 
-PROJECT="EasySend"
 ROOT="$(git rev-parse --show-toplevel)"
+
+# Nothing below is EasySend-specific: the package name comes from pubspec.yaml,
+# the display title from the Android label, and 10/14 name their output after
+# the title. Copy the script to another Flutter project as it is.
+PROJ_NAME=$(grep -oP '^name:\s*\K\S+' "$ROOT/pubspec.yaml") || { echo "No name: in pubspec.yaml" >&2; exit 1; }
+PROJ_TITLE=$(grep -oP 'android:label="\K[^"]+' "$ROOT/android/app/src/main/AndroidManifest.xml" 2>/dev/null || true)
+[ -n "$PROJ_TITLE" ] || PROJ_TITLE="$PROJ_NAME"
+
 APK_DIR="$ROOT/build/app/outputs/flutter-apk"
 APPIMAGE_DIR="$ROOT/build/linux"
 CHANGELOG_SRC="$ROOT/CHANGELOG.md"
@@ -76,28 +83,28 @@ echo "--------------------------------------------------"
 # ------------------------------------------------------------
 # Real APK file names on disk (EasySend-*, named by 10-MakeRelease.sh)
 # ------------------------------------------------------------
-SRC_APK_MAIN="${PROJECT}-release-${VERSION}-${BUILD}.apk"
-SRC_APK_ARM64="${PROJECT}-arm64-v8a-release-${VERSION}-${BUILD}.apk"
+SRC_APK_MAIN="${PROJ_TITLE}-release-${VERSION}-${BUILD}.apk"
+SRC_APK_ARM64="${PROJ_TITLE}-arm64-v8a-release-${VERSION}-${BUILD}.apk"
 
 # The Linux build of the same number, packed by 14-MakeAppImage.sh.
-SRC_APPIMAGE="EasySend-${VERSION}-${BUILD}-x86_64.AppImage"
+SRC_APPIMAGE="${PROJ_TITLE}-${VERSION}-${BUILD}-x86_64.AppImage"
 
 # ------------------------------------------------------------
 # SHA256 files we will generate locally
 # ------------------------------------------------------------
-SRC_SHA_MAIN="${PROJECT}-release.apk.sha256"
-SRC_SHA_ARM64="${PROJECT}-arm64-v8a-release.apk.sha256"
+SRC_SHA_MAIN="${PROJ_TITLE}-release.apk.sha256"
+SRC_SHA_ARM64="${PROJ_TITLE}-arm64-v8a-release.apk.sha256"
 
 # ------------------------------------------------------------
 # Target file names in GitHub Release (EasySend-*)
 # ------------------------------------------------------------
-DST_APK_MAIN="${PROJECT}-release-${VERSION}-${BUILD}.apk"
-DST_SHA_MAIN="${PROJECT}-release.apk.sha256"
+DST_APK_MAIN="${PROJ_TITLE}-release-${VERSION}-${BUILD}.apk"
+DST_SHA_MAIN="${PROJ_TITLE}-release.apk.sha256"
 
-DST_APK_ARM64="${PROJECT}-arm64-v8a-release-${VERSION}-${BUILD}.apk"
-DST_SHA_ARM64="${PROJECT}-arm64-v8a-release.apk.sha256"
+DST_APK_ARM64="${PROJ_TITLE}-arm64-v8a-release-${VERSION}-${BUILD}.apk"
+DST_SHA_ARM64="${PROJ_TITLE}-arm64-v8a-release.apk.sha256"
 
-DST_APPIMAGE="${PROJECT}-${VERSION}-${BUILD}-x86_64.AppImage"
+DST_APPIMAGE="${PROJ_TITLE}-${VERSION}-${BUILD}-x86_64.AppImage"
 
 # ------------------------------------------------------------
 # Check APK existence

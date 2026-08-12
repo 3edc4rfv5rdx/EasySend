@@ -43,7 +43,7 @@ if grep -q "^## ${TAG}$" "$CHANGELOG_FILE"; then
     echo "Changelog already has a section for $TAG. Skipping update."
 else
     echo "=== Inserting $TAG section right after Unreleased ==="
-    UPDATED="$(mktemp /tmp/easysend-changelog.XXXXXX.md)"
+    UPDATED="$(mktemp /tmp/changelog.XXXXXX.md)"
 
     # Keep an empty Unreleased on top for the next cycle and put the released
     # notes under the version heading below it.
