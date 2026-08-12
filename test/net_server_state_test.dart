@@ -10,6 +10,52 @@ import 'package:path/path.dart' as p;
 
 typedef Reply = ({int status, Map<String, dynamic> body});
 
+class _ControlledWriter implements ReceiveFileWriter {
+  final List<Completer<void>> _gates = [];
+  final StreamController<int> starts = StreamController<int>.broadcast();
+  int activeWrites = 0;
+  int maxActiveWrites = 0;
+  bool aborted = false;
+
+  @override
+  Future<void> write(List<int> chunk) async {
+    final int index = _gates.length;
+    final Completer<void> gate = Completer<void>();
+    _gates.add(gate);
+    activeWrites++;
+    if (activeWrites > maxActiveWrites) maxActiveWrites = activeWrites;
+    starts.add(index);
+    try {
+      await gate.future;
+    } finally {
+      activeWrites--;
+    }
+  }
+
+  @override
+  Future<void> abort() async {
+    aborted = true;
+    for (final Completer<void> gate in _gates) {
+      if (!gate.isCompleted) gate.complete();
+    }
+  }
+
+  @override
+  Future<void> close() async {}
+}
+
+class _FailingWriter implements ReceiveFileWriter {
+  @override
+  Future<void> write(List<int> chunk) =>
+      Future<void>.error(const FileSystemException('disk full'));
+
+  @override
+  Future<void> abort() async {}
+
+  @override
+  Future<void> close() async {}
+}
+
 void main() {
   late Directory sandbox;
   late ReceiveServer server;
@@ -192,4 +238,73 @@ void main() {
       expect(xvTransfers.single.bytesDone, lessThanOrEqualTo(4));
     },
   );
+
+  test(
+    'disk backpressure permits one write and cancellation aborts it',
+    () async {
+      await server.stop();
+      final _ControlledWriter writer = _ControlledWriter();
+      server = ReceiveServer(fileWriterFactory: (_) => writer);
+      expect(await server.start(), isTrue);
+      port = server.boundPort!;
+
+      final Reply prepared = await post(
+        'prepare',
+        body: manifest('slow.bin', size: 2),
+      );
+      final String session = prepared.body['sessionId'] as String;
+      final HttpClientRequest uploadReq = await client.postUrl(
+        url('upload', {'session': session, 'file': 'file-1'}),
+      );
+      uploadReq.contentLength = 2;
+
+      final Future<int> firstStarted = writer.starts.stream.first;
+      uploadReq.add([1, 2]);
+      final Future<HttpClientResponse> uploadFuture = uploadReq.close();
+      expect(await firstStarted, 0);
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      expect(writer.maxActiveWrites, 1);
+      expect(writer.activeWrites, 1);
+
+      final Reply cancel = await post('cancel', query: {'session': session});
+      expect(cancel.status, HttpStatus.ok);
+      expect(writer.aborted, isTrue);
+      expect(writer.maxActiveWrites, 1);
+
+      final HttpClientResponse upload = await uploadFuture;
+      await upload.drain<void>();
+      expect(upload.statusCode, HttpStatus.conflict);
+    },
+  );
+
+  test('a disk write failure leaves the receive session reusable', () async {
+    await server.stop();
+    int writers = 0;
+    server = ReceiveServer(
+      fileWriterFactory: (_) {
+        writers++;
+        return _FailingWriter();
+      },
+    );
+    expect(await server.start(), isTrue);
+    port = server.boundPort!;
+
+    final Reply prepared = await post('prepare', body: manifest('full.bin'));
+    final String session = prepared.body['sessionId'] as String;
+
+    Future<int> upload() async {
+      final HttpClientRequest request = await client.postUrl(
+        url('upload', {'session': session, 'file': 'file-1'}),
+      );
+      request.contentLength = 1;
+      request.add([1]);
+      final HttpClientResponse response = await request.close();
+      await response.drain<void>();
+      return response.statusCode;
+    }
+
+    expect(await upload(), HttpStatus.internalServerError);
+    expect(await upload(), HttpStatus.internalServerError);
+    expect(writers, 2);
+  });
 }

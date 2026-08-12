@@ -25,6 +25,40 @@ class _ProtocolProblem implements Exception {
   const _ProtocolProblem(this.status, this.reason);
 }
 
+abstract interface class ReceiveFileWriter {
+  Future<void> write(List<int> chunk);
+  Future<void> close();
+  Future<void> abort();
+}
+
+class _IoReceiveFileWriter implements ReceiveFileWriter {
+  final IOSink _sink;
+  Future<void>? _closeFuture;
+
+  _IoReceiveFileWriter(File file) : _sink = file.openWrite();
+
+  @override
+  Future<void> write(List<int> chunk) async {
+    _sink.add(chunk);
+    // IOSink.add() only queues data. Waiting for flush couples the next network
+    // read to the underlying file consumer and bounds the queued byte count.
+    await _sink.flush();
+  }
+
+  @override
+  Future<void> close() => _closeFuture ??= _sink.close();
+
+  @override
+  Future<void> abort() async {
+    // dart:io does not support cancelling a flush in flight, and closing an
+    // IOSink while flush owns it throws. Backpressure limits this wait to one
+    // chunk; _upload observes the cancellation before reading another one.
+  }
+}
+
+ReceiveFileWriter _openReceiveFileWriter(File file) =>
+    _IoReceiveFileWriter(file);
+
 // Receiving side of a transfer in flight.
 class _Incoming {
   final String sessionId;
@@ -44,6 +78,7 @@ class _Incoming {
   _ReceivePhase phase = _ReceivePhase.ready;
   String? activeFileId;
   Completer<void>? activeOperation;
+  Future<void> Function()? cancelActiveOperation;
   Timer? inactivityTimer;
 
   _Incoming({
@@ -64,6 +99,7 @@ class ReceiveServer {
   final Duration uploadIdleTimeout;
   final Duration controlBodyIdleTimeout;
   final Duration controlBodyTotalTimeout;
+  final ReceiveFileWriter Function(File file) fileWriterFactory;
   HttpServer? _http;
   _Incoming? _current;
   bool _preparing = false;
@@ -96,7 +132,8 @@ class ReceiveServer {
     this.controlBodyTotalTimeout = const Duration(
       seconds: protocolBodyTotalTimeoutSec,
     ),
-  });
+    ReceiveFileWriter Function(File file)? fileWriterFactory,
+  }) : fileWriterFactory = fileWriterFactory ?? _openReceiveFileWriter;
 
   bool get running => _http != null;
   int? get boundPort => _http?.port;
@@ -506,20 +543,24 @@ class ReceiveServer {
       }
 
       part = File(partPath);
-      final IOSink sink = part.openWrite();
+      final ReceiveFileWriter writer = fileWriterFactory(part);
+      session.cancelActiveOperation = writer.abort;
       int written = 0;
       int crc = 0;
       DateTime lastTick = DateTime.now();
       bool overflow = false;
+      final StreamIterator<List<int>> chunks = StreamIterator<List<int>>(req);
 
       try {
-        await for (final List<int> chunk in req.timeout(
+        while (await chunks.moveNext().timeout(
           uploadIdleTimeout,
-          onTimeout: (sink) => sink.addError(
-            TimeoutException('upload made no progress', uploadIdleTimeout),
+          onTimeout: () => throw TimeoutException(
+            'upload made no progress',
+            uploadIdleTimeout,
           ),
         )) {
           if (session.cancelled) break;
+          final List<int> chunk = chunks.current;
           written += chunk.length;
           // Never write past the declared size: the manifest is the contract.
           if (written > item.size) {
@@ -527,7 +568,7 @@ class ReceiveServer {
             break;
           }
           crc = getCrc32(chunk, crc);
-          sink.add(chunk);
+          await writer.write(chunk);
 
           final DateTime now = DateTime.now();
           if (now.difference(lastTick).inMilliseconds >= 100) {
@@ -540,9 +581,9 @@ class ReceiveServer {
             transfersChanged();
           }
         }
-        await sink.flush();
       } finally {
-        await sink.close();
+        await chunks.cancel();
+        await writer.close();
       }
 
       if (session.cancelled) {
@@ -579,6 +620,19 @@ class ReceiveServer {
       return _json(req, {
         'reason': 'upload-timeout',
       }, status: HttpStatus.requestTimeout);
+    } catch (error) {
+      if (part != null) await deleteQuietly(part);
+      if (session.cancelled) return _status(req, HttpStatus.conflict);
+      session.transfer.log(
+        'Cannot write here',
+        file: item.relativePath,
+        detail: '$error',
+        failure: true,
+      );
+      session.phase = _ReceivePhase.ready;
+      return _json(req, {
+        'reason': 'write-failed',
+      }, status: HttpStatus.internalServerError);
     } finally {
       _endOperation(
         session,
@@ -742,6 +796,14 @@ class ReceiveServer {
     session.phase = _ReceivePhase.cancelled;
     session.inactivityTimer?.cancel();
     final Future<void>? active = session.activeOperation?.future;
+    final Future<void> Function()? cancelActive = session.cancelActiveOperation;
+    if (cancelActive != null) {
+      try {
+        await cancelActive();
+      } catch (error) {
+        myPrint('cannot abort active receive write: $error');
+      }
+    }
     if (active != null) await active;
     session.transfer.status = status;
     await _cleanupParts(session);
@@ -772,6 +834,7 @@ class ReceiveServer {
     final Completer<void>? operation = session.activeOperation;
     if (operation != null && !operation.isCompleted) operation.complete();
     session.activeOperation = null;
+    session.cancelActiveOperation = null;
     if (!keepFile) session.activeFileId = null;
     if (session.phase == _ReceivePhase.uploading ||
         session.phase == _ReceivePhase.verifying) {
