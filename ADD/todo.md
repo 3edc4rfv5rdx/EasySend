@@ -3,7 +3,7 @@
 Things that cannot be settled by reading the code or by a test on the desktop.
 Each one says what to do, what to watch, and what the answer decides.
 
-## Multicast lock ownership (from `tofix2.md` finding 11)
+## + Multicast lock ownership (from `tofix2.md` finding 11)
 
 `MainActivity.kt` holds the `WifiManager.MulticastLock` and releases it in
 `onDestroy()`. With `Receive in background` on, the foreground service keeps the
@@ -113,4 +113,63 @@ With build 0.2.260811+66 on a Samsung SM-A366B, driven over adb:
 - Returning to the foreground brought the server back in the same process, so
   the resume path works on real hardware.
 
-Still open: everything that needs the two devices on one Wi-Fi.
+### Settled on 2026-08-12 — first outcome, the fix works
+
+Build 0.2.260812+75 on both phones, A = SM-A366B on USB, B = Galaxy A12 on the
+same Wi-Fi (`odrex19`, WPA2, 192.168.0.0/24). `Receive in background` on, HOME
+pressed, Activity destroyed by "Don't keep activities".
+
+- The Activity was really gone while the process lived: its history record read
+  `app=null` with pid 11707 still running `EasySendApplication`.
+- In that state `netstat` showed `0.0.0.0:15353` listening on **both** TCP and
+  UDP, and `/api/v1/info` answered over an `adb forward` — so the competing
+  explanation is ruled out. The cached `FlutterEngine` keeps the isolate, the
+  server and discovery alive without an Activity.
+- B, launched from cold so that it sent a `query`, listed `A36` in under a
+  second — faster than the 5 s announce period, so A *heard* the query and
+  answered it. That is reception, which is what the lock governs.
+
+Finding 11 is confirmed on this hardware. Read it asymmetrically, as set out
+above: reception was exercised on the A36 only — the A12 acted as the newcomer
+and said nothing about its own multicast path — so this is one data point and
+**not** grounds for removing the lock. A mirrored run with the phones swapped
+would give the second.
+
+Two things noticed in passing, neither blocking. `myPrint` is silent in release
+by design (finding 17 in `tofix2.md`), so on a real build the only diagnostics
+are adb-side: `netstat`, `dumpsys activity activities`, `adb forward` + `curl`.
+And `net_discovery.dart:90` asks for `reusePort` on Android, where bionic has no
+`SO_REUSEPORT`: Dart prints `Dart Socket ERROR ... not supported on this
+platform` to logcat and ignores the option, the bind succeeds regardless.
+
+Two traps worth repeating for the next run. Guest Wi-Fi with client isolation
+(here `odrex_free`) leaves both phones in one /22 and still unable to ARP each
+other — check `ping` between them before blaming the app. And "Don't keep
+activities" must be switched back off afterwards; it was restored to 0 at the
+end of this run.
+
+### The mirrored run, same day — a defect, not a confirmation
+
+The run above destroyed the Activity with "Don't keep activities" and left the
+task in Recents. That is one of two ways a user loses the screen, and only that
+one is covered by the result above.
+
+Swapping the phones exposed the other. On the A12 (SM-A127F, Exynos 850,
+Android 13) the same global setting is ignored by the ROM — it was already on in
+Developer options, and neither `settings put` nor a 0->1 cycle made the Activity
+finish — so the run used the path finding 11 itself prescribes: swipe the app out
+of Recents. With `Receive in background` on, that leaves the process alive, the
+service `isForeground=true` and the notification reading "Готов принимать",
+while 15353 is closed on both protocols and `/api/v1/info` is silent. Stable, no
+self-recovery: reopening the app draws a perfectly normal UI that still listens
+on nothing and finds no devices, and only `am force-stop` plus a fresh start
+brings the sockets back. The cause turned out to be `_exitApp` and the app's own
+✕ button, not the ROM or the chipset — see finding 5 in `ADD/tofix3.md`. Fixed
+the same day; a build carrying the fix still needs a run on hardware.
+
+So the lock could not be exercised on the A12 at all — there was no receiver
+left to hear anything — and the second chipset remains unmeasured. The finding
+is written up under finding 5 in `ADD/tofix3.md`.
+
+Still open: whether swiping out of Recents does the same on the A366B. Until
+that is known, treat the A366B result as covering Activity destruction only.

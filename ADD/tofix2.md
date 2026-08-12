@@ -132,6 +132,18 @@ out to be needed, the change is right for every device; if datagrams arrive
 without it on this particular Samsung, that says nothing about other Wi-Fi
 chipsets and is **not** grounds for removing it.
 
+Confirmed on hardware 2026-08-12, build 0.2.260812+75, two phones on one Wi-Fi:
+with the Activity destroyed (`app=null`) and the process alive, 15353 kept
+listening on TCP and UDP, `/api/v1/info` answered, and a cold-started second
+phone listed this one in under a second — inside the 5 s announce period, so the
+query was heard and answered. The lock works where the Application owns it. Per
+the asymmetry above, this does not license removing it. Details in
+`ADD/todo.md`.
+
+The mirrored run on the second phone measured nothing: swiping that one out of
+Recents killed its isolate, so it had no receiver left to hear a query. One
+chipset, one path. See finding 5 in `ADD/tofix3.md`.
+
 `MainActivity.kt` holds the `WifiManager.MulticastLock` and releases it in `onDestroy()`. With `Receive in background` on, the foreground service keeps the process alive while the Activity can be destroyed at any time — after which the lock is gone, but `DiscoveryService` is still running and still believes it holds it (`setDiscoveryMulticastEnabled(true)` was called once, at `start()`). Depending on the device, multicast and broadcast datagrams then stop being delivered, so the phone keeps its HTTP server up and quietly disappears from every other device's list.
 
 How much this bites is device-dependent — some ROMs deliver multicast without the lock — so measure before and after on a real phone rather than trusting the change.
