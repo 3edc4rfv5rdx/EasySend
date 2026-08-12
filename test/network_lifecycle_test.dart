@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -19,7 +20,11 @@ void main() {
     Uri url(String route, [Map<String, String>? query]) =>
         Uri.http('127.0.0.1:$port', '$apiPrefix/$route', query);
 
-    Future<int> post(String route, {Map<String, String>? query, Object? body}) async {
+    Future<int> post(
+      String route, {
+      Map<String, String>? query,
+      Object? body,
+    }) async {
       final HttpClientRequest req = await client.postUrl(url(route, query));
       if (body != null) {
         req.headers.contentType = ContentType.json;
@@ -169,4 +174,31 @@ void main() {
       }
     });
   });
+
+  test(
+    'network transition queue continues after a failed transition',
+    () async {
+      final SerialQueue queue = SerialQueue('network transition');
+      final List<String> transitions = [];
+      final Completer<void> firstStarted = Completer<void>();
+      final Completer<void> releaseFirst = Completer<void>();
+
+      final Future<void> failed = queue.add(() async {
+        transitions.add('failed start');
+        firstStarted.complete();
+        await releaseFirst.future;
+        throw StateError('permission channel disappeared');
+      });
+      await firstStarted.future;
+
+      final Future<void> latest = queue.add(() async {
+        transitions.add('latest state');
+      });
+      expect(transitions, ['failed start']);
+
+      releaseFirst.complete();
+      await Future.wait([failed, latest]);
+      expect(transitions, ['failed start', 'latest state']);
+    },
+  );
 }

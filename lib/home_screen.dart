@@ -140,6 +140,7 @@ class _HomeScreenState extends State<HomeScreen>
   bool _restartPending = false;
   bool _disposed = false;
   int _networkEpoch = 0;
+  final SerialQueue _networkQueue = SerialQueue('network transition');
   Future<void> _networkTail = Future<void>.value();
 
   @override
@@ -270,7 +271,7 @@ class _HomeScreenState extends State<HomeScreen>
 
   void _queueNetworkTransition() {
     final int epoch = _networkEpoch;
-    _networkTail = _networkTail.then((_) => _applyNetworkState(epoch));
+    _networkTail = _networkQueue.add(() => _applyNetworkState(epoch));
   }
 
   bool _stillWantsNetwork(int epoch) =>
