@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -e
 
-PROJECT="easysend"
+PROJECT="EasySend"
 ROOT="$(git rev-parse --show-toplevel)"
 APK_DIR="$ROOT/build/app/outputs/flutter-apk"
 APPIMAGE_DIR="$ROOT/build/linux"
@@ -74,10 +74,10 @@ cat "$NOTES_FILE"
 echo "--------------------------------------------------"
 
 # ------------------------------------------------------------
-# Real APK file names on disk (app-*)
+# Real APK file names on disk (EasySend-*, named by 10-MakeRelease.sh)
 # ------------------------------------------------------------
-SRC_APK_MAIN="app-release-${VERSION}-${BUILD}.apk"
-SRC_APK_ARM64="app-arm64-v8a-release-${VERSION}-${BUILD}.apk"
+SRC_APK_MAIN="${PROJECT}-release-${VERSION}-${BUILD}.apk"
+SRC_APK_ARM64="${PROJECT}-arm64-v8a-release-${VERSION}-${BUILD}.apk"
 
 # The Linux build of the same number, packed by 14-MakeAppImage.sh.
 SRC_APPIMAGE="EasySend-${VERSION}-${BUILD}-x86_64.AppImage"
@@ -85,11 +85,11 @@ SRC_APPIMAGE="EasySend-${VERSION}-${BUILD}-x86_64.AppImage"
 # ------------------------------------------------------------
 # SHA256 files we will generate locally
 # ------------------------------------------------------------
-SRC_SHA_MAIN="app-release.apk.sha256"
-SRC_SHA_ARM64="app-arm64-v8a-release.apk.sha256"
+SRC_SHA_MAIN="${PROJECT}-release.apk.sha256"
+SRC_SHA_ARM64="${PROJECT}-arm64-v8a-release.apk.sha256"
 
 # ------------------------------------------------------------
-# Target file names in GitHub Release (bikelog-*)
+# Target file names in GitHub Release (EasySend-*)
 # ------------------------------------------------------------
 DST_APK_MAIN="${PROJECT}-release-${VERSION}-${BUILD}.apk"
 DST_SHA_MAIN="${PROJECT}-release.apk.sha256"

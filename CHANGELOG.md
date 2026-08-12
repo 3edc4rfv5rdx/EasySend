@@ -2,6 +2,7 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+- I: Release APKs are named EasySend-* instead of app-*, and 10-MakeRelease.sh keeps only the three newest builds
 
 ## v0.2.260811+72
 - I: README describes the transfer log and the move tick, says that discovery and transfers are two separate ports rather than one, and lists the lint and test scripts

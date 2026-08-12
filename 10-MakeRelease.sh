@@ -92,11 +92,25 @@ flutter build apk --release --split-per-abi --target-platform android-arm64,andr
 BUILD_SUCCEEDED=true
 
 # ---------- collect ----------
+# Flutter always writes app-<abi>-release.apk; rename to the project title so
+# the files are recognisable once they leave the build directory.
 for abi in "" "-arm64-v8a" "-x86_64"; do
     SRC="$APK_PATH/app${abi}-release.apk"
-    [ -f "$SRC" ] && mv "$SRC" "$APK_PATH/app${abi}-release-$VERSION-$BUILD.apk"
+    [ -f "$SRC" ] && mv "$SRC" "$APK_PATH/$PROJ_TITLE${abi}-release-$VERSION-$BUILD.apk"
 done
 rm -f "$APK_PATH/"*.sha1
+
+# ---------- prune ----------
+# Three builds back is enough to fall back on; each one is some 75 MB across
+# the three APKs. The app-* files from before the rename go with them.
+KEEP=3
+rm -f "$APK_PATH/"app-*.apk
+for abi in "" "-arm64-v8a" "-x86_64"; do
+    ls -t "$APK_PATH/$PROJ_TITLE${abi}-release-"*.apk 2>/dev/null | tail -n +$((KEEP + 1)) | while read -r old; do
+        echo "Removing older APK: $(basename "$old")"
+        rm -f "$old"
+    done
+done
 
 echo
 echo "Release APKs:"
