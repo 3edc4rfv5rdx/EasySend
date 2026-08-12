@@ -6,6 +6,7 @@ import 'package:archive/archive.dart';
 import 'package:crypto/crypto.dart';
 import 'package:uuid/uuid.dart';
 
+import 'control_body.dart';
 import 'globals.dart';
 import 'net_discovery.dart';
 
@@ -48,6 +49,7 @@ class SendService {
   final Duration headerTimeout;
   final Duration idleTimeout;
   final Duration prepareTimeout;
+  final Duration controlBodyTimeout;
   HttpClient? _client;
   TransferSession? _current;
   String? _sessionId;
@@ -62,6 +64,9 @@ class SendService {
     this.idleTimeout = const Duration(seconds: networkIdleTimeoutSec),
     this.prepareTimeout = const Duration(
       seconds: acceptTimeoutSec + consentTransportMarginSec,
+    ),
+    this.controlBodyTimeout = const Duration(
+      seconds: protocolBodyTotalTimeoutSec,
     ),
   });
 
@@ -186,7 +191,11 @@ class SendService {
       }),
     );
     final HttpClientResponse resp = await req.close().timeout(prepareTimeout);
-    final String body = await _readSmallBody(resp, timeout: headerTimeout);
+    final String body = await _readSmallBody(
+      resp,
+      inactivityTimeout: headerTimeout,
+      totalTimeout: controlBodyTimeout,
+    );
 
     final TransferSession transfer = _current!;
     if (resp.statusCode == HttpStatus.ok) {
@@ -450,15 +459,20 @@ class SendService {
 
   Future<String> _readSmallBody(
     HttpClientResponse response, {
-    required Duration timeout,
+    required Duration inactivityTimeout,
+    required Duration totalTimeout,
   }) async {
-    final List<int> bytes = [];
-    await for (final List<int> chunk in response.timeout(timeout)) {
-      if (bytes.length + chunk.length > maxInfoBodyBytes) {
-        throw const FormatException('response body too large');
-      }
-      bytes.addAll(chunk);
-    }
+    final List<int> bytes = await readBoundedControlBytes(
+      response,
+      limit: maxInfoBodyBytes,
+      inactivityTimeout: inactivityTimeout,
+      totalTimeout: totalTimeout,
+      tooLarge: () => const FormatException('response body too large'),
+      inactivityExpired: () =>
+          TimeoutException('control body stopped', inactivityTimeout),
+      totalExpired: () =>
+          TimeoutException('control body deadline', totalTimeout),
+    );
     return utf8.decode(bytes, allowMalformed: false);
   }
 

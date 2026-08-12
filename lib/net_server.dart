@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:uuid/uuid.dart';
 
 import 'android_helpers.dart';
+import 'control_body.dart';
 import 'globals.dart';
 
 enum _ReceivePhase {
@@ -61,6 +62,8 @@ class _Incoming {
 class ReceiveServer {
   final Duration sessionTimeout;
   final Duration uploadIdleTimeout;
+  final Duration controlBodyIdleTimeout;
+  final Duration controlBodyTotalTimeout;
   HttpServer? _http;
   _Incoming? _current;
   bool _preparing = false;
@@ -87,6 +90,12 @@ class ReceiveServer {
   ReceiveServer({
     this.sessionTimeout = const Duration(seconds: receiveSessionTimeoutSec),
     this.uploadIdleTimeout = const Duration(seconds: networkIdleTimeoutSec),
+    this.controlBodyIdleTimeout = const Duration(
+      seconds: protocolBodyTimeoutSec,
+    ),
+    this.controlBodyTotalTimeout = const Duration(
+      seconds: protocolBodyTotalTimeoutSec,
+    ),
   });
 
   bool get running => _http != null;
@@ -795,22 +804,22 @@ class ReceiveServer {
   }
 
   Future<String> _readRequestText(HttpRequest request, int limit) async {
-    final List<int> bytes = [];
-    final Stream<List<int>> body = request.timeout(
-      const Duration(seconds: protocolBodyTimeoutSec),
-      onTimeout: (sink) => sink.addError(
-        const _ProtocolProblem(HttpStatus.requestTimeout, 'body-timeout'),
+    final List<int> bytes = await readBoundedControlBytes(
+      request,
+      limit: limit,
+      inactivityTimeout: controlBodyIdleTimeout,
+      totalTimeout: controlBodyTotalTimeout,
+      tooLarge: () => const _ProtocolProblem(
+        HttpStatus.requestEntityTooLarge,
+        'body-too-large',
+      ),
+      inactivityExpired: () =>
+          const _ProtocolProblem(HttpStatus.requestTimeout, 'body-timeout'),
+      totalExpired: () => const _ProtocolProblem(
+        HttpStatus.requestTimeout,
+        'body-total-timeout',
       ),
     );
-    await for (final List<int> chunk in body) {
-      if (bytes.length + chunk.length > limit) {
-        throw const _ProtocolProblem(
-          HttpStatus.requestEntityTooLarge,
-          'body-too-large',
-        );
-      }
-      bytes.addAll(chunk);
-    }
     try {
       return utf8.decode(bytes, allowMalformed: false);
     } on FormatException {

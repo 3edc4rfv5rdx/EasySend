@@ -61,6 +61,9 @@ const int maxPlatformBytes = 32;
 // An announce is a handful of short fields; anything larger is not one.
 const int maxDiscoveryPacketBytes = 4 * 1024;
 const int protocolBodyTimeoutSec = 5;
+// Small control bodies have a wall-clock deadline too: periodic single bytes
+// must not retain sender/receiver ownership forever.
+const int protocolBodyTotalTimeoutSec = 15;
 const int networkConnectTimeoutSec = 3;
 const int networkHeaderTimeoutSec = 5;
 const int networkIdleTimeoutSec = 10;

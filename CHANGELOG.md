@@ -2,6 +2,7 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+- E: Prepare request and response bodies have a total wall-clock deadline as well as an inactivity timeout, so drip-fed bytes cannot hold either transfer slot forever
 - E: Background receiving now requires notification permission, disables itself if permission is revoked, and deterministically declines unknown senders when a consent notification cannot be shown
 - E: Android's Flutter engine and service channel belong to the Application, so destroying and recreating the Activity no longer kills background receiving or duplicates handlers
 - E: A failed network lifecycle transition is logged and dropped from the serial queue, so later pause, resume, rebind, and shutdown requests still run

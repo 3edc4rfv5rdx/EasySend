@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:easysend/control_body.dart';
 import 'package:easysend/globals.dart';
 import 'package:easysend/net_discovery.dart';
 import 'package:easysend/net_sender.dart';
@@ -10,6 +11,109 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
 
 void main() {
+  test('total deadline cancels a drip-fed control body', () async {
+    bool cancelled = false;
+    final StreamController<List<int>> drip = StreamController<List<int>>(
+      onCancel: () => cancelled = true,
+    );
+    final Timer feed = Timer.periodic(
+      const Duration(milliseconds: 35),
+      (_) => drip.add([1]),
+    );
+
+    await expectLater(
+      readBoundedControlBytes(
+        drip.stream,
+        limit: 100,
+        inactivityTimeout: const Duration(milliseconds: 100),
+        totalTimeout: const Duration(milliseconds: 140),
+        tooLarge: () => StateError('large'),
+        inactivityExpired: () => StateError('idle'),
+        totalExpired: () => TimeoutException('total'),
+      ),
+      throwsA(isA<TimeoutException>()),
+    );
+    expect(cancelled, isTrue);
+    feed.cancel();
+    await drip.close();
+
+    expect(
+      await readBoundedControlBytes(
+        Stream<List<int>>.value([1, 2, 3]),
+        limit: 3,
+        inactivityTimeout: const Duration(milliseconds: 100),
+        totalTimeout: const Duration(milliseconds: 140),
+        tooLarge: () => StateError('large'),
+        inactivityExpired: () => StateError('idle'),
+        totalExpired: () => TimeoutException('total'),
+      ),
+      [1, 2, 3],
+    );
+  });
+
+  test('sender total deadline releases a drip-fed response', () async {
+    int requests = 0;
+    final HttpServer receiver = await HttpServer.bind(
+      InternetAddress.loopbackIPv4,
+      0,
+    );
+    receiver.listen((HttpRequest request) async {
+      requests++;
+      await request.drain<void>();
+      if (requests > 1) {
+        request.response.statusCode = HttpStatus.forbidden;
+        await request.response.close();
+        return;
+      }
+      request.response.headers.contentType = ContentType.json;
+      for (final int byte in utf8.encode('{"sessionId":"slow"}')) {
+        try {
+          request.response.add([byte]);
+          await request.response.flush();
+        } catch (_) {
+          return;
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 35));
+      }
+      await request.response.close();
+    });
+    xvDeviceId = 'sender';
+    xvDeviceName = 'Sender';
+    xvTransfers = [];
+    final SendService service = SendService(
+      connectTimeout: const Duration(milliseconds: 100),
+      headerTimeout: const Duration(milliseconds: 100),
+      idleTimeout: const Duration(milliseconds: 100),
+      prepareTimeout: const Duration(milliseconds: 200),
+      controlBodyTimeout: const Duration(milliseconds: 140),
+    );
+    final Device peer = Device(
+      id: 'peer',
+      name: 'Peer',
+      address: '127.0.0.1',
+      port: receiver.port,
+    );
+
+    expect(
+      await service.send(
+        peer: peer,
+        files: [FileItem(id: 'one', relativePath: 'one.txt', size: 0)],
+      ),
+      TransferStatus.failed,
+    );
+    expect(service.busy, isFalse);
+    expect(
+      await service.send(
+        peer: peer,
+        files: [FileItem(id: 'two', relativePath: 'two.txt', size: 0)],
+      ),
+      TransferStatus.cancelled,
+    );
+    expect(requests, 2);
+
+    await receiver.close(force: true);
+  });
+
   test('sender times out a prepare that never returns headers', () async {
     final blocker = Completer<void>();
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
