@@ -41,6 +41,18 @@ bool? networkDesiredFor(
   }
 }
 
+Future<bool> updateReceiverAdvertisement({
+  required bool receiverReady,
+  required Future<bool> Function() startAdvertisement,
+  required Future<void> Function() stopAdvertisement,
+}) async {
+  if (!receiverReady) {
+    await stopAdvertisement();
+    return false;
+  }
+  return startAdvertisement();
+}
+
 enum SendButtonMode { send, stop, stopping }
 
 // What the one button at the bottom is at this moment. Cancelling marks the
@@ -327,8 +339,6 @@ class _HomeScreenState extends State<HomeScreen>
         if (!_stillWantsNetwork(epoch)) return;
       }
     }
-    await ensureRecvDir();
-    if (!_stillWantsNetwork(epoch)) return;
     // Here rather than at main(), because on Android the folder cannot even be
     // listed until the storage permission above has been answered.
     await sweepOrphanPartsOnce(xvRecvDir);
@@ -343,11 +353,19 @@ class _HomeScreenState extends State<HomeScreen>
       await receiveServer.stop();
       if (!_stillWantsNetwork(epoch)) return;
     }
-    await receiveServer.start();
-    if (!_stillWantsNetwork(epoch)) return;
-    await discovery.start();
-    if (!_stillWantsNetwork(epoch)) return;
+    // Manual peers and outgoing sends remain useful even if this machine
+    // cannot currently receive. Automatic discovery, however, would advertise
+    // a dead port or an unusable destination, so it follows receive readiness.
     manualPoller.start();
+    final bool receiveReady = await receiveServer.start();
+    if (!_stillWantsNetwork(epoch)) return;
+    await updateReceiverAdvertisement(
+      receiverReady: receiveReady,
+      startAdvertisement: discovery.start,
+      stopAdvertisement: discovery.stop,
+    );
+    if (!_stillWantsNetwork(epoch)) return;
+    if (!receiveReady) return;
   }
 
   // Called after the port may have changed in settings.
@@ -656,8 +674,8 @@ class _HomeScreenState extends State<HomeScreen>
         listenable: _netTicks,
         builder: (context, _) => CustomScrollView(
           slivers: [
-            if (receiveServer.bindError != null)
-              SliverToBoxAdapter(child: _buildPortBanner()),
+            if (receiveServer.readinessFailure != null)
+              SliverToBoxAdapter(child: _buildReceiveBanner()),
             SliverToBoxAdapter(child: _buildPickRow()),
             SliverToBoxAdapter(child: _buildSelectedHeader()),
             _buildSelectedList(),
@@ -675,9 +693,11 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  // Receiving is down while the port is taken; sending still works, so this is
-  // a banner and not a blocking error.
-  Widget _buildPortBanner() {
+  // Receiving is down while its port or folder is unavailable; sending still
+  // works, so this is a banner and not a blocking error.
+  Widget _buildReceiveBanner() {
+    final bool folder =
+        receiveServer.readinessFailure == ReceiveReadinessFailure.folder;
     return Container(
       width: double.infinity,
       color: clError,
@@ -688,7 +708,9 @@ class _HomeScreenState extends State<HomeScreen>
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              '${lw('Port is busy, receiving is off')}: $currentPort',
+              folder
+                  ? lw('Receive folder unavailable, receiving is off')
+                  : '${lw('Port is busy, receiving is off')}: $currentPort',
               style: TextStyle(color: onColor(clError), fontSize: fsSmall),
             ),
           ),

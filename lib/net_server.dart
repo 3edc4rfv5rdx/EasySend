@@ -19,6 +19,8 @@ enum _ReceivePhase {
   cancelled,
 }
 
+enum ReceiveReadinessFailure { folder, port }
+
 class _ProtocolProblem implements Exception {
   final int status;
   final String reason;
@@ -120,8 +122,9 @@ class ReceiveServer {
   })?
   askUser;
 
-  // Set when the port could not be taken, shown as a banner on the main screen.
-  String? bindError;
+  // Set when this process cannot truthfully advertise itself as a receiver.
+  ReceiveReadinessFailure? readinessFailure;
+  String? readinessError;
 
   ReceiveServer({
     this.sessionTimeout = const Duration(seconds: receiveSessionTimeoutSec),
@@ -139,12 +142,28 @@ class ReceiveServer {
   int? get boundPort => _http?.port;
 
   Future<bool> start() async {
+    // Existing and newly created folders get the same capability check. A
+    // listener already bound on this port must stop if storage disappears or
+    // becomes unwritable while the app is away.
+    if (!await canWriteInto(xvRecvDir)) {
+      readinessFailure = ReceiveReadinessFailure.folder;
+      readinessError = 'receive folder unavailable';
+      if (running) {
+        await stop();
+      } else {
+        serverStateChanged();
+      }
+      return false;
+    }
     // Already listening where the settings point: rebinding would abort the
     // session in flight for nothing. Coming back to the foreground asks for a
     // start on every resume, and an incoming transfer has to survive that.
-    if (running && boundPort == currentPort) return true;
+    if (running && boundPort == currentPort) {
+      readinessFailure = null;
+      readinessError = null;
+      return true;
+    }
     await stop();
-    await ensureRecvDir();
     final int port = currentPort;
     try {
       _http = await HttpServer.bind(
@@ -152,11 +171,13 @@ class ReceiveServer {
         port,
         shared: false,
       );
-      bindError = null;
+      readinessFailure = null;
+      readinessError = null;
     } on SocketException catch (e) {
       // Busy port must be visible, not a silent failure to receive.
-      bindError = e.osError?.message ?? e.message;
-      myPrint('server bind failed on $port: $bindError');
+      readinessFailure = ReceiveReadinessFailure.port;
+      readinessError = e.osError?.message ?? e.message;
+      myPrint('server bind failed on $port: $readinessError');
       _http = null;
       serverStateChanged();
       return false;

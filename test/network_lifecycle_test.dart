@@ -175,6 +175,39 @@ void main() {
     });
   });
 
+  test('receiver advertisement follows readiness exactly', () async {
+    int starts = 0;
+    int stops = 0;
+
+    expect(
+      await updateReceiverAdvertisement(
+        receiverReady: false,
+        startAdvertisement: () async {
+          starts++;
+          return true;
+        },
+        stopAdvertisement: () async => stops++,
+      ),
+      isFalse,
+    );
+    expect(starts, 0);
+    expect(stops, 1);
+
+    expect(
+      await updateReceiverAdvertisement(
+        receiverReady: true,
+        startAdvertisement: () async {
+          starts++;
+          return true;
+        },
+        stopAdvertisement: () async => stops++,
+      ),
+      isTrue,
+    );
+    expect(starts, 1);
+    expect(stops, 1);
+  });
+
   test(
     'network transition queue continues after a failed transition',
     () async {
