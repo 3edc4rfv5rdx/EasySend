@@ -89,4 +89,22 @@ void main() {
     expect(service.backgroundReady, isTrue);
     expect(xdef['Receive in background'], 'true');
   });
+
+  group('closing the task', () {
+    test('an Activity that closed its task answers true', () async {
+      expect(await finishActivityAndTask(android: true), isTrue);
+      expect(calls, ['exitApp']);
+    });
+
+    // Both mean the same to the caller: nothing closed the task, so the exit
+    // has to fall back to ending the screen on its own.
+    test('a refused or missing channel answers false', () async {
+      failWith = PlatformException(code: 'easysend');
+      expect(await finishActivityAndTask(android: true), isFalse);
+
+      failWith = MissingPluginException('no implementation');
+      expect(await finishActivityAndTask(android: true), isFalse);
+      expect(calls, ['exitApp', 'exitApp']);
+    });
+  });
 }

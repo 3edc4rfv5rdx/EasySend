@@ -607,7 +607,10 @@ class _HomeScreenState extends State<HomeScreen>
     if (_windowSaveTimer?.isActive ?? false) await _saveWindowBounds();
 
     if (Platform.isAndroid) {
-      await SystemNavigator.pop();
+      // Ends the screen and clears its Recents card in one step. If no Activity
+      // answered, the screen still has to close, and a listed task is a better
+      // outcome than an exit button that does nothing.
+      if (!await finishActivityAndTask()) await SystemNavigator.pop();
     } else {
       // Not windowManager.close(): the engine tears the GTK window down first
       // and then trips over its own compositor cleanup with no GL context left,

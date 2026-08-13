@@ -2,6 +2,7 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+- E: Exiting with the ✕ button now removes the app's card from Recents instead of leaving a snapshot of a closed app offering to resume it
 - E: Exiting with the ✕ button now ignores the Activity teardown that follows it, so with "Receive in background" on the app no longer reopens the sockets it just closed and the next start still brings the network up
 - N: An "Including folders" tick under "Delete originals" lets a move remove the folders it emptied, up to and including the picked folder but never above it; folders still holding anything are left alone
 - I: Release artifacts are named `<title>-<version>-<build>-<arch>` throughout — APKs now match the AppImage, the fat APK is `-universal`, checksum files follow their APK, and artifacts under the previous naming are cleared on the next build

@@ -90,6 +90,24 @@ Future<List<String>?> pickFilesFromActivity() async {
   return completer.future;
 }
 
+/// Closes the screen and takes its Recents entry with it.
+///
+/// False when there is no Activity to close or the call did not arrive, and the
+/// caller then falls back to `SystemNavigator.pop()`, which ends the screen but
+/// leaves the task listed.
+Future<bool> finishActivityAndTask({bool? android}) async {
+  if (!(android ?? Platform.isAndroid)) return false;
+  try {
+    return await _serviceChannel.invokeMethod<bool>('exitApp') ?? false;
+  } on PlatformException catch (e) {
+    myPrint('closing the task failed: ${e.message}');
+    return false;
+  } on MissingPluginException catch (e) {
+    myPrint('closing the task is unavailable: ${e.message}');
+    return false;
+  }
+}
+
 void _completePick(List<String> paths) {
   final Completer<List<String>>? completer = _pickCompleter;
   _pickCompleter = null;

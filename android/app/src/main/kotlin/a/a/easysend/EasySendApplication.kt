@@ -106,6 +106,20 @@ class EasySendApplication : Application() {
                 result.success(true)
             }
 
+            // finish() alone leaves the task card in Recents, showing a snapshot
+            // of an app the user has just closed and offering to resume it. The
+            // process stays alive either way, because the engine belongs here
+            // and not to the Activity.
+            "exitApp" -> {
+                val current = activity
+                if (current == null) {
+                    result.success(false)
+                } else {
+                    current.finishAndRemoveTask()
+                    result.success(true)
+                }
+            }
+
             "takeServiceTimeout" -> result.success(takeServiceTimeout())
 
             // Answers whether the picker opened, not what was picked: the

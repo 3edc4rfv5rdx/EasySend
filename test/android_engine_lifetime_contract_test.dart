@@ -80,4 +80,23 @@ void main() {
     expect(helpers, contains('pickFilesFromActivity'));
     expect(home, contains('pickFilesFromActivity'));
   });
+
+  // SystemNavigator.pop() is finish(): the screen goes but the task card stays
+  // in Recents, showing a snapshot of an app the user has just closed. Only the
+  // Activity can remove its own task, so the exit has to reach one.
+  test('the exit takes the Recents entry with it', () async {
+    final String application = await File(
+      'android/app/src/main/kotlin/a/a/easysend/EasySendApplication.kt',
+    ).readAsString();
+    final String helpers = await File('lib/android_helpers.dart').readAsString();
+    final String home = await File('lib/home_screen.dart').readAsString();
+
+    expect(application, contains('"exitApp"'));
+    expect(application, contains('finishAndRemoveTask()'));
+    expect(helpers, contains("invokeMethod<bool>('exitApp')"));
+    expect(home, contains('finishActivityAndTask()'));
+    // Without an Activity there is nothing to finish, and the screen still has
+    // to close.
+    expect(home, contains('SystemNavigator.pop()'));
+  });
 }
