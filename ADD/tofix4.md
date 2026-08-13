@@ -388,7 +388,7 @@ Switch back to A and assert A is not walked a second time. Assert two switches
 to the same folder produce one walk. Cover a folder that cannot be listed, and
 assert a later switch to a readable folder still sweeps.
 
-### 11. P2 — A failed network transition is silent in a release build and leaves the screen saying nothing went wrong
+### 11. P2 [FIXED 8cea805] — A failed network transition is silent in a release build and leaves the screen saying nothing went wrong
 
 *Added 2026-08-13, from verifying finding 12 of `ADD/tofix3.md`. That repair is
 what makes this visible: the queue no longer freezes, so a failure now passes
