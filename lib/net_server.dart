@@ -64,6 +64,37 @@ class _IoReceiveFileWriter implements ReceiveFileWriter {
 ReceiveFileWriter _openReceiveFileWriter(File file) =>
     _IoReceiveFileWriter(file);
 
+// Where the connection says this peer can be reached, written down only once
+// the transfer is on. Behind a router nothing else will ever say it: broadcast
+// does not cross one, so a trusted device remembered without an address could
+// never be sent to.
+//
+// Applied on acceptance rather than on arrival, because every line of it
+// outlives the request. The address and port are persisted, and the manual flag
+// keeps the entry in the list for good and has it polled while the app is on
+// screen. A transfer the user refused must leave none of that behind.
+//
+// `wasOnline` is read when the request arrives, not when this runs: a device
+// that merely fell quiet while the question stood on screen has not become one
+// that only a poll can find.
+void learnSenderAddress(
+  Device device, {
+  required String address,
+  required int port,
+  required bool wasOnline,
+}) {
+  // A loopback source is this machine talking to itself — a second copy of the
+  // app, or an emulator behind NAT — and dialling it back would reach us.
+  if (isReachableAddress(address)) {
+    device.address = address;
+    device.port = port;
+    // Silent until it knocked on the door: discovery is not reaching it, so
+    // only a poll will keep it in the list once the transfer is over.
+    if (!wasOnline) device.manual = true;
+  }
+  device.lastSeen = DateTime.now();
+}
+
 // Receiving side of a transfer in flight.
 class _Incoming {
   final String sessionId;
@@ -447,25 +478,23 @@ class ReceiveServer {
     final bool self = senderId == xvDeviceId;
     final bool reachable = !self && isReachableAddress(address);
     final int known = self ? -1 : xvDevices.indexWhere((d) => d.id == senderId);
-    // Whoever just connected has told us where to reach them. Behind a router
-    // nothing else ever will: broadcast does not cross it, so a trusted device
-    // remembered without an address can never be sent to.
-    if (known >= 0) {
-      final Device device = xvDevices[known];
-      // Silent until it knocked on the door: discovery is not reaching it, so
-      // only a poll will keep it in the list once the transfer is over.
-      final bool wasOnline = device.online;
-      if (reachable) {
-        device.address = address;
-        device.port = port;
-        if (!wasOnline) device.manual = true;
-      }
-      device.lastSeen = DateTime.now();
-      if (device.trusted) {
-        await saveSettings();
-        devicesChanged();
-        return true;
-      }
+    // Read now, acted on later: whether discovery was reaching this device at
+    // the moment it knocked, and not thirty seconds afterwards. A device that
+    // merely fell quiet while the question stood on screen has not become one
+    // that only a poll can find.
+    final bool wasOnline = known >= 0 && xvDevices[known].online;
+    // A trusted sender is accepted here and now, so what the connection says
+    // about it can be written down here and now too.
+    if (known >= 0 && xvDevices[known].trusted) {
+      learnSenderAddress(
+        xvDevices[known],
+        address: address,
+        port: port,
+        wasOnline: wasOnline,
+      );
+      await saveSettings();
+      devicesChanged();
+      return true;
     }
 
     // Off screen there is nobody to show a dialog to; ask by notification.
@@ -503,10 +532,24 @@ class ReceiveServer {
       );
     }
     if (identical(_consentAbort, abort)) _consentAbort = null;
-    if (accepted && trust && !self) {
-      if (known >= 0) {
-        xvDevices[known].trusted = true;
-      } else {
+    if (accepted && !self) {
+      // Resolved again instead of through the index taken before the question:
+      // the list does not hold still for thirty seconds. Discovery adds entries,
+      // forgets silent ones and evicts transient ones while the dialog stands
+      // there, and the old index could by now name somebody else entirely.
+      final int now = xvDevices.indexWhere((d) => d.id == senderId);
+      if (now >= 0) {
+        final Device device = xvDevices[now];
+        learnSenderAddress(
+          device,
+          address: address,
+          port: port,
+          wasOnline: wasOnline,
+        );
+        if (trust) device.trusted = true;
+        await saveSettings();
+        devicesChanged();
+      } else if (trust) {
         xvDevices.add(
           Device(
             id: senderId,
@@ -520,9 +563,9 @@ class ReceiveServer {
             lastSeen: DateTime.now(),
           ),
         );
+        await saveSettings();
+        devicesChanged();
       }
-      await saveSettings();
-      devicesChanged();
     }
     return accepted;
   }
