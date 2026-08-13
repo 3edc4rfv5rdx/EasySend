@@ -77,15 +77,65 @@ void main() {
     expect(transfer.quietFiles, 0, reason: 'no quiet line was there to give up');
   });
 
+  // Dropping a failure is allowed; dropping it in silence is not. A log that
+  // starts mid-transfer while claiming to be whole is the one outcome the cap
+  // must never produce.
+  test('failures the cap had to drop are counted and said out loud', () {
+    final TransferSession transfer = session();
+    for (int i = 0; i < maxTransferEvents + 50; i++) {
+      transfer.log('Checksum did not match', file: 'file$i.bin', failure: true);
+    }
+
+    expect(transfer.droppedLines, 50);
+    expect(transfer.quietFiles, 0);
+    final String? trimmed = trimmedLogLine(transfer);
+    expect(trimmed, isNotNull);
+    expect(trimmed, endsWith(': 50'));
+    expect(transferLogText(transfer).split('\n').last, trimmed);
+  });
+
+  // Both counts on one line: they answer the same question with different news.
+  test('one closing line carries both counts', () {
+    final TransferSession transfer = session();
+    for (int i = 0; i < maxTransferEvents; i++) {
+      transfer.log('Not sent', file: 'old$i.bin', failure: true);
+    }
+    // Every quiet line goes first, and only then does the cap start on the
+    // failures that were already there.
+    for (int i = 0; i < 3; i++) {
+      transfer.log('Sent', file: 'quiet$i.bin', routine: true);
+    }
+    for (int i = 0; i < 4; i++) {
+      transfer.log('Not sent', file: 'new$i.bin', failure: true);
+    }
+
+    expect(transfer.quietFiles, 3);
+    expect(transfer.droppedLines, 4);
+    final String line = trimmedLogLine(transfer)!;
+    expect(line, contains(': 3'));
+    expect(line, contains(': 4'));
+    expect(line.split('\n').length, 1, reason: 'one line, not two');
+    expect(transferLogText(transfer).split('\n').last, line);
+  });
+
   test('a trimmed log accounts for the files it stopped naming', () {
     final TransferSession transfer = session();
-    expect(quietFilesLine(transfer), isNull);
+    expect(trimmedLogLine(transfer), isNull);
     for (int i = 0; i < maxTransferEvents + 7; i++) {
       transfer.log('Received', file: 'file$i.bin', routine: true);
     }
 
-    expect(quietFilesLine(transfer), endsWith(': 7'));
-    expect(transferLogText(transfer).split('\n').last, quietFilesLine(transfer));
+    expect(transfer.droppedLines, 0);
+    expect(trimmedLogLine(transfer), endsWith(': 7'));
+    expect(transferLogText(transfer).split('\n').last, trimmedLogLine(transfer));
+  });
+
+  test('a log that never overflowed closes with nothing', () {
+    final TransferSession transfer = session();
+    transfer.log('Sent', file: 'file0.bin', routine: true);
+
+    expect(trimmedLogLine(transfer), isNull);
+    expect(transferLogText(transfer).split('\n').last, isNot(contains(': 0')));
   });
 
   test('copied text starts with the build and repeats the header', () {

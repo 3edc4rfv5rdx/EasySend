@@ -154,21 +154,37 @@ List<String> transferLogHeader(TransferSession transfer) => [
 ];
 
 // The last line of a log the cap has trimmed, on screen and in the clipboard
-// alike. Null when nothing was trimmed and every file has its own line.
-String? quietFilesLine(TransferSession transfer) => transfer.quietFiles == 0
-    ? null
-    : '${lw('Other files went through without a word')}: '
-          '${transfer.quietFiles}';
+// alike. Null when nothing was trimmed and every line is still there.
+//
+// One line for both counts, because they answer the same question — what is
+// missing from this log — with different news. Quiet files were given up on
+// purpose and nothing about them is worth reading; dropped lines had something
+// to say and the cap took them anyway, which the reader has to be told rather
+// than left to infer from a log that starts mid-transfer.
+String? trimmedLogLine(TransferSession transfer) {
+  final List<String> parts = [
+    if (transfer.quietFiles > 0)
+      '${lw('Other files went through without a word')}: '
+          '${transfer.quietFiles}',
+    if (transfer.droppedLines > 0)
+      '${lw('Older lines the log could not keep')}: '
+          '${transfer.droppedLines}',
+  ];
+  return parts.isEmpty ? null : parts.join(' — ');
+}
 
 // The whole log as one piece of text. The version goes first: a log quoted in
 // a report is worth nothing without the build it came from.
-String transferLogText(TransferSession transfer) => [
-  '$prgName $progVersion+$buildNumber $xvPlatform',
-  ...transferLogHeader(transfer),
-  '',
-  ...transfer.events.map(formatTransferEvent),
-  if (transfer.quietFiles > 0) quietFilesLine(transfer)!,
-].join('\n');
+String transferLogText(TransferSession transfer) {
+  final String? trimmed = trimmedLogLine(transfer);
+  return [
+    '$prgName $progVersion+$buildNumber $xvPlatform',
+    ...transferLogHeader(transfer),
+    '',
+    ...transfer.events.map(formatTransferEvent),
+    ?trimmed,
+  ].join('\n');
+}
 
 // One transfer, in either direction. Not persisted: the app keeps no history
 // between runs, finished entries only live until restart.
@@ -200,6 +216,12 @@ class TransferSession {
   // fine and not missing from the account.
   int quietFiles = 0;
 
+  // Lines the cap had to drop with nothing quiet left to give up. These had
+  // something to say — a refusal, a cancel, a deleted source — so losing one is
+  // not the same event as retiring a "file sent", and the closing line says so
+  // separately. Silence here was the one outcome the cap must not produce.
+  int droppedLines = 0;
+
   void log(
     String message, {
     String? file,
@@ -221,11 +243,18 @@ class TransferSession {
     // goes is the oldest line that says a file simply arrived: a transfer of
     // three thousand would otherwise push its early failures out of its own log
     // — the one thing the log exists to answer. Only when there is no such line
-    // left does the oldest one go, whatever it says.
+    // left does the oldest one go, whatever it says, and then it is counted:
+    // a log of nothing but refusals is exactly where losing the early ones
+    // matters most, and it must not happen behind the reader's back.
     if (events.length > maxTransferEvents) {
       final int quiet = events.indexWhere((TransferEvent e) => e.routine);
-      events.removeAt(quiet < 0 ? 0 : quiet);
-      if (quiet >= 0) quietFiles++;
+      if (quiet >= 0) {
+        events.removeAt(quiet);
+        quietFiles++;
+      } else {
+        events.removeAt(0);
+        droppedLines++;
+      }
     }
     myPrint([file, message, detail].nonNulls.join(' '));
   }

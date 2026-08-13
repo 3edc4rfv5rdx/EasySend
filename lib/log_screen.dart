@@ -90,18 +90,18 @@ class TransferLogScreen extends StatelessWidget {
         child: Text(lw('Nothing to show yet'), style: tsNormal),
       );
     }
-    // The count of files the cap took away closes the log, so a trimmed log
-    // still accounts for every file instead of quietly starting mid-transfer.
-    final String? quiet = quietFilesLine(transfer);
+    // What the cap took away closes the log, so a trimmed log still accounts
+    // for every line instead of quietly starting mid-transfer.
+    final String? trimmed = trimmedLogLine(transfer);
     // Oldest first, the order the events happened in and the order they are
     // copied in: a log read from both ends would be two different logs.
     return ListView.builder(
-      itemCount: transfer.events.length + (quiet == null ? 0 : 1),
+      itemCount: transfer.events.length + (trimmed == null ? 0 : 1),
       itemBuilder: (context, index) {
         if (index == transfer.events.length) {
           return Padding(
             padding: const EdgeInsets.fromLTRB(12, 2, 12, 2),
-            child: Text(quiet!, style: tsNormal.copyWith(color: clTextMuted)),
+            child: Text(trimmed!, style: tsNormal.copyWith(color: clTextMuted)),
           );
         }
         final TransferEvent event = transfer.events[index];
