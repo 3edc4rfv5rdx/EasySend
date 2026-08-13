@@ -182,16 +182,59 @@ List<String> prunableSourceDirs(Iterable<FileItem> items) {
     ..sort((a, b) => p.split(b).length.compareTo(p.split(a).length));
 }
 
+// What a pick produced, and whether the walk was cut short by a limit.
+class CollectedFiles {
+  final List<FileItem> items;
+  final bool tooManyFiles;
+  final bool tooLarge;
+
+  const CollectedFiles(
+    this.items, {
+    this.tooManyFiles = false,
+    this.tooLarge = false,
+  });
+
+  bool get overflowed => tooManyFiles || tooLarge;
+}
+
 // Build the transfer manifest out of picked files and folders. A folder keeps
 // its own name as the top level, so the structure arrives intact.
-Future<List<FileItem>> collectFiles(List<String> paths) async {
+//
+// The limits are enforced here, while walking, and not by the caller afterwards.
+// A cache or dependency folder holds hundreds of thousands of files: collecting
+// all of them to then refuse the selection means the stat of every one of them,
+// a FileItem per file held in memory, and a UI that cannot answer until the
+// whole tree has been read.
+//
+// `maxFiles` bounds what is collected, not what is finally selected. One item
+// past it is enough to know no selection can fit: a collected file that is
+// already selected is dropped as a duplicate later, and there can be no more of
+// those than the selection holds.
+Future<CollectedFiles> collectFiles(
+  List<String> paths, {
+  int maxFiles = maxManifestFiles,
+  int maxBytes = maxDeclaredTransferBytes,
+}) async {
   final List<FileItem> items = [];
+  int totalBytes = 0;
+  bool tooManyFiles = false;
+  bool tooLarge = false;
+  bool room() => !tooManyFiles && !tooLarge;
+
+  void take(FileItem item) {
+    items.add(item);
+    totalBytes += item.size;
+    if (items.length > maxFiles) tooManyFiles = true;
+    if (totalBytes > maxBytes) tooLarge = true;
+  }
+
   for (final String path in paths) {
+    if (!room()) break;
     final FileSystemEntityType type = await FileSystemEntity.type(path);
     if (type == FileSystemEntityType.file) {
       final File f = File(path);
       final FileStat stat = await f.stat();
-      items.add(
+      take(
         FileItem(
           id: _uuid.v4(),
           relativePath: p.basename(path),
@@ -202,35 +245,47 @@ Future<List<FileItem>> collectFiles(List<String> paths) async {
       );
     } else if (type == FileSystemEntityType.directory) {
       final String parent = p.dirname(path);
-      await for (final FileSystemEntity entity in Directory(
-        path,
-      ).list(recursive: true, followLinks: false)) {
-        if (entity is! File) continue;
-        try {
-          final FileStat stat = await entity.stat();
-          items.add(
-            FileItem(
-              id: _uuid.v4(),
-              // Relative to the folder's parent, so the folder itself is
-              // included. Split by the platform's own rule rather than by
-              // replacing backslashes: on Linux a backslash is an ordinary
-              // character in a name, and replacing it would turn one file into
-              // a folder before the manifest was even built.
-              relativePath: p
-                  .split(p.relative(entity.path, from: parent))
-                  .join('/'),
-              size: stat.size,
-              sourcePath: entity.path,
-              modified: stat.modified,
-            ),
-          );
-        } catch (e) {
-          myPrint('skipping unreadable ${entity.path}: $e');
+      try {
+        await for (final FileSystemEntity entity in Directory(
+          path,
+        ).list(recursive: true, followLinks: false)) {
+          if (entity is! File) continue;
+          try {
+            final FileStat stat = await entity.stat();
+            take(
+              FileItem(
+                id: _uuid.v4(),
+                // Relative to the folder's parent, so the folder itself is
+                // included. Split by the platform's own rule rather than by
+                // replacing backslashes: on Linux a backslash is an ordinary
+                // character in a name, and replacing it would turn one file into
+                // a folder before the manifest was even built.
+                relativePath: p
+                    .split(p.relative(entity.path, from: parent))
+                    .join('/'),
+                size: stat.size,
+                sourcePath: entity.path,
+                modified: stat.modified,
+              ),
+            );
+          } catch (e) {
+            myPrint('skipping unreadable ${entity.path}: $e');
+          }
+          // Breaking out of `await for` cancels the directory subscription, so
+          // the rest of the tree is never read.
+          if (!room()) break;
         }
+      } catch (e) {
+        // A folder that cannot be listed loses that folder, not the selection.
+        myPrint('cannot walk $path: $e');
       }
     }
   }
-  return items;
+  return CollectedFiles(
+    items,
+    tooManyFiles: tooManyFiles,
+    tooLarge: tooLarge,
+  );
 }
 
 class FileSnapshot {

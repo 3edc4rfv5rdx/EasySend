@@ -504,8 +504,19 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Future<void> _addPaths(List<String> paths) async {
-    final List<FileItem> items = await collectFiles(paths);
+    final CollectedFiles collected = await collectFiles(paths);
     if (!mounted) return;
+    // Said as soon as the walk knows, instead of after a folder of any size has
+    // been read into memory in full.
+    if (collected.tooManyFiles) {
+      okInfoBarRed('${lw('Too many files at once')}: $maxManifestFiles');
+      return;
+    }
+    if (collected.tooLarge) {
+      okInfoBarRed(lw('The selection is too large'));
+      return;
+    }
+    final List<FileItem> items = collected.items;
     // collectFiles skips anything that is neither a file nor a directory by the
     // time it looks — a path that never materialised, or one this process may
     // not read. Coming back with nothing at all is not a selection the user can
