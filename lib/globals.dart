@@ -166,10 +166,15 @@ Color clFrame = const Color(0xFF9E9E9E);
 // and its icon, the small remove buttons, a row's chevron, the bar of a
 // cancelled transfer. Dimmed from the text colour and never drawn in clFrame —
 // the frame is tuned to be the faintest thing on the screen and gives a mere
-// 1.9:1 against the Light background, where readable content needs 4.5:1 and a
-// control 3:1. This step clears 4.5:1 in all five palettes, Olive tightest at
-// 4.7:1.
-Color get clTextMuted => clText.withValues(alpha: 0.6);
+// 1.9:1 against the Light background, where readable content needs 4.5:1.
+//
+// The step is set by the worst surface it lands on, not the page: a device can
+// be selected and then go offline, leaving this ink on the selection tint. That
+// costs Dark about a point of contrast, so 0.6 reads 4.15:1 there while looking
+// fine everywhere else. 0.65 is the lowest step that clears 4.5:1 on both
+// surfaces in every palette; theme_contrast_test.dart holds the line for any
+// palette added later.
+Color get clTextMuted => clText.withValues(alpha: 0.65);
 // Transfer progress: deliberately the loudest colour on the screen.
 Color clProgress = const Color(0xFFFF9800);
 

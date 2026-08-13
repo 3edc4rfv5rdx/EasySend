@@ -102,6 +102,14 @@ SendButtonMode sendButtonMode({
   return SendButtonMode.send;
 }
 
+// The platform icon of a device row. An unreachable device gets the
+// struck-through variant, which is the whole of what says so: the row used to
+// spell "offline" beside the address and wrapped it onto a third line.
+IconData deviceRowIcon({required bool phone, required bool online}) {
+  if (online) return phone ? Icons.smartphone : Icons.computer;
+  return phone ? Icons.phonelink_off : Icons.desktop_access_disabled;
+}
+
 // A receiver destination may only occur once. Case folding also prevents a
 // selection that would collapse when the peer runs Windows.
 String targetKey(FileItem f) => f.relativePath.toLowerCase();
@@ -1167,18 +1175,13 @@ class _HomeScreenState extends State<HomeScreen>
 
   Widget _deviceIcon(Device device, bool isTarget) {
     final bool phone = device.platform == 'android';
-    final IconData icon = phone ? Icons.smartphone : Icons.computer;
+    final IconData icon = deviceRowIcon(phone: phone, online: device.online);
     if (!device.online) {
-      // The struck-through platform icon carries the status on its own, so the
-      // address line stays one line instead of wrapping the word onto a third.
       // Still spelled out for anyone who asks: an unreachable device cannot be
       // picked, and a dead row with no explanation is worse than a long one.
       return Tooltip(
         message: lw('offline'),
-        child: Icon(
-          phone ? Icons.phonelink_off : Icons.desktop_access_disabled,
-          color: clTextMuted,
-        ),
+        child: Icon(icon, color: clTextMuted),
       );
     }
     // The chosen device turns into an arrow pointing at its row: the platform

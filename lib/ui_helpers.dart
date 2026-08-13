@@ -601,14 +601,24 @@ Future<bool> showNetworkSafetyWarning({BuildContext? context}) async {
   return acknowledged ?? false;
 }
 
+// WCAG contrast between two colours, 1 for identical and 21 for black on white.
+// Both must be opaque: computeLuminance() ignores alpha, so a translucent ink
+// has to be flattened onto what it is drawn over first — Color.alphaBlend does
+// that — or it measures as though it were fully opaque.
+double contrastRatio(Color a, Color b) {
+  final double la = a.computeLuminance();
+  final double lb = b.computeLuminance();
+  return la > lb ? (la + 0.05) / (lb + 0.05) : (lb + 0.05) / (la + 0.05);
+}
+
 // Black or white, whichever actually contrasts better — compared by WCAG ratio
 // rather than by a brightness threshold. Halfway-bright colours like amber are
 // exactly where a threshold picks white and leaves the text barely there.
 Color onColor(Color background) {
-  final double l = background.computeLuminance();
-  final double onWhite = 1.05 / (l + 0.05);
-  final double onBlack = (l + 0.05) / 0.05;
-  return onBlack >= onWhite ? Colors.black : Colors.white;
+  return contrastRatio(background, Colors.black) >=
+          contrastRatio(background, Colors.white)
+      ? Colors.black
+      : Colors.white;
 }
 
 // Core SnackBar function
