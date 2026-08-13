@@ -142,6 +142,35 @@ IconData deviceRowIcon({required bool phone, required bool online}) {
 // selection that would collapse when the peer runs Windows.
 String targetKey(FileItem f) => f.relativePath.toLowerCase();
 
+// The source paths a finished batch actually delivered.
+//
+// The picked list normally recognises its own items: a send is handed the very
+// objects the list holds, so marking one done is enough. A Retry cannot work
+// that way — it rebuilds its batch from disk to re-read what is there now, and
+// what it marks done are new objects with new ids. The path they were read from
+// is the one thing both sides still agree on.
+Set<String> deliveredSourcePaths(Iterable<FileItem> batch) => {
+  for (final FileItem file in batch)
+    if (file.done && file.sourcePath != null) file.sourcePath!,
+};
+
+// What is left of a selection once a finished batch has been accounted for.
+// Scoped to that one batch on purpose: a file the user picks again after it has
+// already been sent belongs back in the list, so this must not be asked of
+// every transfer ever made in this run.
+List<FileItem> withoutDelivered(
+  List<FileItem> selection,
+  Iterable<FileItem> batch,
+) {
+  final Set<String> delivered = deliveredSourcePaths(batch);
+  if (delivered.isEmpty) return selection;
+  return [
+    for (final FileItem file in selection)
+      if (file.sourcePath == null || !delivered.contains(file.sourcePath))
+        file,
+  ];
+}
+
 // What of a fresh pick can actually be sent, and how much of it cannot. Two
 // ways of picking the same thing twice: the same file on disk, and two files
 // that would land on the same place at the far end — the second one catches a
@@ -1432,7 +1461,23 @@ class _HomeScreenState extends State<HomeScreen>
     if (restored.missing > 0) {
       okInfoBarOrange(lw('Some files are no longer there'));
     }
-    await sender.send(peer: xvDevices[peerIndex], files: restored.files);
+    final List<FileItem> batch = restored.files;
+    await sender.send(peer: xvDevices[peerIndex], files: batch);
+    // _pruneSentFiles cannot see this one: it recognises delivered files by
+    // identity, and these are rebuilt objects. Without this a file that has just
+    // arrived stays in the picked list, and the next Send sends it again.
+    _dropDelivered(batch);
+  }
+
+  void _dropDelivered(List<FileItem> batch) {
+    if (!mounted) return;
+    final List<FileItem> left = withoutDelivered(_selected, batch);
+    if (left.length == _selected.length) return;
+    setState(() {
+      _selected
+        ..clear()
+        ..addAll(left);
+    });
   }
 
   // Tapping a row opens its log. It used to open the received file or folder,

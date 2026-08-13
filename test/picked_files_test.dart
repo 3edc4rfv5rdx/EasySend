@@ -156,4 +156,66 @@ void main() {
       );
     });
   });
+
+  // A Retry rebuilds its files from disk to re-read what is there now, so what
+  // it marks delivered are new objects with new ids. The picked list cannot
+  // recognise them by identity, and a file that had arrived used to stay in the
+  // list with the next Send ready to send it a second time.
+  group('a retried batch clears what it delivered', () {
+    // The same files as far as the disk is concerned, rebuilt: new ids, same
+    // source paths, which is exactly what restoreFileSnapshot produces.
+    FileItem rebuilt(String relativePath, {required bool done}) =>
+        FileItem(
+          id: 'rebuilt-$relativePath',
+          relativePath: relativePath,
+          size: 1,
+          sourcePath: '/tmp/$relativePath',
+        )..done = done;
+
+    test('delivered paths are read off the batch', () {
+      expect(
+        deliveredSourcePaths([
+          rebuilt('a.txt', done: true),
+          rebuilt('b.txt', done: false),
+        ]),
+        {'/tmp/a.txt'},
+      );
+    });
+
+    test('a file with no source of its own is never matched', () {
+      final FileItem shared = FileItem(
+        id: 'incoming',
+        relativePath: 'c.txt',
+        size: 1,
+      )..done = true;
+      expect(deliveredSourcePaths([shared]), isEmpty);
+    });
+
+    test('the selection loses exactly what arrived', () {
+      final List<FileItem> selection = [item('a.txt'), item('b.txt')];
+
+      final List<FileItem> left = withoutDelivered(selection, [
+        rebuilt('a.txt', done: true),
+        rebuilt('b.txt', done: false),
+      ]);
+
+      expect(left.map((FileItem f) => f.relativePath), ['b.txt']);
+    });
+
+    test('a batch that delivered nothing leaves the selection alone', () {
+      final List<FileItem> selection = [item('a.txt')];
+      expect(
+        withoutDelivered(selection, [rebuilt('a.txt', done: false)]),
+        same(selection),
+      );
+      expect(withoutDelivered(selection, <FileItem>[]), same(selection));
+    });
+
+    // Scoped to the one batch on purpose: picking a file again after it has
+    // been sent puts it back in the list, and nothing may quietly take it out.
+    test('a file picked again is not taken for an old delivery', () {
+      final List<FileItem> selection = [item('a.txt')];
+      expect(withoutDelivered(selection, <FileItem>[]).length, 1);
+    });
+  });
 }
