@@ -91,6 +91,20 @@ class EasySendApplication : Application() {
                     putExtra(TransferService.EXTRA_TITLE, call.argument<String>("title"))
                     putExtra(TransferService.EXTRA_TEXT, call.argument<String>("text"))
                     putExtra(TransferService.EXTRA_PROGRESS, call.argument<Int>("progress") ?: -1)
+                    // Every argument the notification is built from has to be
+                    // carried here: the service reads the Intent, not the call.
+                    putExtra(
+                        TransferService.EXTRA_STOP_LABEL,
+                        call.argument<String>("stopLabel"),
+                    )
+                    putExtra(
+                        TransferService.EXTRA_EXIT_LABEL,
+                        call.argument<String>("exitLabel"),
+                    )
+                    putExtra(
+                        TransferService.EXTRA_EXIT_NEEDS_APP,
+                        call.argument<Boolean>("exitNeedsApp") ?: false,
+                    )
                 }
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                     startForegroundService(intent)

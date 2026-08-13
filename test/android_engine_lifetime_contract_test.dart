@@ -132,4 +132,37 @@ void main() {
     expect(home, contains('onNotificationStop = _stop'));
     expect(home, contains('onNotificationExit = _exitApp'));
   });
+
+  // The channel call and the Intent are two hops, and the service reads the
+  // Intent. An argument added to the call but not carried across arrives as
+  // null, which is exactly how the buttons went missing once: labels were sent
+  // from Dart, never put into the Intent, and a label-less button is not drawn.
+  test('every argument of the notification call reaches the service', () async {
+    final String helpers = await File('lib/android_helpers.dart').readAsString();
+    final String application = await File(
+      'android/app/src/main/kotlin/a/a/easysend/EasySendApplication.kt',
+    ).readAsString();
+    final String service = await File(
+      'android/app/src/main/kotlin/a/a/easysend/TransferService.kt',
+    ).readAsString();
+
+    final RegExp call = RegExp(
+      r"invokeMethod\(starting \? 'start' : 'update', \{(.*?)\n      \}\)",
+      dotAll: true,
+    );
+    final String? arguments = call.firstMatch(helpers)?.group(1);
+    expect(arguments, isNotNull, reason: 'the notification call changed shape');
+
+    final List<String> keys = RegExp(r"'([A-Za-z]+)':")
+        .allMatches(arguments!)
+        .map((RegExpMatch m) => m.group(1)!)
+        .toList();
+    // A guard on the guard: an empty match list would assert nothing at all.
+    expect(keys, containsAll(<String>['title', 'stopLabel', 'exitNeedsApp']));
+
+    for (final String key in keys) {
+      expect(application, contains('"$key"'), reason: '$key is never put into the Intent');
+      expect(service, contains('"$key"'), reason: '$key is never read by the service');
+    }
+  });
 }
