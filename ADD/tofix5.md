@@ -466,7 +466,7 @@ device.
 
 ---
 
-### 9. P3 — The receive banner outlives the failure it describes until an unrelated tick repaints the screen
+### 9. P3 [FIXED 3ce4d74] — The receive banner outlives the failure it describes until an unrelated tick repaints the screen
 
 **Affected components:** `lib/net_server.dart` (`start()`, the
 `if (running && boundPort == currentPort)` early return that clears
