@@ -2,6 +2,7 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+- E: A name of 255 Cyrillic, CJK or emoji characters was accepted and then failed to be written on Linux and Android, where a filename is capped at 255 bytes and not 255 characters: every component is now measured against both limits, refused at pick time with the usual "the name is too long", and a ` (n)` collision suffix trims the stem instead of bursting the limit
 - E: A file that appeared in the receive folder while the last checks were running was silently replaced by the incoming one: the final name is now claimed with an exclusive create before the rename, so the file that got there first keeps its place and the arrival takes the next free name; the allocator's last-resort name is checked and reserved like every other instead of being handed out blind
 - E: A received folder shaped exactly like an unfinished session — the same name prefix and the same marker file inside — was deleted at the next startup; ownership is now recorded in the app's own settings directory before the session directory is created, where no transfer can reach it, and the record's absolute path also cleans up a folder that has since stopped being the receive folder
 - E: Muted text was unreadable on a selected row: a device chosen and then gone offline left it at 4.15:1 in the Dark palette, under the 4.5:1 it needs, so the dimming step was raised to clear both surfaces in every palette

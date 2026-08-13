@@ -12,10 +12,13 @@ const Uuid _uuid = Uuid();
 
 const int maxPathUtf8Bytes = 4096;
 const int maxPathDepth = 64;
-// One name, counted the way NTFS and ext4 count it: 255 UTF-16 code units, not
-// bytes. Counting bytes would refuse a Cyrillic name of 150 letters that every
-// filesystem involved would have taken.
+// One name, counted twice, because the two ends do not count alike: NTFS caps a
+// component at 255 UTF-16 code units, while ext4 and the Android filesystems cap
+// it at 255 bytes of UTF-8. A name has to pass both, or it is a name one of the
+// two sides cannot create — 255 Cyrillic letters are 255 units and 510 bytes,
+// and the write fails with ENAMETOOLONG on the receiver's own disk.
 const int maxPathComponentChars = 255;
+const int maxPathComponentBytes = 255;
 // Incomplete uploads live in a receiver-owned session directory instead of
 // borrowing a suffix from the final user name. A valid file is allowed to end
 // in `.easysend-part`; startup cleanup must never mistake it for our state.
@@ -298,7 +301,7 @@ String? sanitizeRelPath(String raw) {
     if (_windowsForbidden.hasMatch(segment) ||
         segment.endsWith('.') ||
         segment.endsWith(' ') ||
-        segment.length > maxPathComponentChars) {
+        isComponentTooLong(segment)) {
       return null;
     }
     final String base = segment.split('.').first.toLowerCase();
@@ -309,6 +312,12 @@ String? sanitizeRelPath(String raw) {
   return parts.isEmpty ? null : parts.join('/');
 }
 
+// One name against both limits. Whichever end of the transfer is stricter for
+// this particular name is the one that decides.
+bool isComponentTooLong(String segment) =>
+    segment.length > maxPathComponentChars ||
+    utf8.encode(segment).length > maxPathComponentBytes;
+
 // Why a path was refused, when the answer is worth telling the user apart from
 // the rest. Length is the one refusal that is nobody's mistake — a name simply
 // grew past what a filesystem will hold — so it gets said in those words.
@@ -318,8 +327,7 @@ bool isPathTooLong(String raw) {
       .split('/')
       .where((String segment) => segment.isNotEmpty && segment != '.')
       .toList();
-  return parts.length > maxPathDepth ||
-      parts.any((String segment) => segment.length > maxPathComponentChars);
+  return parts.length > maxPathDepth || parts.any(isComponentTooLong);
 }
 
 // Which of the rules above a name broke, asked only once the name is known to
@@ -669,6 +677,22 @@ Future<void> cleanupOrphanSessions() async {
   }
 }
 
+// A collision suffix must not push a name that only just fitted over the limit
+// the sender validated it against. The stem gives up whole characters — code
+// points, so a surrogate pair is never cut in half — until the finished name
+// fits both counts again. Null when even an empty stem does not help — the
+// extension alone is oversized — and then there is no such name to offer.
+String? _fitComponent(String stem, String suffix, String ext) {
+  String candidate = '$stem$suffix$ext';
+  if (!isComponentTooLong(candidate)) return candidate;
+  final List<int> runes = stem.runes.toList();
+  for (int end = runes.length - 1; end >= 0; end--) {
+    candidate = '${String.fromCharCodes(runes.take(end))}$suffix$ext';
+    if (!isComponentTooLong(candidate)) return candidate;
+  }
+  return null;
+}
+
 // 'photo.jpg' -> 'photo (1).jpg' when taken. Null when nothing is free: every
 // name this returns has been checked and reserved, so a caller may act on it.
 // Handing back an unchecked fallback was the same bug in miniature — a name the
@@ -691,7 +715,9 @@ Future<String?> uniquePath(
   final String ext = p.extension(fullPath);
   final String stem = p.basenameWithoutExtension(fullPath);
   for (int i = 1; i < 10000; i++) {
-    final String candidate = p.join(dir, '$stem ($i)$ext');
+    final String? name = _fitComponent(stem, ' ($i)', ext);
+    if (name == null) break;
+    final String candidate = p.join(dir, name);
     if (!await unavailable(candidate)) {
       reserved?.add(pathEqualityKey(candidate, windows: windows));
       return candidate;
@@ -703,10 +729,13 @@ Future<String?> uniquePath(
     // The attempt index keeps two allocations in the same microsecond apart,
     // so a retry can never hand back the name it was just refused.
     final int micros = DateTime.now().microsecondsSinceEpoch;
-    final String candidate = p.join(
-      dir,
-      '$stem ${i == 0 ? micros : '$micros-$i'}$ext',
+    final String? name = _fitComponent(
+      stem,
+      ' ${i == 0 ? micros : '$micros-$i'}',
+      ext,
     );
+    if (name == null) break;
+    final String candidate = p.join(dir, name);
     if (!await unavailable(candidate)) {
       reserved?.add(pathEqualityKey(candidate, windows: windows));
       return candidate;

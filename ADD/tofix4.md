@@ -64,7 +64,7 @@ assert it survives cleanup byte-for-byte. Repeat with nested lookalikes and
 multiple prefix copies. Create genuine interrupted sessions, restart, and
 assert only those are removed. Keep the external-symlink cleanup test.
 
-### 2. P0 — A file created in the last finalization window is still silently overwritten
+### 2. P0 [FIXED f20f953] — A file created in the last finalization window is still silently overwritten
 
 **Affected components:** `lib/net_server.dart` `_verify`,
 `lib/file_helpers.dart` (`ensureSafeDestination`, `uniquePath`), late-collision
@@ -107,7 +107,17 @@ Windows case-only name, two concurrent contenders, and allocator exhaustion
 past 9,999 candidates. The pre-existing late-collision test must continue to
 pass, but it is not sufficient by itself.
 
-### 3. P0 — Move can still delete a replacement installed after its final fingerprint check
+### 3. P0 [ACCEPTED 2026-08-13] — Move can still delete a replacement installed after its final fingerprint check
+
+*Decided not to fix, on the product's threat model: a single-user app on a home
+machine, with no hostile local process to win the race. Closing it properly
+needs deletion by filesystem identity, which `dart:io` cannot express —
+`FileStat` carries no inode and there is no `unlinkat` — so it would mean an FFI
+implementation per platform for a window of microseconds. The digest check that
+`ADD/tofix3.md` finding 4 added stays as the last guard. Related: finding 2's
+publication takes variant A (exclusive create, not `renameat2`) for the same
+reason, so both accept the same class of local race.*
+
 
 **Affected components:** `lib/net_sender.dart` `_deleteSource`, Move tests,
 platform-specific filesystem identity support.
