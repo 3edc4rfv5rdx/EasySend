@@ -541,7 +541,18 @@ the delivered ones are removed and the failed ones stay.
 
 ---
 
-### 11. P3 — Nothing ever builds `HomeScreen`, so every rule is tested and none of the wiring is
+### 11. P3 [ACCEPTED 2026-08-13] — Nothing ever builds `HomeScreen`, so every rule is tested and none of the wiring is
+
+**Left open on purpose.** Weighed against this audit's own results: of ten
+findings, a wiring harness would have caught two — number 3, and number 9, which
+is cosmetic and clears itself within about five seconds. The other eight were
+protocol, filesystem or rule defects that the unit and server tests do catch. The
+cheapest way to close this is still a refactor of the largest and most-changed
+file in the project, to protect four call sites of one to three lines each.
+
+Do it when `home_screen.dart` is being reworked for some other reason — the
+"required outcome" below is the shape that rework would take anyway. Not as a
+task of its own.
 
 **Affected components:** `test/` as a whole; `lib/home_screen.dart`
 (`_syncManualPolling`, `_dropDelivered`, `_pruneSentFiles`,
