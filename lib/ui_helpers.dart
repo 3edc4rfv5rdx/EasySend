@@ -7,6 +7,13 @@ import 'package:path/path.dart' as p;
 
 import 'globals.dart';
 
+// A list row whose last element is an icon button. The stock trailing slot adds
+// 16 px of its own padding outside the button's 48 px tap target, pushing the
+// icon a thumb's width in from the edge and taking that width from the text
+// beside it — long names and addresses wrapped onto an extra line for nothing.
+// Only the padding goes: the button keeps its full 48 px target.
+const EdgeInsets rowPadding = EdgeInsets.only(left: 16, right: 0);
+
 // Shared look for dialog action buttons, so every dialog stays identical.
 ButtonStyle get dialogButtonStyle => TextButton.styleFrom(
   backgroundColor: clAccent,

@@ -1031,6 +1031,7 @@ class _HomeScreenState extends State<HomeScreen>
               return ListTile(
                 dense: true,
                 visualDensity: VisualDensity.compact,
+                contentPadding: rowPadding,
                 title: Text(
                   item.relativePath,
                   style: tsNormal,
@@ -1119,20 +1120,21 @@ class _HomeScreenState extends State<HomeScreen>
           // Reachable devices get an inverted badge: a filled circle with the
           // icon punched out in the background colour. Two shades of the same
           // icon were impossible to tell apart at a glance.
+          contentPadding: rowPadding,
           leading: _deviceIcon(device, isTarget),
           title: Text(device.name, style: tsNormal),
-          // Spelled out as well as coloured: an unreachable device cannot be
-          // picked, and that should not look like an unexplained dead row.
-          subtitle: Text(
-            [
-              if (device.address.isNotEmpty) '${device.address}:${device.port}',
-              if (!device.online) lw('offline'),
-            ].join('   '),
-            style: TextStyle(
-              fontSize: fsSmall,
-              color: device.online ? clText : clTextMuted,
-            ),
-          ),
+          // Nothing but the address: being offline is said by the icon.
+          // Dropped altogether when there is no address, rather than leaving an
+          // empty line under the name.
+          subtitle: device.address.isEmpty
+              ? null
+              : Text(
+                  '${device.address}:${device.port}',
+                  style: TextStyle(
+                    fontSize: fsSmall,
+                    color: device.online ? clText : clTextMuted,
+                  ),
+                ),
           trailing: device.manual
               ? IconButton(
                   icon: Icon(Icons.close, color: clTextMuted, size: 20),
@@ -1164,11 +1166,20 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Widget _deviceIcon(Device device, bool isTarget) {
-    final IconData icon = device.platform == 'android'
-        ? Icons.smartphone
-        : Icons.computer;
+    final bool phone = device.platform == 'android';
+    final IconData icon = phone ? Icons.smartphone : Icons.computer;
     if (!device.online) {
-      return Icon(icon, color: clTextMuted);
+      // The struck-through platform icon carries the status on its own, so the
+      // address line stays one line instead of wrapping the word onto a third.
+      // Still spelled out for anyone who asks: an unreachable device cannot be
+      // picked, and a dead row with no explanation is worse than a long one.
+      return Tooltip(
+        message: lw('offline'),
+        child: Icon(
+          phone ? Icons.phonelink_off : Icons.desktop_access_disabled,
+          color: clTextMuted,
+        ),
+      );
     }
     // The chosen device turns into an arrow pointing at its row: the platform
     // icon would not fit inside a triangle, and the highlight alone was easy
