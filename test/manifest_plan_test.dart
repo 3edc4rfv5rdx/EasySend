@@ -81,6 +81,69 @@ void main() {
     expect(plan.length, 2);
   });
 
+  // The conflicting entry need not be the immediate parent: any ancestor of a
+  // path being a file of its own is the same collision one level further up.
+  test('rejects prefix conflicts at any depth', () async {
+    await expectLater(
+      buildDestinationPlan(root.path, [
+        item('1', 'x/y'),
+        item('2', 'x/y/z.txt'),
+      ]),
+      throwsA(isA<DestinationPlanException>()),
+    );
+    await expectLater(
+      buildDestinationPlan(root.path, [
+        item('1', 'a/b/c/deep.txt'),
+        item('2', 'a'),
+      ]),
+      throwsA(isA<DestinationPlanException>()),
+    );
+  });
+
+  // Sharing a folder is not a conflict, however many entries do it.
+  test('accepts entries that only share a directory', () async {
+    final plan = await buildDestinationPlan(root.path, [
+      item('1', 'a/b/one.txt'),
+      item('2', 'a/b/two.txt'),
+      item('3', 'a/other.txt'),
+    ]);
+    expect(plan.length, 3);
+  });
+
+  // The conflict check used to compare every entry with every other one, which
+  // at the 3000-file limit is nine million comparisons run synchronously inside
+  // the prepare handler — before the consent question appears. Timed as a ratio
+  // rather than against a wall-clock bound: the machine cancels out and what is
+  // left is the growth curve. Eight times the entries is eight times the work
+  // when the scan is a prefix lookup and sixty-four when it is pairwise; the
+  // per-file filesystem checks are linear and pull both figures down. Measured
+  // here: 21.4 with the pairwise scan, 5.6 with the prefix lookup, so the line
+  // sits between them with room on both sides rather than beside either.
+  test('planning cost grows with the manifest, not with its square', () async {
+    Future<int> micros(int count) async {
+      final List<FileItem> files = [
+        for (int i = 0; i < count; i++)
+          item('$i', 'Camera/2026/08/IMG_${i.toString().padLeft(6, '0')}.jpg'),
+      ];
+      final Stopwatch watch = Stopwatch()..start();
+      await buildDestinationPlan(root.path, files, windows: true);
+      return watch.elapsedMicroseconds;
+    }
+
+    // Warm the filesystem and the JIT, so the first measurement is not the one
+    // that pays for both.
+    await micros(375);
+    final int small = await micros(375);
+    final int large = await micros(3000);
+    final double growth = large / small;
+
+    expect(
+      growth,
+      lessThan(12),
+      reason: 'eight times the files cost $growth times the work',
+    );
+  });
+
   Future<File> part(String name, String content) async {
     final File f = File(p.join(root.path, name));
     await f.writeAsString(content);

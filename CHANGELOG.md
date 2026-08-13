@@ -2,6 +2,7 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+- E: A manifest at the 3000-file limit held the receiver for most of a second before the consent question could even appear: the check that a file is not also another entry's directory compared every entry with every other one, nine million comparisons with the case folding recomputed inside the inner loop, all of it synchronous inside the prepare handler; each entry now only asks whether one of its own parents is itself an entry, which is the same question asked once, and a test holds the growth curve to the linear side
 - I: A fresh deep audit of lib/, the Kotlin service and the Android manifest against SPEC.md left ten findings in ADD/tofix5.md, three of them P1, each written as a standalone prompt; the parts that were checked and found sound are listed there too, so the next pass does not spend the time on them again
 - N: A transfer log that hits its 500-line cap now gives up the files that simply arrived instead of its oldest line, so a failure early in a transfer of thousands is still there when the log is opened; the log closes with "Other files went through without a word" and their count
 - I: OUT/ holds exactly two links — the AppImage and the arm64-v8a APK under their own full names, version and build number included — and everything else there, the previous build included, is swept away; 01-LinkOut.sh is that step on its own, for picking up a build that already exists, and 00-MakeAll.sh runs it after the build

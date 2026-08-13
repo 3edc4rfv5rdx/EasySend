@@ -480,13 +480,25 @@ Future<Map<String, String>> buildDestinationPlan(
   // A file cannot also be the directory required by another entry. Manifest
   // paths always carry '/', so the comparison must not go through the host's
   // separator: normalizing them would give '\' on Windows and match nothing.
+  //
+  // Asked as a prefix lookup, not pairwise. Comparing every entry with every
+  // other one cost nine million comparisons at the manifest limit — with the
+  // case folding recomputed inside the inner loop — and all of it runs
+  // synchronously inside the prepare handler, before the consent question is
+  // even shown. Each entry now only asks whether one of its own parents is
+  // itself an entry, which is the same question.
   final bool foldCase = windows ?? Platform.isWindows;
-  for (int i = 0; i < safePaths.length; i++) {
-    final String key = foldCase ? safePaths[i].toLowerCase() : safePaths[i];
-    for (int j = 0; j < safePaths.length; j++) {
-      if (i == j) continue;
-      final String other = foldCase ? safePaths[j].toLowerCase() : safePaths[j];
-      if (other.startsWith('$key/')) {
+  final List<String> keys = foldCase
+      ? [for (final String path in safePaths) path.toLowerCase()]
+      : safePaths;
+  final Set<String> keySet = keys.toSet();
+  for (final String key in keys) {
+    for (
+      int cut = key.indexOf('/');
+      cut >= 0;
+      cut = key.indexOf('/', cut + 1)
+    ) {
+      if (keySet.contains(key.substring(0, cut))) {
         throw const DestinationPlanException('file/directory path conflict');
       }
     }
