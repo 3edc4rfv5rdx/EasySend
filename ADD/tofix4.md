@@ -257,7 +257,7 @@ the inactivity timer. Assert one terminal status/log, one cleanup, no stale
 timer, no misleading completion notification, and immediate acceptance of a
 new prepare.
 
-### 7. P2 — Repairing backslashes can bypass the total-selection size check
+### 7. P2 [FIXED f51cae1] — Repairing backslashes can bypass the total-selection size check
 
 **Affected components:** `lib/home_screen.dart` `_addPaths` and `_addRepaired`,
 selection-limit tests.

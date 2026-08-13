@@ -2,6 +2,7 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+- I: The spec's Linux/Windows section still promised that clicking a finished transfer opens the file or its folder; it now says what the app does — a tap on any transfer row opens its log, and the receive folder is reached from the header button
 - E: Accepting the backslash repair for a picked file checked only the file count, so a repaired file could push the selection past the size the receiver refuses outright; both admission paths now ask the same count-and-size question against the current selection
 - E: A completion notification that could not be posted — permission revoked while the app was in the background — left the sender with a 500 and the receiver's slot occupied until the session timed out; the notification is now best-effort, the session is released exactly once whatever happens, and a Stop or a sender cancel arriving during the finish no longer rewrites an outcome that is already decided
 - I: Dropped the hand-written test index; it duplicated what a search over the test files answers and had to be corrected on every change
