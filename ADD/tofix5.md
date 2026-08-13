@@ -100,7 +100,7 @@ still throw `file/directory path conflict`; and a conflict at depth 3
 
 ---
 
-### 2. P1 — A transfer whose log is all failures silently throws failures away and says nothing was lost
+### 2. P1 [FIXED 6a9075a] — A transfer whose log is all failures silently throws failures away and says nothing was lost
 
 **Affected components:** `lib/models.dart` (`TransferSession.log`, the
 `events.removeAt(quiet < 0 ? 0 : quiet)` branch and the guarded `quietFiles++`),
