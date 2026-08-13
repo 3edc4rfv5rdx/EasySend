@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
 
 import 'android_helpers.dart';
@@ -598,6 +599,53 @@ Future<bool> ensureSafeDestination(
     p.dirname(finalPath),
   ).resolveSymbolicLinks();
   return parent == root || p.isWithin(root, parent);
+}
+
+// Where the Android side puts a copy of a picked document it could not hand
+// over as a plain file. Kept in step with `MainActivity.copyToCache` by name:
+// getTemporaryDirectory() is that Activity's `cacheDir`, and `picked` is the
+// subdirectory it makes inside it.
+const String pickedCopiesDirName = 'picked';
+
+Future<String?> pickedCopiesRoot() async {
+  if (!Platform.isAndroid) return null;
+  try {
+    final Directory temporary = await getTemporaryDirectory();
+    return p.join(temporary.path, pickedCopiesDirName);
+  } catch (e) {
+    myPrint('cannot resolve the picked copies directory: $e');
+    return null;
+  }
+}
+
+// Whether all the app ever had of this file is a copy of its own.
+//
+// A document on internal storage arrives as a plain path and is the user's own
+// file. Anything else — a cloud provider, an SD card, a share from another app —
+// only comes as a stream, and the native side copies it into the app's cache to
+// have something dart:io can read. Deleting that after a move would remove the
+// app's own scratch file, leave the user's file exactly where it was, and report
+// it as the original being gone.
+bool isAppOwnedCopy(String sourcePath, String? copiesRoot) =>
+    copiesRoot != null && p.isWithin(copiesRoot, sourcePath);
+
+// Those copies are nobody's afterwards: a couple of picked videos leave
+// gigabytes in the cache for good. Swept once per run rather than after each
+// transfer, because a copy may still be sitting in the picked list — and that
+// list does not survive a restart, so by the next one nothing refers to them.
+bool _copiesSwept = false;
+
+Future<void> sweepPickedCopiesOnce() async {
+  if (_copiesSwept) return;
+  _copiesSwept = true;
+  final String? root = await pickedCopiesRoot();
+  if (root == null) return;
+  try {
+    final Directory copies = Directory(root);
+    if (await copies.exists()) await copies.delete(recursive: true);
+  } catch (e) {
+    myPrint('cannot sweep picked copies: $e');
+  }
 }
 
 // Remove a file without making a failure anyone's problem. Says whether it is

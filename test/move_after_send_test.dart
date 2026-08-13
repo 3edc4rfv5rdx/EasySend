@@ -99,6 +99,81 @@ void main() {
     );
   }
 
+  // A document the picker could only hand over as a stream — a cloud provider,
+  // an SD card, a share from another app. The native side copied it into the
+  // app's own cache, so the path the transfer holds is not the user's file.
+  group('a move never deletes a copy the app made for itself', () {
+    late String copiesRoot;
+
+    Future<FileItem> pickedCopy(String name) async {
+      copiesRoot = '${sandbox.path}/cache/picked';
+      final File file = File('$copiesRoot/$name');
+      await file.parent.create(recursive: true);
+      await file.writeAsString(name);
+      return FileItem(
+        id: name,
+        relativePath: name,
+        size: name.length,
+        sourcePath: file.path,
+      );
+    }
+
+    test('the rest of the batch is still moved', () async {
+      final FileItem copy = await pickedCopy('from-the-cloud.jpg');
+      final FileItem own = await pickInFolder('mine.txt');
+      final SendService service = SendService()
+        ..pickedCopiesRootOf = (() async => copiesRoot);
+
+      expect(
+        await service.send(peer: peer, files: [copy, own], move: true),
+        TransferStatus.done,
+      );
+
+      // The user's own file went, as asked.
+      expect(await File(own.sourcePath!).exists(), isFalse);
+      // The copy stayed, and so did the file it was made from, wherever it is.
+      expect(await File(copy.sourcePath!).exists(), isTrue);
+      final String log = xvTransfers.single.events
+          .map(formatTransferEvent)
+          .join('\n');
+      expect(
+        log,
+        contains('from-the-cloud.jpg  Could not delete it here: '
+            'The app cannot reach the original'),
+      );
+      expect(log, contains('mine.txt  Deleted here'));
+    });
+
+    test('a batch of nothing but copies deletes nothing', () async {
+      final FileItem copy = await pickedCopy('only-copy.bin');
+      final SendService service = SendService()
+        ..pickedCopiesRootOf = (() async => copiesRoot);
+
+      expect(
+        await service.send(peer: peer, files: [copy], move: true),
+        TransferStatus.done,
+      );
+
+      expect(await File(copy.sourcePath!).exists(), isTrue);
+    });
+
+    test('the rule is about containment, not about the name', () {
+      expect(isAppOwnedCopy('/cache/picked/a.jpg', '/cache/picked'), isTrue);
+      expect(
+        isAppOwnedCopy('/cache/picked/deep/a.jpg', '/cache/picked'),
+        isTrue,
+      );
+      // A sibling directory that merely starts with the same letters.
+      expect(
+        isAppOwnedCopy('/cache/pickedelsewhere/a.jpg', '/cache/picked'),
+        isFalse,
+      );
+      expect(isAppOwnedCopy('/home/e/a.jpg', '/cache/picked'), isFalse);
+      // Off Android there is no such directory, so nothing is ever a copy.
+      expect(isAppOwnedCopy('/home/e/a.jpg', null), isFalse);
+    });
+  });
+
   test('the folders tick takes the folders the move emptied', () async {
     final FileItem item = await pickInFolder('box/inner/moved.txt');
     expect(

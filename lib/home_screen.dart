@@ -518,6 +518,10 @@ class _HomeScreenState extends State<HomeScreen>
     // Here rather than at main(), because on Android a leftover session cannot
     // even be deleted until the storage permission above has been answered.
     await sweepOrphanSessionsOnce();
+    // Copies the picker had to make of documents it could not hand over as
+    // plain files. Nobody owns them once the app has restarted, and a couple of
+    // picked videos leave gigabytes in the cache.
+    await sweepPickedCopiesOnce();
     if (!_stillWantsNetwork(epoch)) return;
     if (_restartPending) {
       // Leave everything exactly as it is until the sockets are free: starting

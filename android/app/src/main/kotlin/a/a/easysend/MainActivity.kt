@@ -132,6 +132,15 @@ class MainActivity : FlutterActivity() {
         return copyToCache(uri)
     }
 
+    /**
+     * A copy of the document inside our own cache, for the providers that only
+     * expose a stream.
+     *
+     * The Dart side knows this directory by name — `pickedCopiesDirName` in
+     * file_helpers.dart — and needs to, for two reasons: a move must not delete
+     * a copy and report it as the user's original being gone, and nothing else
+     * would ever clean these up.
+     */
     private fun copyToCache(uri: android.net.Uri): String? {
         val name = displayName(uri) ?: return null
         return try {

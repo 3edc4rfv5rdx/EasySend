@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:archive/archive.dart';
 import 'package:crypto/crypto.dart';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:path/path.dart' as p;
 import 'package:uuid/uuid.dart';
 
@@ -75,6 +76,11 @@ class SendService {
 
   TransferSession? get current => _current;
   bool get busy => _inFlight;
+
+  // Where the platform keeps copies of picked documents. Off Android there are
+  // none; a test replaces this to stand in for a phone's cache directory.
+  @visibleForTesting
+  Future<String?> Function() pickedCopiesRootOf = pickedCopiesRoot;
 
   Uri _url(Device peer, String path, [Map<String, String>? query]) =>
       Uri.http('${peer.address}:${peer.port}', '$apiPrefix/$path', query);
@@ -158,13 +164,45 @@ class SendService {
       // Should the receiver ever discard published files on cancel, this is the
       // line that becomes a data-loss bug (see ADD/tofix5.md finding 7).
       if (move) {
+        final String? copies = await pickedCopiesRootOf();
         final List<FileItem> delivered = transfer.files
             .where((item) => item.done)
             .toList();
+        // Files the app only ever held a copy of are left alone, and the rest of
+        // the batch is moved as asked. Deleting a copy would remove the app's
+        // own scratch file, leave the user's file exactly where it was, and say
+        // in the log that the original had gone.
+        int unreachable = 0;
+        final List<FileItem> ours = [];
         for (final FileItem item in delivered) {
+          final String? source = item.sourcePath;
+          if (source != null && isAppOwnedCopy(source, copies)) {
+            unreachable++;
+            transfer.log(
+              'Could not delete it here',
+              file: item.relativePath,
+              detail: lw('The app cannot reach the original'),
+              failure: true,
+            );
+            continue;
+          }
           await _deleteSource(transfer, item);
+          ours.add(item);
         }
-        if (moveFolders) await _deleteEmptySourceDirs(transfer, delivered);
+        if (moveFolders) await _deleteEmptySourceDirs(transfer, ours);
+        // Said on screen as well as in the log: a move that quietly kept some
+        // originals is exactly the thing nobody thinks to open a log about.
+        // Best-effort like every other way of telling the user — a message that
+        // cannot be shown must not turn a finished move into a failed transfer.
+        if (unreachable > 0) {
+          try {
+            okInfoBarOrange(
+              '${lw('The app cannot reach the original')}: $unreachable',
+            );
+          } catch (e) {
+            myPrint('cannot report the originals left behind: $e');
+          }
+        }
       }
     } on SocketException catch (e) {
       if (!_cancelled) {
