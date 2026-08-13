@@ -2,6 +2,7 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+- I: OUT/ is swept down to its two fixed-name links after a full build — a stray copy or an older name left there is removed, so the folder always holds exactly the two files to reach for
 - E: A network transition that failed anywhere other than in the listener itself passed without a trace in a release build — the log line it wrote is compiled out — and the screen went on showing a device list or a receiver that was no longer there; readiness now reads as failed, the existing red banner says "Network setup did not finish, receiving may be off", advertising stops, and the next successful transition clears it, while a transition superseded on purpose stays silent
 - E: A finish that the receiver refused, timed out or dropped wrote "(( The receiver did not finish the transfer ))" into the Russian and Ukrainian transfer log; the sentence is translated now, and a new test walks every `lw()` and `log()` literal in the code so a user-visible string can no longer ship without its locale entries
 - I: The spec's Linux/Windows section still promised that clicking a finished transfer opens the file or its folder; it now says what the app does — a tap on any transfer row opens its log, and the receive folder is reached from the header button

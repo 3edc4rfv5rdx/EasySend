@@ -62,6 +62,8 @@ link_latest() { # link_latest <link name> <candidate files...>
     fi
     mkdir -p OUT
     ln -sfn "../$newest" "OUT/$name"
+    # The target's own name carries the version and the build number, so the
+    # line already says which build this link points at.
     echo "OUT/$name -> $(basename "$newest")"
 }
 
@@ -70,12 +72,13 @@ echo "=== OUT ==="
 link_latest "$PROJ_TITLE-x86_64.AppImage" build/linux/*-x86_64.AppImage
 link_latest "$PROJ_TITLE-arm64-v8a.apk" build/app/outputs/flutter-apk/*arm64-v8a*.apk
 
-# The two names above are overwritten in place, so what is left over here is
-# from an earlier naming — a renamed project, an ABI no longer built — or points
-# at a build that has since been cleaned away. Only links go: plain files in
-# OUT/ are copies someone put there on purpose.
+# OUT/ holds exactly these two entries and nothing else — that is the whole
+# point of it: two names to reach for instead of hunting the right file across
+# build directories. Anything else here is from an earlier naming, a renamed
+# project, an ABI no longer built, or a copy left behind, and it goes. Only
+# files and links: a directory somebody made here is not ours to remove.
 if [ -d OUT ]; then
-    find OUT -maxdepth 1 -type l \
+    find OUT -maxdepth 1 \( -type f -o -type l \) \
         ! -name "$PROJ_TITLE-x86_64.AppImage" \
         ! -name "$PROJ_TITLE-arm64-v8a.apk" -delete
     find OUT -maxdepth 1 -xtype l -delete
