@@ -88,11 +88,27 @@ void main() {
     final orphan = File(incompleteFilePath(receive.path, 'owned', 0));
     await orphan.writeAsString('partial');
 
-    final lookalike = await Directory(
+    // Exactly what a receiver writes for itself, arriving as a transfer: the
+    // prefix, the marker file, the marker's contents. It is user data.
+    Future<File> forgery(String directory) async {
+      await Directory(directory).create(recursive: true);
+      await File(
+        p.join(directory, '.owner'),
+      ).writeAsString('EasySend incomplete transfer v1\n');
+      final File carried = File(p.join(directory, 'keep.txt'));
+      await carried.writeAsString('user');
+      return carried;
+    }
+
+    final lookalike = await forgery(
       p.join(receive.path, '${incompleteDirPrefix}user-data'),
-    ).create();
-    final lookalikeFile = File(p.join(lookalike.path, 'keep.txt'));
-    await lookalikeFile.writeAsString('user');
+    );
+    final nested = await forgery(
+      p.join(receive.path, 'album', '${incompleteDirPrefix}nested'),
+    );
+    final doubled = await forgery(
+      p.join(receive.path, '$incompleteDirPrefix$incompleteDirPrefix-twice'),
+    );
 
     final outside = await Directory(p.join(sandbox.path, 'outside')).create();
     final outsidePart = File(p.join(outside.path, 'outside.part'));
@@ -101,12 +117,45 @@ void main() {
       p.join(receive.path, '${incompleteDirPrefix}linked'),
     ).create(outside.path);
 
-    await cleanupOrphanParts(xvRecvDir);
+    await cleanupOrphanSessions();
     expect(await orphan.exists(), isFalse);
     expect(await legitimate.exists(), isTrue);
     expect(await ordinary.exists(), isTrue);
-    expect(await lookalikeFile.exists(), isTrue);
+    expect(await lookalike.readAsString(), 'user');
+    expect(await nested.readAsString(), 'user');
+    expect(await doubled.readAsString(), 'user');
     expect(await outsidePart.exists(), isTrue);
+  });
+
+  test('a leftover is swept after the receive folder moved on', () async {
+    final abandoned = await Directory(
+      p.join(sandbox.path, 'old-receive'),
+    ).create(recursive: true);
+    final root = (await resolveReceiveRoot(abandoned.path))!;
+    expect(
+      await ensureIncompleteSessionDirectory(
+        abandoned.path,
+        'stranded',
+        resolvedRoot: root,
+      ),
+      isTrue,
+    );
+    final File orphan = File(incompleteFilePath(abandoned.path, 'stranded', 0));
+    await orphan.writeAsString('partial');
+
+    // The user pointed the app at another folder; the crash leftover is still
+    // ours and its record still says where it is.
+    xvRecvDir = p.join(sandbox.path, 'new-receive');
+    await Directory(xvRecvDir).create(recursive: true);
+
+    await cleanupOrphanSessions();
+    expect(await orphan.exists(), isFalse);
+    expect(await Directory(p.dirname(orphan.path)).exists(), isFalse);
+    expect(
+      Directory(p.join(xvConfigDir, 'incomplete-sessions')).listSync(),
+      isEmpty,
+      reason: 'a swept session must not leave its ownership record behind',
+    );
   });
 
   test(
@@ -147,7 +196,12 @@ void main() {
 
       final received = File(p.join(xvRecvDir, 'report.easysend-part'));
       expect(await received.readAsBytes(), [7]);
-      await cleanupOrphanParts(xvRecvDir);
+      expect(
+        Directory(p.join(xvConfigDir, 'incomplete-sessions')).listSync(),
+        isEmpty,
+        reason: 'a finished session releases its ownership record',
+      );
+      await cleanupOrphanSessions();
       expect(await received.readAsBytes(), [7]);
     },
   );
@@ -163,7 +217,7 @@ void main() {
     final File first = File(incompleteFilePath(receive.path, 'first', 0));
     await first.writeAsString('partial');
 
-    await sweepOrphanPartsOnce(xvRecvDir);
+    await sweepOrphanSessionsOnce();
     expect(await first.exists(), isFalse);
 
     // A later start must not walk the whole folder again — on a phone that is
@@ -175,7 +229,7 @@ void main() {
     );
     final File later = File(incompleteFilePath(receive.path, 'later', 0));
     await later.writeAsString('partial');
-    await sweepOrphanPartsOnce(xvRecvDir);
+    await sweepOrphanSessionsOnce();
     expect(await later.exists(), isTrue);
 
     final server = ReceiveServer();

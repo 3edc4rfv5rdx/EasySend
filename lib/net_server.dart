@@ -838,16 +838,10 @@ class ReceiveServer {
     transfersChanged();
   }
 
-  // Files that never passed verification leave nothing behind.
+  // Files that never passed verification leave nothing behind, and neither
+  // does the ownership record that let startup recovery clean up after a crash.
   Future<void> _cleanupParts(_Incoming session) async {
-    final Directory directory = Directory(
-      incompleteSessionDirectory(session.recvDir, session.sessionId),
-    );
-    try {
-      if (await directory.exists()) await directory.delete(recursive: true);
-    } catch (e) {
-      myPrint('cannot clean incomplete session ${directory.path}: $e');
-    }
+    await discardIncompleteSession(session.recvDir, session.sessionId);
   }
 
   _Incoming? _sessionOf(HttpRequest req) {

@@ -404,9 +404,9 @@ class _HomeScreenState extends State<HomeScreen>
         if (!_stillWantsNetwork(epoch)) return;
       }
     }
-    // Here rather than at main(), because on Android the folder cannot even be
-    // listed until the storage permission above has been answered.
-    await sweepOrphanPartsOnce(xvRecvDir);
+    // Here rather than at main(), because on Android a leftover session cannot
+    // even be deleted until the storage permission above has been answered.
+    await sweepOrphanSessionsOnce();
     if (!_stillWantsNetwork(epoch)) return;
     if (_restartPending) {
       // Leave everything exactly as it is until the sockets are free: starting

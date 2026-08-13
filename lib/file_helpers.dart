@@ -22,6 +22,15 @@ const int maxPathComponentChars = 255;
 const String incompleteDirPrefix = '.easysend-incomplete-';
 const String _incompleteOwnerFile = '.owner';
 const String _incompleteOwnerMagic = 'EasySend incomplete transfer v1\n';
+// Ownership is recorded in the app's own config directory and nowhere else.
+// Everything inside the receive folder is bytes a peer can send us: a folder
+// named like a session, marker file and all, arrives as an ordinary transfer,
+// and a name-and-content convention would let it be deleted as if it were ours.
+const String _sessionRegistryDir = 'incomplete-sessions';
+const String _sessionRecordSuffix = '.dir';
+// A session id becomes a directory name in the receive folder and a file name
+// in the registry. Ours are UUIDs; anything else is refused, not sanitized.
+final RegExp _safeSessionId = RegExp(r'^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$');
 // The backslash is in here on every platform: it is a separator on Windows and
 // an ordinary character on Linux, so a name carrying one cannot mean the same
 // thing at both ends of a transfer (SPEC 5.7).
@@ -507,12 +516,53 @@ String incompleteSessionDirectory(String baseDir, String sessionId) =>
 String incompleteFilePath(String baseDir, String sessionId, int index) =>
     p.join(incompleteSessionDirectory(baseDir, sessionId), '$index.part');
 
+// Where this run states, outside anything a transfer can write to, that a
+// session directory is its own. Null when the config directory is not resolved
+// yet: without a place to record ownership there is no safe way to create
+// state we would later have to recognise.
+String? _sessionRecordPath(String sessionId) {
+  if (xvConfigDir.isEmpty || !_safeSessionId.hasMatch(sessionId)) return null;
+  return p.join(
+    xvConfigDir,
+    _sessionRegistryDir,
+    '$sessionId$_sessionRecordSuffix',
+  );
+}
+
+// Written before the directory exists. A crash in between leaves a record
+// pointing at nothing, which the next sweep drops; the other order would leave
+// a directory nobody claims and nobody ever deletes.
+Future<bool> _recordIncompleteSession(
+  String sessionId,
+  String directory,
+) async {
+  final String? recordPath = _sessionRecordPath(sessionId);
+  if (recordPath == null) {
+    myPrint('cannot own an incomplete session for id "$sessionId"');
+    return false;
+  }
+  final File record = File(recordPath);
+  try {
+    if (await record.exists() &&
+        (await record.readAsString()).trim() == directory) {
+      return true;
+    }
+    await record.parent.create(recursive: true);
+    await record.writeAsString('$directory\n', flush: true);
+    return true;
+  } catch (e) {
+    myPrint('cannot record incomplete session $directory: $e');
+    return false;
+  }
+}
+
 Future<bool> ensureIncompleteSessionDirectory(
   String baseDir,
   String sessionId, {
   required String resolvedRoot,
 }) async {
   final String directory = incompleteSessionDirectory(baseDir, sessionId);
+  if (!await _recordIncompleteSession(sessionId, directory)) return false;
   final String markerPath = p.join(directory, _incompleteOwnerFile);
   if (!await ensureSafeDestination(
     baseDir,
@@ -522,6 +572,9 @@ Future<bool> ensureIncompleteSessionDirectory(
   )) {
     return false;
   }
+  // The marker only ever refuses: it stops us writing parts into a directory
+  // that is not the one this session made. It never authorises a deletion —
+  // the registry record does that, and a sender cannot reach the registry.
   final File marker = File(markerPath);
   try {
     if (await marker.exists()) {
@@ -535,53 +588,80 @@ Future<bool> ensureIncompleteSessionDirectory(
   }
 }
 
-// Once per run, which is what SPEC 7 asks for: a killed process leaves owned
-// incomplete-session directories behind and nothing else will remove them.
-// Tying it to the receive
-// server instead meant a full recursive walk of the user's Downloads folder
-// every time the app came back to the screen.
-bool _orphansSwept = false;
-
-Future<void> sweepOrphanPartsOnce(String baseDir) async {
-  if (_orphansSwept) return;
-  _orphansSwept = true;
-  await cleanupOrphanParts(baseDir);
+// Whether the directory is gone afterwards. A record we cannot act on yet —
+// storage permission missing, folder unmounted — keeps its entry so a later
+// run tries again.
+Future<bool> _removeOwnedSessionDirectory(String directory) async {
+  if (!p.basename(directory).startsWith(incompleteDirPrefix)) return true;
+  try {
+    final FileSystemEntityType type = await FileSystemEntity.type(
+      directory,
+      followLinks: false,
+    );
+    // Anything but a real directory at our own path is not ours to delete: a
+    // link is never followed, and a file there is not the state we wrote.
+    if (type != FileSystemEntityType.directory) return true;
+    await Directory(directory).delete(recursive: true);
+    return true;
+  } catch (e) {
+    myPrint('cannot delete orphan session $directory: $e');
+    return false;
+  }
 }
 
-// Startup recovery removes only directories carrying the ownership marker we
-// wrote before an upload. A filename suffix is not ownership: a verified user
-// file may legitimately be named `report.easysend-part`.
-Future<void> cleanupOrphanParts(String baseDir) async {
-  final Directory root = Directory(baseDir);
-  if (!await root.exists()) return;
+// The receiver's own cleanup when a session ends: the same removal, and the
+// ownership record goes with it.
+Future<void> discardIncompleteSession(String baseDir, String sessionId) async {
+  final String? recordPath = _sessionRecordPath(sessionId);
+  if (recordPath == null) return;
+  if (await _removeOwnedSessionDirectory(
+    incompleteSessionDirectory(baseDir, sessionId),
+  )) {
+    await deleteQuietly(File(recordPath));
+  }
+}
+
+// Once per run, which is what SPEC 7 asks for: a killed process leaves owned
+// incomplete-session directories behind and nothing else will remove them.
+// Tying it to the receive server instead meant a full recursive walk of the
+// user's Downloads folder every time the app came back to the screen.
+bool _orphansSwept = false;
+
+Future<void> sweepOrphanSessionsOnce() async {
+  if (_orphansSwept) return;
+  _orphansSwept = true;
+  await cleanupOrphanSessions();
+}
+
+// Startup recovery deletes the session directories this run's predecessors
+// recorded as their own, wherever they are: the record holds an absolute path,
+// so a folder that has since stopped being the receive folder is still swept.
+// Must run before the receive server can open a session — a live session's
+// directory is recorded too, and here that is indistinguishable from a leftover.
+Future<void> cleanupOrphanSessions() async {
+  if (xvConfigDir.isEmpty) return;
+  final Directory registry = Directory(
+    p.join(xvConfigDir, _sessionRegistryDir),
+  );
   try {
-    await for (final FileSystemEntity entity in root.list(
+    if (!await registry.exists()) return;
+    await for (final FileSystemEntity entity in registry.list(
       recursive: false,
       followLinks: false,
     )) {
-      final FileSystemEntityType type = await FileSystemEntity.type(
-        entity.path,
-        followLinks: false,
-      );
-      if (type != FileSystemEntityType.directory ||
-          !p.basename(entity.path).startsWith(incompleteDirPrefix)) {
+      if (entity is! File || !entity.path.endsWith(_sessionRecordSuffix)) {
         continue;
       }
-      final File marker = File(p.join(entity.path, _incompleteOwnerFile));
-      if (!await marker.exists() ||
-          await marker.readAsString() != _incompleteOwnerMagic) {
+      final String directory = (await entity.readAsString()).trim();
+      if (directory.isNotEmpty &&
+          !await _removeOwnedSessionDirectory(directory)) {
         continue;
       }
-      try {
-        await Directory(entity.path).delete(recursive: true);
-      } catch (e) {
-        myPrint('cannot delete orphan session ${entity.path}: $e');
-      }
+      await deleteQuietly(entity);
     }
   } catch (e) {
-    // An unreadable folder is not a reason to fail startup; storage permission
-    // may simply not have been granted yet.
-    myPrint('cannot sweep $baseDir: $e');
+    // An unreadable registry is not a reason to fail startup.
+    myPrint('cannot sweep incomplete sessions: $e');
   }
 }
 

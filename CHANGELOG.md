@@ -2,6 +2,7 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+- E: A received folder shaped exactly like an unfinished session — the same name prefix and the same marker file inside — was deleted at the next startup; ownership is now recorded in the app's own settings directory before the session directory is created, where no transfer can reach it, and the record's absolute path also cleans up a folder that has since stopped being the receive folder
 - E: Muted text was unreadable on a selected row: a device chosen and then gone offline left it at 4.15:1 in the Dark palette, under the 4.5:1 it needs, so the dimming step was raised to clear both surfaces in every palette
 - T: Contrast of muted, body and app bar text is measured against every palette in colors.json, and the device row's icon rule is a tested function instead of a branch inside the widget
 - F: An offline device is marked by a struck-through platform icon instead of the word "offline", which wrapped its address onto a third line; the word is still there as the icon's tooltip
