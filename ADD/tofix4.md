@@ -217,7 +217,7 @@ remains unchanged. Cover an existing partial selection, total-byte overflow,
 an error while traversing, cancellation/disposal during collection, and an
 ordinary folder exactly at the limit.
 
-### 6. P1 — Receive finish is neither exception-safe nor serialized against cancel
+### 6. P1 [FIXED 121c712] — Receive finish is neither exception-safe nor serialized against cancel
 
 **Affected components:** `lib/net_server.dart` (`_finish`, `_cancel`, `_abort`),
 `lib/android_helpers.dart` `notifyTransferFinished`, terminal state tests.
