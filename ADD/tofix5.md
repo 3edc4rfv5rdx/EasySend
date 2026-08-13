@@ -541,6 +541,64 @@ the delivered ones are removed and the failed ones stay.
 
 ---
 
+### 11. P3 — Nothing ever builds `HomeScreen`, so every rule is tested and none of the wiring is
+
+**Affected components:** `test/` as a whole; `lib/home_screen.dart`
+(`_syncManualPolling`, `_dropDelivered`, `_pruneSentFiles`,
+`didChangeAppLifecycleState`, `_applyNetworkState`, `_exitApp`,
+`_handleAndroidServiceState`); `lib/settings_screen.dart` (`_receiving`,
+`_editRecvFolder`). Existing widget-test harness to copy:
+`test/accept_dialog_test.dart`, `test/refused_names_dialog_test.dart`.
+
+**Current behavior and reproduction:** The suite tests rules and real servers.
+Widget tests exist, but only two, and both pump a bare `MaterialApp` host to
+exercise a dialog function — `grep -rn HomeScreen test/` returns nothing at all.
+Neither `HomeScreen` nor `SettingsScreen` is ever built.
+
+Everything those screens decide has therefore been pushed out into pure
+functions that tests can reach — `networkDesiredFor`, `lifecycleNetworkDecision`,
+`manualPollingWanted`, `sendButtonMode`, `sortPickedFiles`, `withoutDelivered`,
+`receiveBannerText` — and every one of them is well covered. What no test touches
+is whether the screen calls them, calls them with the right arguments, or calls
+them at all. Four fixes in this very audit landed in exactly that state: finding
+3's rule is proven, but that `didChangeAppLifecycleState` invokes
+`_syncManualPolling` is not; finding 5's `receiveSlotHeld` is proven, but that
+`_editRecvFolder` reads it is not; finding 9's notification is proven, but that
+the banner is rebuilt from `serverTick` is not; finding 10's `withoutDelivered`
+is proven, but that `_retryTransfer` calls it afterwards is not.
+
+A deletion of any one of those call sites would leave the whole suite green.
+
+**Root cause:** `HomeScreen.initState` starts the network, subscribes to the
+share intent stream and attaches the Android service, all of which reach the
+platform, so building it in a test needs those edges stubbed — and no harness for
+that exists. The pure-function habit is right and should stay; it has simply been
+carrying the whole burden, and it cannot carry this part.
+
+**Required outcome:** A harness that pumps `HomeScreen` with its platform edges
+stubbed — method channels answered by fakes, `ReceiveServer`/`DiscoveryService`/
+`ManualPoller`/`SendService` replaceable — and a small number of tests that
+assert the wiring rather than the rules. The point is not coverage of the widget
+tree; it is that a call site cannot be deleted without something going red.
+
+**Constraints:** Keep the pure functions and their tests exactly as they are —
+this is in addition, not instead. Do not add test seams to production code beyond
+the `@visibleForTesting` fields already used for `askUser`, `notifyFinished` and
+`pickedCopiesRootOf`; the singletons (`receiveServer`, `discovery`,
+`manualPoller`, `sender`) are the awkward part and may need injecting, which is a
+design change worth its own decision. The app must start identically. Do not make
+these tests depend on wall-clock timing.
+
+**Tests to add:** Backgrounding the app stops manual polling and returning to it
+starts polling again, with background receiving on — driven through the widget's
+own lifecycle callback, not by calling the rule. Opening the receive folder
+picker while the receiver's slot is held is refused. A finished retry leaves the
+picked list without the files it delivered. Clearing the readiness failure
+repaints the banner away. Each of these should fail if its single call site is
+removed, which is the check to run when writing them.
+
+---
+
 ## Checked and found sound
 
 Recorded so the next audit does not spend the time again:
@@ -574,6 +632,13 @@ Recorded so the next audit does not spend the time again:
 - Sender spoofing over UDP and over `prepare` is accepted by SPEC 9. Finding 4
   is filed not as a spoofing problem but because a *declined* request writes
   persistent state.
+- Finding 8 covers only the copies EasySend makes itself, under
+  `<cache>/picked`. Content arriving through the share menu is copied by
+  `receive_sharing_intent` into a directory of its own, which this code does not
+  know and did not probe, so a Move of a shared item may still delete a copy
+  instead of the user's file. Verify on a device before deciding: if the plugin's
+  directory is stable, `isAppOwnedCopy` takes a second root and the rest of
+  finding 8 already handles it.
 - `ManualPoller.addByAddress` cannot accept an IPv6 literal: `lastIndexOf(':')`
   splits inside the address. SPEC covers IPv4 only, so this is left as is —
   written down here so it is not rediscovered as a bug.
