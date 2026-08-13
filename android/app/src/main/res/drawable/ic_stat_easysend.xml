@@ -1,0 +1,25 @@
+<!--
+  Status bar icon for the ongoing transfer notification.
+
+  Android tints this to a flat silhouette, so it is drawn in one opaque colour
+  with no gradients and no detail that survives 24dp. Two arrows, because the
+  one notification stands for both directions: sending and receiving.
+
+  Deliberately not android.R.drawable.stat_sys_upload: that one is an animation
+  frame list, and it blinks in the status bar for as long as the notification is
+  up — which, with background receiving on, is all the time.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Down arrow: incoming. -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M7,2h3v9h3L8.5,16.5L4,11h3z" />
+    <!-- Up arrow: outgoing. -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M17,22h-3v-9h-3l4.5,-5.5L20,13h-3z" />
+</vector>

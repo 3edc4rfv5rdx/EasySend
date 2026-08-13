@@ -117,6 +117,19 @@ void main() {
     final String helpers = await File('lib/android_helpers.dart').readAsString();
     final String home = await File('lib/home_screen.dart').readAsString();
 
+    // The system upload icon is an animation and blinks for as long as the
+    // notification is up, which with background receiving on is always.
+    // The resource reference, not the word: the comment beside it names the
+    // system icon to say why it is not used.
+    expect(service, isNot(contains('android.R.drawable.stat_sys_upload')));
+    expect(service, contains('R.drawable.ic_stat_easysend'));
+    expect(
+      File(
+        'android/app/src/main/res/drawable/ic_stat_easysend.xml',
+      ).existsSync(),
+      isTrue,
+    );
+
     expect(service, contains('ACTION_NOTIFY_STOP'));
     expect(service, contains('ACTION_NOTIFY_EXIT'));
     expect(service, contains('openAppIntent(REQUEST_EXIT, exitOnOpen = true)'));

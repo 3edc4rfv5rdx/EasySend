@@ -2,6 +2,7 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+- F: The ongoing notification uses its own static status bar icon instead of the animated system upload icon, which blinked beside the clock the whole time background receiving was on
 - E: A background receiver whose service Android had quietly destroyed gets its notification back: the service now reports its own death to Dart, and the notification is posted again both when the screen closes over a running receiver and when the app returns to the foreground
 - F: Closing the screen over a running background receiver keeps the app's card in Recents, so it can be reopened from there as well as from the notification; only a full exit clears the card
 - N: With "Receive in background" on, ✕ now closes only the screen and leaves the receiver, its service and its notification running; the notification's "Exit" is what ends the app, and a full exit still happens whenever the switch is off or background readiness was lost

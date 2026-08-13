@@ -113,7 +113,10 @@ class TransferService : Service() {
         val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(title)
             .setContentText(text)
-            .setSmallIcon(android.R.drawable.stat_sys_upload)
+            // Our own static silhouette. The system stat_sys_upload is an
+            // animation and blinks in the status bar the whole time the
+            // notification is up.
+            .setSmallIcon(R.drawable.ic_stat_easysend)
             .setContentIntent(pending)
             .setOngoing(true)
             .setSilent(true)
