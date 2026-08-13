@@ -155,7 +155,7 @@ line at all.
 
 ---
 
-### 3. P1 — Manual devices keep being polled over HTTP every 10 seconds while the app is off screen
+### 3. P1 [FIXED ab07208] — Manual devices keep being polled over HTTP every 10 seconds while the app is off screen
 
 **Affected components:** `lib/home_screen.dart` (`_setNetworkDesired`'s
 early return, `didChangeAppLifecycleState`, `_applyNetworkState`'s
