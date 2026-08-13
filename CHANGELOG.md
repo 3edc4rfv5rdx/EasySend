@@ -2,6 +2,7 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+- F: The Light theme writes in pure black instead of near-black
 - E: The ongoing notification's buttons are drawn again: their labels were sent from Dart but never carried into the Intent the service builds the notification from, and a label-less button is not drawn
 - N: The ongoing notification carries buttons: "Stop" ends a running transfer and leaves background receiving on, "Exit" closes the app the same way ✕ does and opens it first whenever there is something to confirm
 - E: Exiting with the ✕ button now removes the app's card from Recents instead of leaving a snapshot of a closed app offering to resume it
