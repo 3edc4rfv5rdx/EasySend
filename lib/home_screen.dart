@@ -75,6 +75,34 @@ LifecycleNetworkDecision lifecycleNetworkDecision(
   );
 }
 
+// Whether manual devices should be polled right now.
+//
+// Deliberately not the network state. A manual device announces nothing, so an
+// HTTP poll is the only thing that keeps its row honest — and a row nobody is
+// looking at is not worth waking the network for every ten seconds (SPEC 5.4).
+// Tying it to the network instead was wrong in exactly one case, which is also
+// the expensive one: with background receiving on, the desired network state is
+// true in every lifecycle state, so putting the app away changed nothing and the
+// poller kept running with the screen off, against Doze.
+//
+// 'inactive' still counts as looking: on desktop it is merely an unfocused
+// window, and on Android it is the shade coming down over a visible app.
+bool manualPollingWanted({
+  required AppLifecycleState state,
+  required bool networkUp,
+}) {
+  if (!networkUp) return false;
+  switch (state) {
+    case AppLifecycleState.resumed:
+    case AppLifecycleState.inactive:
+      return true;
+    case AppLifecycleState.paused:
+    case AppLifecycleState.detached:
+    case AppLifecycleState.hidden:
+      return false;
+  }
+}
+
 Future<bool> updateReceiverAdvertisement({
   required bool receiverReady,
   required Future<bool> Function() startAdvertisement,
@@ -254,6 +282,10 @@ class _HomeScreenState extends State<HomeScreen>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Every platform, and before the Android-only part below: polling follows
+    // whether anyone can see the list, which is a question a minimized desktop
+    // window answers too.
+    _syncManualPolling(state);
     if (!Platform.isAndroid) return;
     final LifecycleNetworkDecision decision = lifecycleNetworkDecision(
       state,
@@ -392,6 +424,32 @@ class _HomeScreenState extends State<HomeScreen>
   bool _stillWantsNetwork(int epoch) =>
       !_disposed && _networkDesired && epoch == _networkEpoch;
 
+  // What the app is doing before the first lifecycle event arrives. The two
+  // defaults are the ones the rest of this screen already assumes: on Android
+  // the engine can be up with no Activity attached yet, so nothing is visible;
+  // elsewhere the window is there as soon as the app is.
+  AppLifecycleState get _lifecycleNow =>
+      WidgetsBinding.instance.lifecycleState ??
+      (Platform.isAndroid
+          ? AppLifecycleState.detached
+          : AppLifecycleState.resumed);
+
+  // Called from both sides of the question: a lifecycle event, and the network
+  // transition that may have brought the network up or taken it down. Starting
+  // an already-running poller would restart its timer and fire an extra pass on
+  // every event, so the state is asked first.
+  void _syncManualPolling([AppLifecycleState? state]) {
+    final bool wanted = manualPollingWanted(
+      state: state ?? _lifecycleNow,
+      networkUp: _networkDesired && !_disposed,
+    );
+    if (!wanted) {
+      manualPoller.stop();
+    } else if (!manualPoller.running) {
+      manualPoller.start();
+    }
+  }
+
   bool get _transferBusy => sender.busy || xvTransfers.any((t) => t.isRunning);
 
   // Every path that abandons this method leaves a queued transition behind it,
@@ -445,7 +503,9 @@ class _HomeScreenState extends State<HomeScreen>
     // Manual peers and outgoing sends remain useful even if this machine
     // cannot currently receive. Automatic discovery, however, would advertise
     // a dead port or an unusable destination, so it follows receive readiness.
-    manualPoller.start();
+    // Polling those manual peers follows something else again — whether the
+    // list is on screen at all — so it is asked rather than simply started.
+    _syncManualPolling();
     final bool receiveReady = await receiveServer.start();
     if (!_stillWantsNetwork(epoch)) return;
     await updateReceiverAdvertisement(

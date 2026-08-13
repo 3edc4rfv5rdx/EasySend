@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:archive/archive.dart';
 import 'package:easysend/globals.dart';
 import 'package:easysend/home_screen.dart';
+import 'package:easysend/net_discovery.dart';
 import 'package:easysend/net_server.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -172,6 +173,75 @@ void main() {
           reason: '$state',
         );
       }
+    });
+  });
+
+  group('manual polling follows the screen, not the network', () {
+    test('a visible app polls, focused or not', () {
+      for (final AppLifecycleState state in [
+        AppLifecycleState.resumed,
+        AppLifecycleState.inactive,
+      ]) {
+        expect(
+          manualPollingWanted(state: state, networkUp: true),
+          isTrue,
+          reason: '$state',
+        );
+      }
+    });
+
+    test('an app that is away polls nothing', () {
+      for (final AppLifecycleState state in [
+        AppLifecycleState.paused,
+        AppLifecycleState.hidden,
+        AppLifecycleState.detached,
+      ]) {
+        expect(
+          manualPollingWanted(state: state, networkUp: true),
+          isFalse,
+          reason: '$state',
+        );
+      }
+    });
+
+    test('no network is no polling in any state', () {
+      for (final AppLifecycleState state in AppLifecycleState.values) {
+        expect(
+          manualPollingWanted(state: state, networkUp: false),
+          isFalse,
+          reason: '$state',
+        );
+      }
+    });
+
+    // The finding in one assertion. Background receiving deliberately keeps the
+    // network up in every lifecycle state, so tying polling to the network kept
+    // waking it every ten seconds with the screen off (SPEC 5.4).
+    test('background receiving keeps the network up but not the poller', () {
+      for (final AppLifecycleState state in [
+        AppLifecycleState.paused,
+        AppLifecycleState.hidden,
+      ]) {
+        final bool networkUp = networkDesiredFor(
+          state,
+          receiveInBackground: true,
+        )!;
+        expect(networkUp, isTrue, reason: '$state');
+        expect(
+          manualPollingWanted(state: state, networkUp: networkUp),
+          isFalse,
+          reason: '$state',
+        );
+      }
+    });
+
+    test('the poller says whether its pass is scheduled', () {
+      final ManualPoller poller = ManualPoller();
+      expect(poller.running, isFalse);
+      poller.start();
+      expect(poller.running, isTrue);
+      poller.stop();
+      expect(poller.running, isFalse);
     });
   });
 

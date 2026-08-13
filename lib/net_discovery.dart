@@ -427,7 +427,13 @@ class ManualPoller {
     _client = HttpClient()..connectionTimeout = timeout;
   }
 
+  // A pass is in flight right now.
   bool get polling => _polling;
+
+  // The periodic pass is scheduled. Asked before starting, so a caller driven by
+  // lifecycle events does not restart the timer — and fire an immediate pass —
+  // every time one arrives.
+  bool get running => _timer != null;
 
   void start() {
     stop();
