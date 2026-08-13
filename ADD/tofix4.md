@@ -312,7 +312,7 @@ intentional visible marker for genuinely missing dynamic keys.
 `ua`; assert the sentence is localized, details remain exact, and a static
 code-to-locale key inventory has no omissions.
 
-### 9. P2 — SPEC still promises file opening for a tap that now opens the transfer log
+### 9. P2 [FIXED d0a36cc] — SPEC still promises file opening for a tap that now opens the transfer log
 
 **Affected components:** `SPEC.md` section 7, SPEC section 4,
 `README.md`, `lib/home_screen.dart` `_openTransferLog`.
