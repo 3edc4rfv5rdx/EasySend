@@ -82,6 +82,7 @@ Flutter, one codebase for Android and desktop. The numbered scripts do the work:
 ./05-Lint.sh           # flutter analyze
 ./06-Test.sh           # flutter test
 ./00-MakeAll.sh        # everything: APK, both installs, AppImage
+./01-LinkOut.sh        # link the newest build into OUT/ under its own names
 ./10-MakeRelease.sh    # release APKs, one build number up
 ./11-EmulRELEASE.sh    # install the freshest APK on the emulator
 ./12-PhoneRELEASE.sh   # install it on the phone
