@@ -1046,7 +1046,7 @@ class _HomeScreenState extends State<HomeScreen>
                 // the app and finding the file by hand.
                 onTap: () => _openItem(item),
                 trailing: IconButton(
-                  icon: Icon(Icons.close, color: clFrame, size: 20),
+                  icon: Icon(Icons.close, color: clTextMuted, size: 20),
                   onPressed: () => _remove(item),
                 ),
               );
@@ -1130,12 +1130,12 @@ class _HomeScreenState extends State<HomeScreen>
             ].join('   '),
             style: TextStyle(
               fontSize: fsSmall,
-              color: device.online ? clText : clFrame,
+              color: device.online ? clText : clTextMuted,
             ),
           ),
           trailing: device.manual
               ? IconButton(
-                  icon: Icon(Icons.close, color: clFrame, size: 20),
+                  icon: Icon(Icons.close, color: clTextMuted, size: 20),
                   tooltip: lw('Remove'),
                   onPressed: () async {
                     // Getting it back means typing the address again.
@@ -1168,7 +1168,7 @@ class _HomeScreenState extends State<HomeScreen>
         ? Icons.smartphone
         : Icons.computer;
     if (!device.online) {
-      return Icon(icon, color: clFrame);
+      return Icon(icon, color: clTextMuted);
     }
     // The chosen device turns into an arrow pointing at its row: the platform
     // icon would not fit inside a triangle, and the highlight alone was easy
@@ -1268,7 +1268,7 @@ class _HomeScreenState extends State<HomeScreen>
                             width: 32,
                             height: 24,
                           ),
-                          icon: Icon(Icons.close, color: clFrame, size: 20),
+                          icon: Icon(Icons.close, color: clTextMuted, size: 20),
                           tooltip: lw('Remove'),
                           onPressed: () {
                             xvTransfers.remove(t);
@@ -1342,7 +1342,7 @@ class _HomeScreenState extends State<HomeScreen>
       case TransferStatus.failed:
         return clError;
       case TransferStatus.cancelled:
-        return clFrame;
+        return clTextMuted;
       case TransferStatus.done:
         return clGreen;
       case TransferStatus.partial:

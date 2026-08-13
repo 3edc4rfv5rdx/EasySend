@@ -2,6 +2,7 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+- F: Everything quieter than body text — an offline device with its icon, remove and copy buttons, row chevrons, refusal reasons, input hints, the bar of a cancelled transfer — is dimmed from the theme's text colour instead of the frame colour, which was too faint to read on the light backgrounds
 - F: The ongoing notification uses its own static status bar icon instead of the animated system upload icon, which blinked beside the clock the whole time background receiving was on
 - E: A background receiver whose service Android had quietly destroyed gets its notification back: the service now reports its own death to Dart, and the notification is posted again both when the screen closes over a running receiver and when the app returns to the foreground
 - F: Closing the screen over a running background receiver keeps the app's card in Recents, so it can be reopened from there as well as from the notification; only a full exit clears the card

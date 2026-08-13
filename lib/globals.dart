@@ -21,7 +21,7 @@ final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 const String prgName = 'easysend';
 const String progVersion = '0.2.260813';
-const int buildNumber = 85;
+const int buildNumber = 86;
 const String progAuthor = 'Eugen';
 
 const String langFile = 'assets/locales.json';
@@ -162,6 +162,14 @@ Color clAccent = const Color(0xFF37698C);
 Color clText = const Color(0xFF000000);
 Color clFill = const Color(0xFFFFFFFF);
 Color clFrame = const Color(0xFF9E9E9E);
+// One step quieter than body text, for everything secondary: an offline device
+// and its icon, the small remove buttons, a row's chevron, the bar of a
+// cancelled transfer. Dimmed from the text colour and never drawn in clFrame —
+// the frame is tuned to be the faintest thing on the screen and gives a mere
+// 1.9:1 against the Light background, where readable content needs 4.5:1 and a
+// control 3:1. This step clears 4.5:1 in all five palettes, Olive tightest at
+// 4.7:1.
+Color get clTextMuted => clText.withValues(alpha: 0.6);
 // Transfer progress: deliberately the loudest colour on the screen.
 Color clProgress = const Color(0xFFFF9800);
 

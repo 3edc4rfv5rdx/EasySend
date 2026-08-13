@@ -50,7 +50,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               dense: true,
               contentPadding: EdgeInsets.zero,
               title: Text(full, style: tsNormal),
-              trailing: Icon(Icons.copy, size: 18, color: clFrame),
+              trailing: Icon(Icons.copy, size: 18, color: clTextMuted),
               onTap: () async {
                 await Clipboard.setData(ClipboardData(text: full));
                 if (context.mounted) Navigator.pop(context);
@@ -390,7 +390,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 style: tsSmall,
               ),
               trailing: IconButton(
-                icon: Icon(Icons.close, color: clFrame, size: 20),
+                icon: Icon(Icons.close, color: clTextMuted, size: 20),
                 tooltip: lw('Revoke trust'),
                 onPressed: () async {
                   final bool yes = await okConfirm(
@@ -429,7 +429,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       onTap: onTap,
       trailing: onTap == null
           ? null
-          : Icon(Icons.chevron_right, color: clFrame),
+          : Icon(Icons.chevron_right, color: clTextMuted),
     );
   }
 }

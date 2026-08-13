@@ -416,7 +416,7 @@ Future<bool> showRefusedNamesDialog(List<RefusedPick> refused) async {
                           Text(item.file.relativePath, style: tsNormal),
                           Text(
                             _refusalReason(item.problem),
-                            style: tsSmall.copyWith(color: clFrame),
+                            style: tsSmall.copyWith(color: clTextMuted),
                           ),
                         ],
                       ),
@@ -498,7 +498,7 @@ Future<String?> showInputDialog({
               decoration: InputDecoration(
                 hintText: hint,
                 errorText: validationError,
-                hintStyle: TextStyle(color: clFrame),
+                hintStyle: TextStyle(color: clTextMuted),
                 enabledBorder: OutlineInputBorder(
                   borderSide: BorderSide(color: clFrame),
                 ),
