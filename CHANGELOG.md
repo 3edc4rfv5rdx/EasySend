@@ -2,6 +2,7 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+- I: Dropped the hand-written test index; it duplicated what a search over the test files answers and had to be corrected on every change
 - E: Picking or dropping a folder of hundreds of thousands of files no longer reads the whole tree into memory before refusing it: the walk stops one file past the count or size limit, releases the directory it was reading, and says "Too many files at once" straight away; a folder that cannot be listed now loses only itself instead of the whole selection
 - E: A name of 255 Cyrillic, CJK or emoji characters was accepted and then failed to be written on Linux and Android, where a filename is capped at 255 bytes and not 255 characters: every component is now measured against both limits, refused at pick time with the usual "the name is too long", and a ` (n)` collision suffix trims the stem instead of bursting the limit
 - E: A file that appeared in the receive folder while the last checks were running was silently replaced by the incoming one: the final name is now claimed with an exclusive create before the rename, so the file that got there first keeps its place and the arrival takes the next free name; the allocator's last-resort name is checked and reserved like every other instead of being handed out blind

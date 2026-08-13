@@ -185,7 +185,7 @@ combining sequences at one unit below, exactly at, and one unit above each byte
 and UTF-16 boundary. For every accepted case, actually create the component on
 Linux and exercise Windows-specific validation separately.
 
-### 5. P1 — Picking a large folder ignores the 3,000-file bound until the whole tree is retained
+### 5. P1 [FIXED 148e806] — Picking a large folder ignores the 3,000-file bound until the whole tree is retained
 
 **Affected components:** `lib/file_helpers.dart` `collectFiles`,
 `lib/home_screen.dart` `_addPaths`, folder-pick/share/drop flows.
