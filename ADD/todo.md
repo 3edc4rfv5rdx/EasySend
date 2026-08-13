@@ -173,3 +173,27 @@ is written up under finding 5 in `ADD/tofix3.md`.
 
 Still open: whether swiping out of Recents does the same on the A366B. Until
 that is known, treat the A366B result as covering Activity destruction only.
+
+### + Settled on 2026-08-13 — the A366B survives the swipe
+
+Build 0.2.260813+85 on the A366B, driven over adb. `Receive in background`
+switched on from a cold state (it had been off), HOME, then the card swiped out
+of Recents.
+
+- Same process before and after: pid 10650 both times.
+- `TransferService` still `isForeground=true`, `types=0x40000000`
+  (`FOREGROUND_SERVICE_TYPE_SPECIAL_USE`), and the ongoing notification id=1 on
+  `easysend_transfer` still posted with one action — Exit only, which is what
+  SPEC prescribes when no transfer is running.
+- `netstat` showed `0.0.0.0:15353` listening on **both** TCP and UDP, and
+  `/api/v1/info` answered over an `adb forward` with the real device record
+  (`"name":"A36","version":"0.2.260813"`).
+
+So the notification is telling the truth on this phone: the receiver really is
+listening after the card is gone. That is the state the A12 failed in on
+2026-08-12, before finding 5 in `ADD/tofix3.md` was fixed; this run confirms the
+fix on the A366B. The A12 has not been re-run on a build carrying it.
+
+Not covered by this run: the multicast path was not exercised — the second phone
+was not on the network and this desktop cannot reach the phone's segment — so
+this says nothing new about finding 11. Only unicast readiness was measured.
