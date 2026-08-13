@@ -66,4 +66,24 @@ void main() {
     expect(await server.start(), isTrue);
     expect(server.readinessFailure, isNull);
   });
+
+  test('a failed transition reads as not ready and clears on the next one', () async {
+    expect(await server.start(), isTrue);
+    expect(server.readinessFailure, isNull);
+
+    // Something else in the transition threw — a sweep, a discovery stop, a
+    // platform channel. The listener may be up; readiness stops claiming it.
+    final int ticksBefore = serverTick.value;
+    server.noteTransitionFailure();
+    expect(server.readinessFailure, ReceiveReadinessFailure.transition);
+    expect(server.readinessError, isNotEmpty);
+    expect(serverTick.value, greaterThan(ticksBefore), reason: 'UI must hear');
+    // Nothing about the machine or its folders leaks into a shipped build.
+    expect(server.readinessError, isNot(contains(sandbox.path)));
+
+    await server.stop();
+    expect(await server.start(), isTrue);
+    expect(server.readinessFailure, isNull);
+    expect(server.readinessError, isNull);
+  });
 }

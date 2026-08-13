@@ -284,7 +284,7 @@ limit, one that collides after repair, and concurrent add/share events. Assert
 the selection is unchanged on whole-operation rejection and never exceeds any
 wire limit.
 
-### 8. P2 — Finish failures show an untranslated marker in Russian and Ukrainian logs
+### 8. P2 [FIXED 1efc9eb] — Finish failures show an untranslated marker in Russian and Ukrainian logs
 
 **Affected components:** `lib/net_sender.dart` `_finishRemote`,
 `assets/locales.json`, localization coverage.

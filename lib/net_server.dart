@@ -19,7 +19,10 @@ enum _ReceivePhase {
   cancelled,
 }
 
-enum ReceiveReadinessFailure { folder, port }
+// Why this process cannot claim to be receiving. `transition` is the one that
+// is not about the listener itself: a step of bringing the network up or down
+// threw, so what the screen shows and what the sockets are doing may disagree.
+enum ReceiveReadinessFailure { folder, port, transition }
 
 class _ProtocolProblem implements Exception {
   final int status;
@@ -131,6 +134,17 @@ class ReceiveServer {
   // Set when this process cannot truthfully advertise itself as a receiver.
   ReceiveReadinessFailure? readinessFailure;
   String? readinessError;
+
+  // A step of the network transition failed somewhere other than here. The
+  // listener may even be up, but the sequence that was supposed to bring
+  // receiving into a known state did not finish, so readiness stops claiming
+  // otherwise until a transition completes. The reason is kept deliberately
+  // free of paths and addresses: it is shown on screen in a shipped build.
+  void noteTransitionFailure() {
+    readinessFailure = ReceiveReadinessFailure.transition;
+    readinessError = 'network transition failed';
+    serverStateChanged();
+  }
 
   ReceiveServer({
     this.sessionTimeout = const Duration(seconds: receiveSessionTimeoutSec),

@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
 
 import 'globals.dart';
+import 'net_server.dart';
 
 // A list row whose last element is an icon button. The stock trailing slot adds
 // 16 px of its own padding outside the button's 48 px tap target, pushing the
@@ -49,6 +50,22 @@ ButtonStyle get bannerButtonStyle => TextButton.styleFrom(
   minimumSize: const Size(60, 32),
   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
 );
+
+// What the receive banner says, by the reason receiving is not ready. A rule
+// with three answers belongs outside build(), where a test can read it: the
+// port number is part of the sentence only when the port is the problem.
+String receiveBannerText(ReceiveReadinessFailure? failure, int port) =>
+    switch (failure) {
+      ReceiveReadinessFailure.folder => lw(
+        'Receive folder unavailable, receiving is off',
+      ),
+      ReceiveReadinessFailure.port =>
+        '${lw('Port is busy, receiving is off')}: $port',
+      ReceiveReadinessFailure.transition => lw(
+        'Network setup did not finish, receiving may be off',
+      ),
+      null => '',
+    };
 
 RoundedRectangleBorder get dialogShape => RoundedRectangleBorder(
   side: BorderSide(color: clAccent, width: 3.0),

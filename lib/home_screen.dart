@@ -362,7 +362,31 @@ class _HomeScreenState extends State<HomeScreen>
 
   void _queueNetworkTransition() {
     final int epoch = _networkEpoch;
-    _networkTail = _networkQueue.add(() => _applyNetworkState(epoch));
+    _networkTail = _networkQueue.add(() => _runNetworkTransition(epoch));
+  }
+
+  // A transition that throws must not pass without a trace. The queue's own
+  // handler only reaches myPrint, which is compiled out of the release builds
+  // this project ships, and the screen would go on showing whatever it showed
+  // before — a device list from a discovery that is now stopped, or a receiver
+  // that never started. Readiness is the surface that already exists for
+  // "receiving is off", so a failed transition speaks through it.
+  Future<void> _runNetworkTransition(int epoch) async {
+    try {
+      await _applyNetworkState(epoch);
+    } catch (e, st) {
+      myPrint('network transition failed: $e\n$st');
+      // An epoch superseded on purpose is not a failure: whoever bumped it is
+      // already queued behind this and will bring the state where it belongs.
+      if (!_stillWantsNetwork(epoch)) return;
+      receiveServer.noteTransitionFailure();
+      // Nothing may go on advertising a receiver whose setup did not finish.
+      try {
+        await discovery.stop();
+      } catch (stopError) {
+        myPrint('cannot stop advertising after a failed transition: $stopError');
+      }
+    }
   }
 
   bool _stillWantsNetwork(int epoch) =>
@@ -870,8 +894,6 @@ class _HomeScreenState extends State<HomeScreen>
   // Receiving is down while its port or folder is unavailable; sending still
   // works, so this is a banner and not a blocking error.
   Widget _buildReceiveBanner() {
-    final bool folder =
-        receiveServer.readinessFailure == ReceiveReadinessFailure.folder;
     return Container(
       width: double.infinity,
       color: clError,
@@ -882,9 +904,7 @@ class _HomeScreenState extends State<HomeScreen>
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              folder
-                  ? lw('Receive folder unavailable, receiving is off')
-                  : '${lw('Port is busy, receiving is off')}: $currentPort',
+              receiveBannerText(receiveServer.readinessFailure, currentPort),
               style: TextStyle(color: onColor(clError), fontSize: fsSmall),
             ),
           ),
