@@ -130,7 +130,10 @@ void main() {
     expect(helpers, contains("case 'notificationStop':"));
     expect(helpers, contains("case 'notificationExit':"));
     expect(home, contains('onNotificationStop = _stop'));
-    expect(home, contains('onNotificationExit = _exitApp'));
+    // The one exit that never keeps the receiver running: ✕ may close only the
+    // screen, this button is what ends the app afterwards.
+    expect(home, contains('_exitApp(mayKeepReceiving: false)'));
+    expect(home, contains('exitKeepsReceiving('));
   });
 
   // The channel call and the Intent are two hops, and the service reads the

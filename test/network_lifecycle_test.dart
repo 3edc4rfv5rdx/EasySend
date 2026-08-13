@@ -229,6 +229,64 @@ void main() {
     });
   });
 
+  group('✕ leaves a working background receiver alone', () {
+    test('it only closes the screen when the receiver can go on', () {
+      expect(
+        exitKeepsReceiving(
+          android: true,
+          mayKeepReceiving: true,
+          receiveInBackground: true,
+          backgroundReady: true,
+        ),
+        isTrue,
+      );
+    });
+
+    test('anything missing makes it a full exit', () {
+      // The notification's own Exit button, which must never keep the app.
+      expect(
+        exitKeepsReceiving(
+          android: true,
+          mayKeepReceiving: false,
+          receiveInBackground: true,
+          backgroundReady: true,
+        ),
+        isFalse,
+      );
+      // The switch is off, so there is nothing to keep running.
+      expect(
+        exitKeepsReceiving(
+          android: true,
+          mayKeepReceiving: true,
+          receiveInBackground: false,
+          backgroundReady: true,
+        ),
+        isFalse,
+      );
+      // The service timed out: keeping the screen shut would leave a promise
+      // of receiving with nothing behind it.
+      expect(
+        exitKeepsReceiving(
+          android: true,
+          mayKeepReceiving: true,
+          receiveInBackground: true,
+          backgroundReady: false,
+        ),
+        isFalse,
+      );
+      // Desktop has no foreground service and no such mode at all.
+      expect(
+        exitKeepsReceiving(
+          android: false,
+          mayKeepReceiving: true,
+          receiveInBackground: true,
+          backgroundReady: true,
+        ),
+        isFalse,
+      );
+    });
+  });
+
   test('receiver advertisement follows readiness exactly', () async {
     int starts = 0;
     int stops = 0;

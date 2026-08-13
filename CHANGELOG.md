@@ -2,6 +2,7 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+- N: With "Receive in background" on, ✕ now closes only the screen and leaves the receiver, its service and its notification running; the notification's "Exit" is what ends the app, and a full exit still happens whenever the switch is off or background readiness was lost
 - F: The Light theme writes in pure black instead of near-black
 - E: The ongoing notification's buttons are drawn again: their labels were sent from Dart but never carried into the Intent the service builds the notification from, and a label-less button is not drawn
 - N: The ongoing notification carries buttons: "Stop" ends a running transfer and leaves background receiving on, "Exit" closes the app the same way ✕ does and opens it first whenever there is something to confirm

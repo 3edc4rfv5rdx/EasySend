@@ -208,7 +208,8 @@ class _HomeScreenState extends State<HomeScreen>
     androidServiceStateTick.addListener(_handleAndroidServiceState);
     // The notification's buttons act on the same two paths as the screen does.
     androidService.onNotificationStop = _stop;
-    androidService.onNotificationExit = _exitApp;
+    androidService.onNotificationExit = () =>
+        _exitApp(mayKeepReceiving: false);
     androidService.attach();
     _startNetwork();
     _listenForShares();
@@ -574,7 +575,25 @@ class _HomeScreenState extends State<HomeScreen>
 
   // Closing the app has to release the port and stop announcing, otherwise
   // peers keep seeing this device for another twenty seconds.
-  Future<void> _exitApp() async {
+  //
+  // Unless background receiving is on and working: then ✕ only closes the
+  // screen and everything below is left running. The notification's Exit button
+  // passes false and always ends the app — it is what that ongoing notification
+  // is there to offer.
+  Future<void> _exitApp({bool mayKeepReceiving = true}) async {
+    if (exitKeepsReceiving(
+      android: Platform.isAndroid,
+      mayKeepReceiving: mayKeepReceiving,
+      receiveInBackground: xdef['Receive in background'] == 'true',
+      backgroundReady: androidService.backgroundReady,
+    )) {
+      // Nothing is asked and nothing is stopped: a running transfer carries on
+      // in the background, which is the whole point of the switch.
+      if (_windowSaveTimer?.isActive ?? false) await _saveWindowBounds();
+      if (!await finishActivityAndTask()) await SystemNavigator.pop();
+      return;
+    }
+
     final bool running = xvTransfers.any((t) => t.isRunning);
     if (exitNeedsConfirmation(
       transferRunning: running,

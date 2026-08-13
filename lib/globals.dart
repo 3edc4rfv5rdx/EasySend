@@ -105,6 +105,23 @@ bool exitNeedsConfirmation({
   required bool askBeforeExit,
 }) => transferRunning || askBeforeExit;
 
+// Whether ✕ closes the screen and leaves the receiver running.
+//
+// "Receive in background" promises that the device keeps receiving once the app
+// is out of the way, and an exit that silently revoked it made the switch mean
+// nothing. So ✕ closes the screen, the service and its notification stay, and
+// the Exit button on that notification is the way out of the app.
+//
+// Not while background readiness is lost: with the service timed out there is
+// nothing left to keep receiving with, and ✕ has to mean a full exit again.
+bool exitKeepsReceiving({
+  required bool android,
+  required bool mayKeepReceiving,
+  required bool receiveInBackground,
+  required bool backgroundReady,
+}) =>
+    android && mayKeepReceiving && receiveInBackground && backgroundReady;
+
 // Subdirectory created inside the system downloads folder.
 const String recvDirName = 'EasySend';
 
