@@ -21,7 +21,7 @@ final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 const String prgName = 'easysend';
 const String progVersion = '0.2.260813';
-const int buildNumber = 94;
+const int buildNumber = 95;
 const String progAuthor = 'Eugen';
 
 const String langFile = 'assets/locales.json';
@@ -177,6 +177,12 @@ Color clFrame = const Color(0xFF9E9E9E);
 Color get clTextMuted => clText.withValues(alpha: 0.65);
 // Transfer progress: deliberately the loudest colour on the screen.
 Color clProgress = const Color(0xFFFF9800);
+// Everything arrived and the far end never confirmed it. Its own colour rather
+// than a shade of warning: the bar has to say at a glance that this is neither
+// the clean finish nor a failure, and every other outcome on that bar is warm —
+// progress, warning and error all sit within a few degrees of orange and red,
+// so a violet is the one hue nothing else on the row can be mistaken for.
+Color clUnconfirmed = const Color(0xFF75579B);
 
 // Meaning, not hue: every message colour comes from the palette, so a theme
 // owns the whole screen instead of half of it.
@@ -392,6 +398,7 @@ void applyTheme(String themeName) {
   clFill = hexToColor(theme['fill'] ?? '#FFFFFF');
   clFrame = hexToColor(theme['frame'] ?? '#9E9E9E');
   clProgress = hexToColor(theme['progress'] ?? '#FF9800');
+  clUnconfirmed = hexToColor(theme['unconfirmed'] ?? '#75579B');
   clGreen = hexToColor(theme['online'] ?? '#43A047');
   clError = hexToColor(theme['error'] ?? '#C62828');
   clWarning = hexToColor(theme['warning'] ?? '#EF6C00');

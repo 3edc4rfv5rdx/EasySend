@@ -1504,11 +1504,12 @@ class _HomeScreenState extends State<HomeScreen>
         return clTextMuted;
       case TransferStatus.done:
         return clGreen;
-      // Every file is here, and something still went wrong: not the green of a
-      // clean finish and not the red of a failure, but the colour this palette
-      // keeps for what has to be noticed.
+      // Every file is here, and something still went wrong: neither the green
+      // of a clean finish nor the red of a failure. A hue of its own, because
+      // every other state of this bar is warm and a warning tone would read as
+      // a transfer still running.
       case TransferStatus.unconfirmed:
-        return clWarning;
+        return clUnconfirmed;
       case TransferStatus.partial:
       case TransferStatus.pending:
       case TransferStatus.active:

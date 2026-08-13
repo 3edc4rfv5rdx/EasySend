@@ -14,6 +14,17 @@ const double minTextContrast = 4.5;
 // row gets under it.
 Color get _selectedSurface => Color.alphaBlend(clSel, clFon);
 
+// The track a transfer's bar is drawn on: the frame colour at the alpha the row
+// uses, over the page.
+Color get _barTrack => Color.alphaBlend(clFrame.withValues(alpha: 0.3), clFon);
+
+// Degrees apart on the colour wheel, the short way round.
+double _hueGap(Color a, Color b) {
+  final double diff =
+      (HSLColor.fromColor(a).hue - HSLColor.fromColor(b).hue).abs();
+  return diff > 180 ? 360 - diff : diff;
+}
+
 void main() {
   setUpAll(() async {
     final Map<String, dynamic> data =
@@ -80,6 +91,44 @@ void main() {
         contrastRatio(clUpBarText, clUpBar),
         greaterThanOrEqualTo(minTextContrast),
         reason: '$name: app bar text on the app bar',
+      );
+    }
+  });
+
+  test('every palette names the unconfirmed colour itself', () {
+    // Without it a new palette silently borrows the fallback, which belongs to
+    // another theme and can land anywhere against its background.
+    for (final MapEntry<String, Map<String, String>> palette
+        in loadedThemes.entries) {
+      expect(
+        palette.value['unconfirmed'],
+        isNotNull,
+        reason: '${palette.key} has no unconfirmed colour of its own',
+      );
+    }
+  });
+
+  test('an unconfirmed bar is visible and not another warm tone', () {
+    // A bar is a control carrying meaning, so 3:1 rather than the text figure.
+    // The hue check is the point of the colour: every other state of this bar —
+    // running, partial, failed — is warm, and a violet is what keeps a finished
+    // transfer nobody confirmed from reading as one still going.
+    for (final String name in loadedThemes.keys) {
+      applyTheme(name);
+      expect(
+        contrastRatio(clUnconfirmed, _barTrack),
+        greaterThanOrEqualTo(3),
+        reason: '$name: the unconfirmed bar on its track',
+      );
+      expect(
+        _hueGap(clUnconfirmed, clProgress),
+        greaterThanOrEqualTo(60),
+        reason: '$name: unconfirmed is too close to the running colour',
+      );
+      expect(
+        _hueGap(clUnconfirmed, clError),
+        greaterThanOrEqualTo(60),
+        reason: '$name: unconfirmed is too close to the failure colour',
       );
     }
   });
