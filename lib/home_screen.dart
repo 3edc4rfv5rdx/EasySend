@@ -206,6 +206,9 @@ class _HomeScreenState extends State<HomeScreen>
     devicesTick.addListener(_dropOfflineTarget);
     transfersTick.addListener(_pruneSentFiles);
     androidServiceStateTick.addListener(_handleAndroidServiceState);
+    // The notification's buttons act on the same two paths as the screen does.
+    androidService.onNotificationStop = _stop;
+    androidService.onNotificationExit = _exitApp;
     androidService.attach();
     _startNetwork();
     _listenForShares();
@@ -286,6 +289,8 @@ class _HomeScreenState extends State<HomeScreen>
     _shareSub?.cancel();
     _selectedScroll.dispose();
     _windowSaveTimer?.cancel();
+    androidService.onNotificationStop = null;
+    androidService.onNotificationExit = null;
     androidService.detach();
     receiveServer.stop();
     discovery.stop();
@@ -571,9 +576,10 @@ class _HomeScreenState extends State<HomeScreen>
   // peers keep seeing this device for another twenty seconds.
   Future<void> _exitApp() async {
     final bool running = xvTransfers.any((t) => t.isRunning);
-    // An interrupted transfer is always worth a question; an idle app is only
-    // worth one if the user asked to be asked.
-    if (running || xdef['Ask before exit'] == 'true') {
+    if (exitNeedsConfirmation(
+      transferRunning: running,
+      askBeforeExit: xdef['Ask before exit'] == 'true',
+    )) {
       final bool yes = await okConfirm(
         title: lw('Exit'),
         message: running

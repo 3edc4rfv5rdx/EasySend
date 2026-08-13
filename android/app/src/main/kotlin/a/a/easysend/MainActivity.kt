@@ -4,6 +4,7 @@ import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import android.os.Bundle
 import android.provider.DocumentsContract
 import android.webkit.MimeTypeMap
 import androidx.core.content.FileProvider
@@ -13,10 +14,35 @@ import java.io.File
 
 class MainActivity : FlutterActivity() {
 
-    private companion object {
-        const val PRIMARY_STORAGE = "/storage/emulated/0"
-        const val EXTERNAL_STORAGE_AUTHORITY = "com.android.externalstorage.documents"
-        const val PICK_FILES_REQUEST = 4711
+    companion object {
+        // Set by the notification's Exit button when the exit has something to
+        // ask before it acts, and the question needs the app on screen.
+        const val EXTRA_EXIT_REQUESTED = "easysend_exit"
+
+        private const val PRIMARY_STORAGE = "/storage/emulated/0"
+        private const val EXTERNAL_STORAGE_AUTHORITY = "com.android.externalstorage.documents"
+        private const val PICK_FILES_REQUEST = 4711
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        consumeExitRequest(intent)
+    }
+
+    // singleTop: an app that is already open is handed the Intent here instead
+    // of being created again.
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        consumeExitRequest(intent)
+    }
+
+    private fun consumeExitRequest(intent: Intent?) {
+        if (intent?.getBooleanExtra(EXTRA_EXIT_REQUESTED, false) != true) return
+        // Taken out of the Intent, or every later recreation of this Activity —
+        // a rotation, a system kill and return — would exit the app on its own.
+        intent.removeExtra(EXTRA_EXIT_REQUESTED)
+        (application as EasySendApplication).notifyDart("notificationExit")
     }
 
     /**

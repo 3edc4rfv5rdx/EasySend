@@ -35,9 +35,23 @@ class TransferService : Service() {
         const val ACTION_UPDATE = "update"
         const val ACTION_STOP = "stop"
 
+        // The two buttons on the ongoing notification. They only carry the
+        // press to Dart, which owns transfers and the exit.
+        const val ACTION_NOTIFY_STOP = "notify_stop"
+        const val ACTION_NOTIFY_EXIT = "notify_exit"
+
         const val EXTRA_TITLE = "title"
         const val EXTRA_TEXT = "text"
         const val EXTRA_PROGRESS = "progress"
+        const val EXTRA_STOP_LABEL = "stopLabel"
+        const val EXTRA_EXIT_LABEL = "exitLabel"
+        const val EXTRA_EXIT_NEEDS_APP = "exitNeedsApp"
+
+        // Distinct request codes, or the two buttons would share one
+        // PendingIntent and the second would silently reuse the first's extras.
+        private const val REQUEST_CONTENT = 0
+        private const val REQUEST_STOP = 1
+        private const val REQUEST_EXIT = 2
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -50,11 +64,26 @@ class TransferService : Service() {
                 stopSelf()
                 return START_NOT_STICKY
             }
+            // Nothing is decided here: Dart cancels the transfer or runs the
+            // exit, and the notification follows from the state that leaves.
+            ACTION_NOTIFY_STOP -> {
+                (application as EasySendApplication).notifyDart("notificationStop")
+                return START_NOT_STICKY
+            }
+            ACTION_NOTIFY_EXIT -> {
+                (application as EasySendApplication).notifyDart("notificationExit")
+                return START_NOT_STICKY
+            }
             else -> {
                 val title = intent?.getStringExtra(EXTRA_TITLE) ?: "EasySend"
                 val text = intent?.getStringExtra(EXTRA_TEXT) ?: ""
                 val progress = intent?.getIntExtra(EXTRA_PROGRESS, -1) ?: -1
-                startForegroundWith(title, text, progress)
+                // Labels are localized in Dart. Without them there is nothing
+                // truthful to write on a button, so none is drawn.
+                val stopLabel = intent?.getStringExtra(EXTRA_STOP_LABEL).orEmpty()
+                val exitLabel = intent?.getStringExtra(EXTRA_EXIT_LABEL).orEmpty()
+                val exitNeedsApp = intent?.getBooleanExtra(EXTRA_EXIT_NEEDS_APP, false) ?: false
+                startForegroundWith(title, text, progress, stopLabel, exitLabel, exitNeedsApp)
                 // progress >= 0 is an active transfer. ACTION_UPDATE must be
                 // sufficient after an idle listener start or service recreation.
                 if (progress in 0..100) {
@@ -69,16 +98,17 @@ class TransferService : Service() {
         return START_NOT_STICKY
     }
 
-    private fun startForegroundWith(title: String, text: String, progress: Int) {
+    private fun startForegroundWith(
+        title: String,
+        text: String,
+        progress: Int,
+        stopLabel: String,
+        exitLabel: String,
+        exitNeedsApp: Boolean,
+    ) {
         createChannel()
 
-        val tapIntent = Intent(this, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
-        }
-        val pending = PendingIntent.getActivity(
-            this, 0, tapIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
+        val pending = openAppIntent(REQUEST_CONTENT, exitOnOpen = false)
 
         val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(title)
@@ -92,6 +122,25 @@ class TransferService : Service() {
         // progress < 0 means "no transfer running", e.g. the idle listener.
         if (progress in 0..100) {
             builder.setProgress(100, progress, false)
+            // Only while something is running is there anything to stop, and
+            // stopping it leaves background receiving switched on.
+            if (stopLabel.isNotEmpty()) {
+                builder.addAction(0, stopLabel, serviceAction(REQUEST_STOP, ACTION_NOTIFY_STOP))
+            }
+        }
+        // An exit that has a question to ask has to be asked on screen, so that
+        // button opens the app and the app runs the same exit as ✕. With
+        // nothing to confirm it acts from the shade and the app stays away.
+        if (exitLabel.isNotEmpty()) {
+            builder.addAction(
+                0,
+                exitLabel,
+                if (exitNeedsApp) {
+                    openAppIntent(REQUEST_EXIT, exitOnOpen = true)
+                } else {
+                    serviceAction(REQUEST_EXIT, ACTION_NOTIFY_EXIT)
+                },
+            )
         }
 
         val notification: Notification = builder.build()
@@ -100,6 +149,36 @@ class TransferService : Service() {
         } else {
             startForeground(NOTIFICATION_ID, notification)
         }
+    }
+
+    /**
+     * Opens the app, optionally asking it to run the exit once it is there.
+     *
+     * Since Android 12 a notification may not start an Activity by way of a
+     * service or broadcast, so a button that has to show something goes to the
+     * Activity directly.
+     */
+    private fun openAppIntent(requestCode: Int, exitOnOpen: Boolean): PendingIntent {
+        val intent = Intent(this, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
+            if (exitOnOpen) putExtra(MainActivity.EXTRA_EXIT_REQUESTED, true)
+        }
+        return PendingIntent.getActivity(
+            this, requestCode, intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+    }
+
+    // Deliberately not built with apply: inside it the name `action` resolves to
+    // Intent's own property rather than to this parameter, and the assignment
+    // would quietly become a no-op, leaving the button with no action at all.
+    private fun serviceAction(requestCode: Int, action: String): PendingIntent {
+        val intent = Intent(this, TransferService::class.java)
+        intent.action = action
+        return PendingIntent.getService(
+            this, requestCode, intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
     }
 
     // Android 15 limits dataSync services to six hours per rolling day. An

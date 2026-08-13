@@ -1,5 +1,6 @@
 package a.a.easysend
 
+import android.app.ActivityManager
 import android.app.Application
 import android.content.Context
 import android.content.Intent
@@ -113,7 +114,10 @@ class EasySendApplication : Application() {
             "exitApp" -> {
                 val current = activity
                 if (current == null) {
-                    result.success(false)
+                    // Exiting from the notification with no Activity left: the
+                    // service is what keeps the process alive, but the task
+                    // card is still in Recents and has to go with the app.
+                    result.success(removeOwnTasks())
                 } else {
                     current.finishAndRemoveTask()
                     result.success(true)
@@ -159,6 +163,29 @@ class EasySendApplication : Application() {
      */
     fun deliverPickedFiles(paths: List<String>) {
         serviceChannel.invokeMethod("filesPicked", paths)
+    }
+
+    /**
+     * A press on the ongoing notification, handed to Dart to act on.
+     *
+     * No Activity is needed: this channel and its engine belong to the process,
+     * which is what the foreground service is keeping alive.
+     */
+    fun notifyDart(method: String) {
+        serviceChannel.invokeMethod(method, null)
+    }
+
+    // Only this app's own tasks are reachable, which is exactly what is wanted:
+    // one entry belonging to a screen that no longer exists.
+    private fun removeOwnTasks(): Boolean {
+        val manager = getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager
+            ?: return false
+        var removed = false
+        for (task in manager.appTasks) {
+            task.finishAndRemoveTask()
+            removed = true
+        }
+        return removed
     }
 
     fun reportServiceTimeout(fgsType: Int) {

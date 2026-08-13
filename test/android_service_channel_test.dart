@@ -8,10 +8,12 @@ void main() {
 
   const MethodChannel channel = MethodChannel('easysend/service');
   final List<String> calls = [];
+  final List<MethodCall> invocations = [];
   Object? failWith;
 
   setUp(() {
     calls.clear();
+    invocations.clear();
     failWith = null;
     xvTransfers = [];
     xdef['Program language'] = 'en';
@@ -19,6 +21,7 @@ void main() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, (MethodCall call) async {
           calls.add(call.method);
+          invocations.add(call);
           final Object? failure = failWith;
           if (failure != null) throw failure;
           return true;
@@ -88,6 +91,92 @@ void main() {
     expect(calls, ['start']);
     expect(service.backgroundReady, isTrue);
     expect(xdef['Receive in background'], 'true');
+  });
+
+  group('the ongoing notification carries its buttons', () {
+    Map<Object?, Object?> lastArguments() =>
+        invocations.last.arguments as Map<Object?, Object?>;
+
+    test('an idle listener offers a localized exit that acts by itself', () async {
+      xdef['Ask before exit'] = 'false';
+      await AndroidService(android: true).sync();
+
+      expect(lastArguments()['stopLabel'], lw('Stop'));
+      expect(lastArguments()['exitLabel'], lw('Exit'));
+      // Nothing to ask, so the button does not have to open the app first.
+      expect(lastArguments()['exitNeedsApp'], isFalse);
+    });
+
+    test('a running transfer makes the exit go through the app', () async {
+      xvTransfers = [
+        TransferSession(
+          id: 'x',
+          incoming: true,
+          peerName: 'Peer',
+          files: [FileItem(id: 'f', relativePath: 'f.bin', size: 1)],
+        )..status = TransferStatus.active,
+      ];
+      xdef['Ask before exit'] = 'false';
+      await AndroidService(android: true).sync();
+
+      // A transfer is always worth a question, and a question needs a screen.
+      expect(lastArguments()['exitNeedsApp'], isTrue);
+    });
+
+    test('asking before exit makes an idle exit go through the app too', () async {
+      xdef['Ask before exit'] = 'true';
+      await AndroidService(android: true).sync();
+
+      expect(lastArguments()['exitNeedsApp'], isTrue);
+    });
+
+    test('the labels follow the interface language', () async {
+      xdef['Program language'] = 'ru';
+      addTearDown(() => xdef['Program language'] = 'en');
+      await AndroidService(android: true).sync();
+
+      expect(lastArguments()['stopLabel'], lw('Stop'));
+      expect(lastArguments()['exitLabel'], lw('Exit'));
+      expect(lastArguments()['stopLabel'], isNot('Stop'));
+    });
+  });
+
+  group('a press on a notification button reaches the screen', () {
+    Future<void> press(String method) async {
+      await TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .handlePlatformMessage(
+            'easysend/service',
+            const StandardMethodCodec().encodeMethodCall(MethodCall(method)),
+            (_) {},
+          );
+    }
+
+    test('stop and exit each reach their own handler', () async {
+      final AndroidService service = AndroidService(android: true);
+      int stops = 0;
+      int exits = 0;
+      service.onNotificationStop = () async => stops++;
+      service.onNotificationExit = () async => exits++;
+      service.attach();
+      addTearDown(service.detach);
+
+      await press('notificationStop');
+      expect([stops, exits], [1, 0]);
+
+      await press('notificationExit');
+      expect([stops, exits], [1, 1]);
+    });
+
+    // The screen is gone but the process and its notification are not, and a
+    // press must not bring the engine down with an unhandled exception.
+    test('a press with no screen listening is survived', () async {
+      final AndroidService service = AndroidService(android: true);
+      service.attach();
+      addTearDown(service.detach);
+
+      await press('notificationStop');
+      await press('notificationExit');
+    });
   });
 
   group('closing the task', () {

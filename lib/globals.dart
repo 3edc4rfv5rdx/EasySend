@@ -94,6 +94,17 @@ DeviceNameProblem? validateDeviceName(String value, {bool allowEmpty = false}) {
 bool isValidDeviceName(String value, {bool allowEmpty = false}) =>
     validateDeviceName(value, allowEmpty: allowEmpty) == null;
 
+// Whether leaving the app has a question to ask first. A running transfer is
+// always worth one; an idle app only when the user asked to be asked.
+//
+// The notification's Exit button needs the same answer before it is even built:
+// a confirmation can only be answered when the app is on screen, so a button
+// that leads to one has to open the app instead of exiting from the shade.
+bool exitNeedsConfirmation({
+  required bool transferRunning,
+  required bool askBeforeExit,
+}) => transferRunning || askBeforeExit;
+
 // Subdirectory created inside the system downloads folder.
 const String recvDirName = 'EasySend';
 

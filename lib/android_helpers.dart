@@ -291,6 +291,12 @@ class AndroidService {
   bool get attached => _attached;
   bool get backgroundReady => !_dataSyncTimedOut;
 
+  /// Pressed "Stop" on the notification: end the transfer, keep receiving.
+  Future<void> Function()? onNotificationStop;
+
+  /// Pressed "Exit" on the notification: leave the app exactly as ✕ does.
+  Future<void> Function()? onNotificationExit;
+
   void attach() {
     if (_attached) return;
     _attached = true;
@@ -332,6 +338,12 @@ class AndroidService {
               .whereType<String>()
               .toList(),
         );
+      // The buttons on the ongoing notification. Answered by the screen that
+      // owns the transfers and the exit, not here.
+      case 'notificationStop':
+        await onNotificationStop?.call();
+      case 'notificationExit':
+        await onNotificationExit?.call();
       default:
         throw MissingPluginException(
           'Unknown native service call: ${call.method}',
@@ -434,6 +446,9 @@ class AndroidService {
   }) async {
     final DateTime now = DateTime.now();
     if (!force && !starting && text == _lastText) return;
+    // Rebuilt with every post rather than cached: the labels follow the
+    // interface language, and whether Exit can act from the shade follows both
+    // the running transfer and the confirmation setting.
     if (!force &&
         !starting &&
         now.difference(_lastPush).inMilliseconds < 1000) {
@@ -447,6 +462,12 @@ class AndroidService {
         'title': title,
         'text': text,
         'progress': progress,
+        'stopLabel': lw('Stop'),
+        'exitLabel': lw('Exit'),
+        'exitNeedsApp': exitNeedsConfirmation(
+          transferRunning: progress >= 0,
+          askBeforeExit: xdef['Ask before exit'] == 'true',
+        ),
       });
       _serviceUp = true;
     } on PlatformException catch (e) {

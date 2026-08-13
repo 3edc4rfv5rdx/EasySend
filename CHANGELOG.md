@@ -2,6 +2,7 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+- N: The ongoing notification carries buttons: "Stop" ends a running transfer and leaves background receiving on, "Exit" closes the app the same way ✕ does and opens it first whenever there is something to confirm
 - E: Exiting with the ✕ button now removes the app's card from Recents instead of leaving a snapshot of a closed app offering to resume it
 - E: Exiting with the ✕ button now ignores the Activity teardown that follows it, so with "Receive in background" on the app no longer reopens the sockets it just closed and the next start still brings the network up
 - N: An "Including folders" tick under "Delete originals" lets a move remove the folders it emptied, up to and including the picked folder but never above it; folders still holding anything are left alone

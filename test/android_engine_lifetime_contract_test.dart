@@ -98,5 +98,38 @@ void main() {
     // Without an Activity there is nothing to finish, and the screen still has
     // to close.
     expect(home, contains('SystemNavigator.pop()'));
+    // Exiting from the notification can happen with no Activity at all, and the
+    // task card still has to go.
+    expect(application, contains('manager.appTasks'));
+  });
+
+  // Since Android 12 a notification may not start an Activity by way of a
+  // service or a broadcast. The Exit button therefore has to reach the Activity
+  // directly whenever the exit has a question to ask, and only a button with
+  // nothing to confirm may act through the service.
+  test('notification buttons reach the right component', () async {
+    final String service = await File(
+      'android/app/src/main/kotlin/a/a/easysend/TransferService.kt',
+    ).readAsString();
+    final String activity = await File(
+      'android/app/src/main/kotlin/a/a/easysend/MainActivity.kt',
+    ).readAsString();
+    final String helpers = await File('lib/android_helpers.dart').readAsString();
+    final String home = await File('lib/home_screen.dart').readAsString();
+
+    expect(service, contains('ACTION_NOTIFY_STOP'));
+    expect(service, contains('ACTION_NOTIFY_EXIT'));
+    expect(service, contains('openAppIntent(REQUEST_EXIT, exitOnOpen = true)'));
+    expect(service, contains('PendingIntent.getService'));
+    // Two buttons, two request codes: one PendingIntent for both would hand the
+    // second button the first one's extras.
+    expect(service, contains('REQUEST_STOP'));
+    expect(service, contains('REQUEST_EXIT'));
+    expect(activity, contains('override fun onNewIntent'));
+    expect(activity, contains('removeExtra(EXTRA_EXIT_REQUESTED)'));
+    expect(helpers, contains("case 'notificationStop':"));
+    expect(helpers, contains("case 'notificationExit':"));
+    expect(home, contains('onNotificationStop = _stop'));
+    expect(home, contains('onNotificationExit = _exitApp'));
   });
 }
