@@ -210,7 +210,7 @@ started-state, not wall-clock timing.
 
 ---
 
-### 4. P2 — Declining an incoming transfer still converts the sender into a permanent, polled, "manual" device
+### 4. P2 [FIXED 3a84bb9] — Declining an incoming transfer still converts the sender into a permanent, polled, "manual" device
 
 **Affected components:** `lib/net_server.dart` (`_askAccept`, the
 `if (known >= 0)` block: `device.address = address`, `device.port = port`,
