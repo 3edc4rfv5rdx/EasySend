@@ -354,7 +354,7 @@ sends; `lastSeen` is null after both failures.
 
 ---
 
-### 7. P2 — A rejected `finish` leaves a row reading "Sent 3/3, failed: 0" with no way to act on it, and the two ends disagree
+### 7. P2 [FIXED f2bf439] — A rejected `finish` leaves a row reading "Sent 3/3, failed: 0" with no way to act on it, and the two ends disagree
 
 **Affected components:** `lib/net_sender.dart` (`send`: `transfer.status =
 finished && transfer.failedCount == 0 ? done : partial`, and the `move` block
