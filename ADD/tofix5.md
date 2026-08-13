@@ -310,7 +310,7 @@ still report busy, as today.
 
 ---
 
-### 6. P2 — A manual device that is simply switched off is reported as "Device identity changed"
+### 6. P2 [FIXED 419624e] — A manual device that is simply switched off is reported as "Device identity changed"
 
 **Affected components:** `lib/net_sender.dart` (`send`, the
 `if (peer.manual && !await manualPoller.verifyIdentity(peer))` branch and
