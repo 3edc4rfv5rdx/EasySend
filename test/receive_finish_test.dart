@@ -123,6 +123,44 @@ void main() {
     expect(next.status, 200);
   });
 
+  // The other end of finding 7: the sender's finish never landed, so it sent a
+  // best-effort cancel over a session whose every file is already published.
+  // That is not a transfer being stopped, and saying "Cancelled" over a full
+  // receive folder had the two ends describing one event differently.
+  test('a cancel after every file arrived is not a cancellation', () async {
+    final String session = await sessionReadyToFinish('arrived.bin');
+
+    final Reply cancelled = await post('cancel', query: {'session': session});
+
+    expect(cancelled.status, 200);
+    expect(xvTransfers.single.status, TransferStatus.unconfirmed);
+    expect(xvTransfers.single.doneCount, 1);
+    // The file is here and staying: a cancel never takes back what was
+    // published, which is what lets the sender delete a moved original.
+    expect(await File(p.join(xvRecvDir, 'arrived.bin')).readAsBytes(), [7]);
+    expect(
+      xvTransfers.single.events.map(formatTransferEvent).join('\n'),
+      contains('The sender did not confirm the transfer'),
+    );
+    // The slot is free again.
+    expect((await post('prepare', body: manifest('after.bin'))).status, 200);
+  });
+
+  test('a cancel that interrupts a transfer is still a cancellation', () async {
+    final Reply prepared = await post('prepare', body: manifest('half.bin'));
+    expect(prepared.status, 200);
+    final String session = prepared.body['sessionId'] as String;
+
+    final Reply cancelled = await post('cancel', query: {'session': session});
+
+    expect(cancelled.status, 200);
+    expect(xvTransfers.single.status, TransferStatus.cancelled);
+    expect(
+      xvTransfers.single.events.map(formatTransferEvent).join('\n'),
+      contains('Cancelled by the sender'),
+    );
+  });
+
   test('a sender cancel during finish cannot rewrite the outcome', () async {
     final Completer<void> notifying = Completer<void>();
     final Completer<void> release = Completer<void>();

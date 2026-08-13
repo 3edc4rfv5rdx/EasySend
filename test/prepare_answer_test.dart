@@ -85,8 +85,12 @@ void main() {
     );
     expect(transfer.id, 'remote-session');
     expect(transfer.isRunning, isFalse);
-    // The upload was refused, so the file failed — but the session was real.
-    expect(transfer.status, TransferStatus.partial);
+    // What this test is about: the id was adopted, so the transfer addressed
+    // its later requests to a real session. This fake refuses every one of
+    // them, finish included, so the outcome is terminal — and it is a different
+    // ending from a transfer that never got a session at all, which fails
+    // before a single byte is read.
+    expect(transfer.status, TransferStatus.failed);
     expect(transfer.files.single.failed, isTrue);
   });
 }

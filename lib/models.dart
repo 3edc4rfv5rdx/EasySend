@@ -109,7 +109,12 @@ enum PickProblem { tooLong, backslash, reserved, notPortable, tooLarge }
 
 typedef RefusedPick = ({FileItem file, PickProblem problem});
 
-enum TransferStatus { pending, active, done, partial, cancelled, failed }
+// How a transfer ended. `unconfirmed` is the receiver's own: every file of the
+// manifest arrived and was published, and then the sender cancelled the session
+// instead of closing it — its finish was refused, timed out or dropped. Neither
+// `done` nor `cancelled` is true of that, and calling it cancelled over a full
+// receive folder made the two ends describe one event differently (SPEC 3.3).
+enum TransferStatus { pending, active, done, partial, unconfirmed, cancelled, failed }
 
 // One thing that happened during a transfer. The message is an English key
 // translated on the log screen; the detail is the part worth quoting in a bug
@@ -314,7 +319,9 @@ class TransferSession {
   double get progress {
     final int total = bytesTotal;
     if (total == 0) {
-      return status == TransferStatus.done || status == TransferStatus.partial
+      return status == TransferStatus.done ||
+              status == TransferStatus.partial ||
+              status == TransferStatus.unconfirmed
           ? 1
           : 0;
     }

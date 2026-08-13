@@ -141,9 +141,22 @@ class SendService {
       if (_cancelled) return transfer.status;
 
       final bool finished = await _finishRemote(peer, transfer, sessionId);
-      transfer.status = finished && transfer.failedCount == 0
+      // A finish that never landed is terminal whatever the files did: the
+      // receiver never confirmed the transfer. Calling it partial gave a row
+      // reading "3/3, failed: 0" under a status that means some did not make it,
+      // with no Retry to offer because nothing was left to retry. _finishRemote
+      // has already logged why and set the error this row will show.
+      transfer.status = !finished
+          ? TransferStatus.failed
+          : transfer.failedCount == 0
           ? TransferStatus.done
           : TransferStatus.partial;
+      // Deliberately still deleted after a failed finish: each of these got a
+      // 200 from verify, so it did arrive and is published on the far side —
+      // the best-effort cancel above does not take a published file back, and
+      // the receiver marks that session unconfirmed rather than cancelled.
+      // Should the receiver ever discard published files on cancel, this is the
+      // line that becomes a data-loss bug (see ADD/tofix5.md finding 7).
       if (move) {
         final List<FileItem> delivered = transfer.files
             .where((item) => item.done)

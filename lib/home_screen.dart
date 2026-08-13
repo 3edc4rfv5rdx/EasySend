@@ -1500,6 +1500,11 @@ class _HomeScreenState extends State<HomeScreen>
         return clTextMuted;
       case TransferStatus.done:
         return clGreen;
+      // Every file is here, and something still went wrong: not the green of a
+      // clean finish and not the red of a failure, but the colour this palette
+      // keeps for what has to be noticed.
+      case TransferStatus.unconfirmed:
+        return clWarning;
       case TransferStatus.partial:
       case TransferStatus.pending:
       case TransferStatus.active:
@@ -1517,6 +1522,13 @@ class _HomeScreenState extends State<HomeScreen>
         // alone leave the user guessing at what to do about it.
         final String why = t.error == null ? '' : ' — ${t.error}';
         return '$direction ${t.doneCount}/${t.files.length}, ${lw('failed')}: ${t.failedCount}$why';
+      // Everything arrived; only the closing handshake did not. The count comes
+      // first because it is the answer to "did my files get there", and the
+      // caveat after it, rather than a bare status that answers neither.
+      case TransferStatus.unconfirmed:
+        final String direction = t.incoming ? lw('Received') : lw('Sent');
+        return '$direction: ${t.doneCount} — ${formatBytes(t.bytesTotal)}. '
+            '${lw('The sender did not confirm the transfer')}';
       case TransferStatus.cancelled:
         return lw('Cancelled');
       case TransferStatus.failed:

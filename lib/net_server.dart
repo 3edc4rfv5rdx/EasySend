@@ -919,8 +919,22 @@ class ReceiveServer {
         'reason': 'out-of-order',
       }, status: HttpStatus.conflict);
     }
-    session.transfer.log('Cancelled by the sender');
-    await _abort(session, TransferStatus.cancelled);
+    // A cancel that finds every file already published is not a transfer being
+    // stopped. It is a sender that could not close a session it had in fact
+    // finished — its finish was refused, timed out or dropped — and every file
+    // is here and staying. Answering that with "Cancelled" over a full receive
+    // folder had the two ends describing one event differently (SPEC 3.3).
+    final bool complete = session.transfer.files.every((FileItem f) => f.done);
+    session.transfer.log(
+      complete
+          ? 'The sender did not confirm the transfer'
+          : 'Cancelled by the sender',
+      failure: complete,
+    );
+    await _abort(
+      session,
+      complete ? TransferStatus.unconfirmed : TransferStatus.cancelled,
+    );
     return _json(req, {'ok': true});
   }
 

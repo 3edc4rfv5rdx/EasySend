@@ -101,16 +101,22 @@ void main() {
     expect(cancels, 0);
   });
 
-  test('a rejected finish is partial, logged, cleaned and reusable', () async {
+  // Terminal, not partial: every file arrived, so "partial" gave a row reading
+  // "1/1, failed: 0" under a status meaning some did not make it, and no Retry
+  // to offer because nothing was left to retry.
+  test('a rejected finish is terminal, logged, cleaned and reusable', () async {
     finishStatus = HttpStatus.conflict;
     finishBody = '{"reason":"busy"}';
     final SendService sender = service();
     expect(
       await sender.send(peer: peer, files: [item()]),
-      TransferStatus.partial,
+      TransferStatus.failed,
     );
     expect(sender.busy, isFalse);
     expect(cancels, 1);
+    // The row shows this instead of a count that contradicts its own status.
+    expect(xvTransfers.single.error, 'HTTP 409');
+    expect(xvTransfers.single.failedCount, 0, reason: 'the file did arrive');
     expect(
       xvTransfers.single.events.map(formatTransferEvent).join('\n'),
       contains('HTTP 409: {"reason":"busy"}'),
@@ -121,13 +127,14 @@ void main() {
     expect(await sender.send(peer: peer, files: [item()]), TransferStatus.done);
   });
 
-  test('a finish body timeout is partial and attempts cleanup', () async {
+  test('a finish body timeout is terminal and attempts cleanup', () async {
     holdFinish = Completer<void>();
     finishBody = 'still-open';
     expect(
       await service().send(peer: peer, files: [item()]),
-      TransferStatus.partial,
+      TransferStatus.failed,
     );
+    expect(xvTransfers.single.error, isNotNull);
     expect(cancels, 1);
   });
 
@@ -135,7 +142,7 @@ void main() {
     disconnectFinish = true;
     expect(
       await service().send(peer: peer, files: [item()]),
-      TransferStatus.partial,
+      TransferStatus.failed,
     );
     expect(cancels, 1);
 
@@ -143,7 +150,7 @@ void main() {
     oversizedFinish = true;
     expect(
       await service().send(peer: peer, files: [item()]),
-      TransferStatus.partial,
+      TransferStatus.failed,
     );
     expect(cancels, 2);
   });
