@@ -261,7 +261,7 @@ declined `prepare` writes nothing to `settings.json`.
 
 ---
 
-### 5. P2 — The receive folder can be changed out from under a transfer that is waiting for consent
+### 5. P2 [FIXED 07b4ede] — The receive folder can be changed out from under a transfer that is waiting for consent
 
 **Affected components:** `lib/settings_screen.dart` (`_receiving` and both
 `_editRecvFolder` guards), `lib/net_server.dart` (`_prepare` captures
