@@ -24,9 +24,62 @@ does not repeat the resolved findings in `ADD/tofix1.md` or `ADD/tofix2.md`.
   Android background listener outlives the Activity without violating platform
   service limits.
 
+## Verification of the fixes — 2026-08-13
+
+All seventeen findings were re-read against the code as it stands today, not
+against the commit messages that claim them. Each heading names the commit that
+closed it. The evidence is the current expression, cited per finding below.
+
+Three of them were closed in the shape stated here, and a narrower failure
+window survives the repair. Those windows are written up as separate findings in
+`ADD/tofix4.md`, and neither file should be read without the other:
+
+- Finding 1 -> `tofix4` finding 1. The suffix heuristic became a marker
+  directory (`file_helpers.dart:22-24`), and the marker itself is forgeable by a
+  transferred folder that contains the same bytes.
+- Finding 2 -> `tofix4` finding 2. `_verify` now re-runs `uniquePath()` and
+  `ensureSafeDestination()` before publishing (`net_server.dart:723-746`), but
+  the publication is still a check-then-rename sequence with no exclusive claim.
+- Finding 4 -> `tofix4` finding 3. The source is fingerprinted with SHA-256
+  before deletion (`net_sender.dart:351-378`), which binds the bytes but not the
+  filesystem object; a replacement installed after the last check is still
+  deleted by path.
+
+Evidence for the rest, in the current code:
+
+- 3: `net_sender.dart:127-141` — sources are deleted after `_sendOneByOne`
+  returns and only for `item.done`, with `_cancelled` checked first.
+- 5: `MainActivity.kt:161` — `provideFlutterEngine` returns the Application's
+  cached engine, so the isolate outlives the Activity.
+- 6: `TransferService.kt:244` — `onTimeout` is implemented; the manifest declares
+  `dataSync|specialUse` with `PROPERTY_SPECIAL_USE_FGS_SUBTYPE`. Confirmed on
+  hardware the same day: the running service reports `types=0x40000000`.
+- 7: `settings_screen.dart:295` and `home_screen.dart:390` — the switch and the
+  resume path both refuse to enable background receiving without permission.
+- 8: `net_server.dart:137`, `net_sender.dart:72` — both sides bound a control
+  body by `protocolBodyTotalTimeoutSec` as well as per-event.
+- 9: `net_server.dart:43-48` — every chunk is awaited through `flush()`, which
+  couples the socket read to the disk.
+- 10: `net_discovery.dart:203-257` — `_reconcileInterfaces()` runs on each tick
+  and joins and leaves as interfaces come and go.
+- 11: `net_discovery.dart:326-369` — transient devices, new peers per window and
+  new peers per source are all capped.
+- 12: `globals.dart:497-506` — `SerialQueue.add` catches, logs and keeps the
+  tail runnable, which is what the poisoning depended on.
+- 13: `settings_screen.dart:131`, `settings_helpers.dart:87` — both paths go
+  through the shared `validateDeviceName`/`isValidDeviceName`.
+- 14: `net_sender.dart:130-133, 185-208` — the finish response decides between
+  `done` and `partial` and is logged when it fails.
+- 15: `home_screen.dart:425-433` — discovery starts only when
+  `receiveServer.start()` reported readiness.
+- 16: `models.dart:214, 259` — progress is stated as one monotonic invariant
+  shared by both sides.
+- 17: `10-MakeRelease.sh:114-179` — collection and renaming happen before the
+  version bump is committed.
+
 ## Findings
 
-### 1. P0 — A valid file whose name ends in `.easysend-part` is deleted on the next startup
+### 1. P0 [FIXED 8b13120] — A valid file whose name ends in `.easysend-part` is deleted on the next startup
 
 **Affected components:** `lib/file_helpers.dart` (`partSuffix`,
 `cleanupOrphanParts`, `sweepOrphanPartsOnce`), `lib/net_server.dart` upload and
@@ -60,7 +113,7 @@ remain byte-for-byte intact. Create genuine interrupted temporaries at the root
 and in a nested directory and assert they are removed. Place a similarly named
 file beyond a symlink and assert it is untouched.
 
-### 2. P0 — A file created after prepare can be silently overwritten at verify
+### 2. P0 [FIXED dcfc41e] — A file created after prepare can be silently overwritten at verify
 
 **Affected components:** `lib/file_helpers.dart` (`buildDestinationPlan`,
 `ensureSafeDestination`), `lib/net_server.dart` (`_prepare`, `_verify`).
@@ -95,7 +148,7 @@ assert its contents remain unchanged while the incoming bytes either land at
 before finalization, a destination symlink, Windows case-only names, and two
 manifest entries competing for the same late fallback.
 
-### 3. P0 — Cancelling a multi-file Move has already deleted completed sources
+### 3. P0 [FIXED 0336505] — Cancelling a multi-file Move has already deleted completed sources
 
 **Affected components:** `README.md` Move promise, `SPEC.md` section 3.1,
 `lib/net_sender.dart` (`_sendOneByOne`, `_deleteSource`, `cancel`),
@@ -128,7 +181,7 @@ must remain. Complete a partial non-cancelled transfer and assert only verified
 sources are deleted. Simulate deletion failure and assert it is logged without
 changing the transfer's delivery facts.
 
-### 4. P0 — Move can delete a replacement file that was never sent
+### 4. P0 [FIXED 82fcc39] — Move can delete a replacement file that was never sent
 
 **Affected components:** `lib/net_sender.dart` (`_sendFile`, `_deleteSource`),
 Move tests.
@@ -161,7 +214,7 @@ replacement, delete-and-recreate, and an unchanged source. Cover Linux/Android
 and Windows identity semantics or isolate the platform-specific implementation
 behind a tested contract.
 
-### 5. P1 — Destroying `MainActivity` destroys the Dart server while the foreground notification stays alive
+### 5. P1 [FIXED b914d55] — Destroying `MainActivity` destroys the Dart server while the foreground notification stays alive
 
 **Affected components:** `android/.../MainActivity.kt`,
 `android/.../TransferService.kt`, `android/.../EasySendApplication.kt`, Flutter
@@ -259,7 +312,7 @@ the process lives, should the widget tree ever be disposed under a live engine.
 It does not explain the observation above — under it the isolate would survive
 and `1.ui` would still be there.
 
-### 6. P1 — Android 15+ terminates the indefinite `dataSync` listener after six hours and this service does not handle the timeout
+### 6. P1 [FIXED c089dd7] — Android 15+ terminates the indefinite `dataSync` listener after six hours and this service does not handle the timeout
 
 **Affected components:** `android/app/build.gradle.kts`, Android manifest,
 `TransferService.kt`, Receive in background setting and documentation.
@@ -295,7 +348,7 @@ transfer. Assert no process crash/ANR, locks and notification are released or
 transitioned correctly, the UI explains loss of background readiness, and a
 foreground return restores the supported state.
 
-### 7. P1 — Denied notification permission leaves background consent enabled but unusable
+### 7. P1 [FIXED 82d699d] — Denied notification permission leaves background consent enabled but unusable
 
 **Affected components:** `lib/android_helpers.dart`
 (`ensureNotificationPermission`, `askAcceptViaNotification`),
@@ -328,7 +381,7 @@ revoked after enablement. For each state, test the switch, idle service, unknown
 sender, trusted sender, app return to foreground, and exactly one protocol
 answer within the consent deadline.
 
-### 8. P1 — Small control bodies can be drip-fed forever and hold both send and receive ownership
+### 8. P1 [FIXED 420c7fb] — Small control bodies can be drip-fed forever and hold both send and receive ownership
 
 **Affected components:** `lib/net_server.dart` (`_readRequestText`,
 `_preparing`), `lib/net_sender.dart` (`_readSmallBody`, `_prepare`), timeout
@@ -358,7 +411,7 @@ limit and assert a fixed upper bound, cleanup, and immediate successful reuse by
 the next transfer. Keep existing large streamed upload and stalled-upload tests
 passing.
 
-### 9. P1 — The receiver has no disk backpressure and can buffer a large upload in memory
+### 9. P1 [FIXED 3f7309a] — The receiver has no disk backpressure and can buffer a large upload in memory
 
 **Affected components:** `lib/net_server.dart` `_upload`, 4 GiB readiness
 criterion, network tests.
@@ -387,7 +440,7 @@ faster than it can write; assert a small bounded number of chunks outstanding.
 Also cover cancel while a write is blocked, disk-full/write failure, CRC, exact
 declared length, and a multi-gigabyte logical stream.
 
-### 10. P1 — Discovery never joins a network interface that appears after startup
+### 10. P1 [FIXED a230831] — Discovery never joins a network interface that appears after startup
 
 **Affected components:** `lib/net_discovery.dart` `DiscoveryService`, lifecycle
 coordination, SPEC 5.2.
@@ -417,7 +470,7 @@ add/remove VPN and Wi-Fi; suspend/resume desktop; and rapidly flap interfaces.
 Assert one listener/timer, correct membership set, immediate announce/query, and
 discovery within the five-second readiness target.
 
-### 11. P1 — Valid-looking UDP announces can grow the global device list without bound
+### 11. P1 [FIXED 58adb2b] — Valid-looking UDP announces can grow the global device list without bound
 
 **Affected components:** `lib/net_discovery.dart` (`_onEvent`, `_touchDevice`,
 `_forgetStaleDevices`), `lib/models.dart` online state, home device list.
@@ -448,7 +501,7 @@ bounded update frequency, preserved manual/trusted records, and prompt recovery
 after the burst. Reject or ignore unknown discovery message types as part of the
 same protocol-shape coverage.
 
-### 12. P1 — One failed lifecycle transition permanently poisons every later network transition
+### 12. P1 [FIXED f626ce0] — One failed lifecycle transition permanently poisons every later network transition
 
 **Affected components:** `lib/home_screen.dart` (`_networkTail`,
 `_queueNetworkTransition`, `_applyNetworkState`), Android permission/multicast
@@ -478,7 +531,7 @@ directory, server start/stop, discovery start/stop), then queue the opposite and
 latest desired states. Assert serialization, no duplicated resources, and final
 state matching the newest epoch.
 
-### 13. P1 — The UI accepts device names that its own discovery and prepare protocols reject
+### 13. P1 [FIXED 7c28b30] — The UI accepts device names that its own discovery and prepare protocols reject
 
 **Affected components:** `lib/settings_screen.dart` `_editDeviceName`,
 `lib/settings_helpers.dart` `_validSetting`, `lib/globals.dart`
@@ -510,7 +563,7 @@ characters, exact byte boundary, one byte over, and very long input. Round-trip
 accepted names through settings, discovery validation, and prepare; assert all
 three agree.
 
-### 14. P1 — A receiver that rejects `finish` is reported as a completed send and remains busy
+### 14. P1 [FIXED fc535fa] — A receiver that rejects `finish` is reported as a completed send and remains busy
 
 **Affected components:** `lib/net_sender.dart` (`send`, `_post`),
 `lib/net_server.dart` `_finish`, transfer logs and recovery tests.
@@ -540,7 +593,7 @@ Keep cancel best-effort and bounded.
 body from finish. Assert sender status/log, remote cleanup attempt, no stuck
 sender ownership, and a subsequent transfer accepted by the receiver.
 
-### 15. P1 — A receiver is advertised even when its port or receive folder is unusable
+### 15. P1 [FIXED 93c0447] — A receiver is advertised even when its port or receive folder is unusable
 
 **Affected components:** `lib/home_screen.dart` `_applyNetworkState`,
 `lib/net_server.dart` `start`, `lib/net_discovery.dart`, port banner and storage
@@ -573,7 +626,7 @@ startup. Inspect outgoing announces and `/info`: an unavailable receiver must
 not be presented as a valid automatic target, and recovery must announce
 promptly without an app restart.
 
-### 16. P2 — Retry and failure progress diverges between sender and receiver and can move backwards
+### 16. P2 [FIXED 1099c9a] — Retry and failure progress diverges between sender and receiver and can move backwards
 
 **Affected components:** `lib/net_sender.dart` `_sendOneByOne`/`_sendFile`,
 `lib/net_server.dart` `_upload`/`_verify`, `TransferSession.noteProgress`,
@@ -605,7 +658,7 @@ by success, failed last file, zero-byte files, and cancellation. Capture every
 progress sample on both peers and assert the chosen monotonic/bounded semantics,
 non-negative speed, and terminal agreement.
 
-### 17. P2 — A post-build collection failure commits a new version without a complete release set
+### 17. P2 [FIXED fa439af] — A post-build collection failure commits a new version without a complete release set
 
 **Affected components:** `10-MakeRelease.sh`, release-version tests and artifact
 naming.
