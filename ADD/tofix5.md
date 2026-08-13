@@ -44,7 +44,7 @@ Invariants this audit measured against:
 
 ## Findings
 
-### 1. P1 — A maximum-size manifest freezes the receiver for half a second before the consent question appears
+### 1. P1 [FIXED 42b34ee] — A maximum-size manifest freezes the receiver for half a second before the consent question appears
 
 **Affected components:** `lib/file_helpers.dart` (`buildDestinationPlan`, the
 `safePaths` double loop at the `other.startsWith('$key/')` comparison),
