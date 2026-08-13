@@ -505,7 +505,7 @@ not bump it.
 
 ---
 
-### 10. P3 — A successful Retry leaves the retried files sitting in the selection
+### 10. P3 [FIXED 309f884] — A successful Retry leaves the retried files sitting in the selection
 
 **Affected components:** `lib/home_screen.dart` (`_retryTransfer`,
 `_pruneSentFiles`), `lib/file_helpers.dart` (`restoreFileSnapshot` mints new
