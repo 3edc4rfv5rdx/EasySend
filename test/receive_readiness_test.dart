@@ -86,4 +86,42 @@ void main() {
     expect(server.readinessFailure, isNull);
     expect(server.readinessError, isNull);
   });
+
+  // A transition can fail with the listener still bound and still on the right
+  // port, and then the next successful one takes the path that rebinds nothing.
+  // That path used to clear the failure and return in silence, leaving the
+  // banner up until some unrelated tick happened to repaint the screen.
+  test('recovering without a rebind still reaches the screen', () async {
+    expect(await server.start(), isTrue);
+    // Pinned, so the next start finds the listener already where it belongs.
+    xdef['Port'] = '${server.boundPort}';
+    server.noteTransitionFailure();
+    expect(server.readinessFailure, ReceiveReadinessFailure.transition);
+
+    final int ticksBefore = serverTick.value;
+    expect(await server.start(), isTrue);
+
+    expect(server.readinessFailure, isNull);
+    expect(server.readinessError, isNull);
+    expect(
+      serverTick.value,
+      greaterThan(ticksBefore),
+      reason: 'the banner is painted from this and has to be told',
+    );
+  });
+
+  test('a start that changes nothing says nothing', () async {
+    expect(await server.start(), isTrue);
+    xdef['Port'] = '${server.boundPort}';
+    expect(await server.start(), isTrue);
+
+    final int ticksBefore = serverTick.value;
+    expect(await server.start(), isTrue);
+
+    expect(
+      serverTick.value,
+      ticksBefore,
+      reason: 'every resume asks for a start; a receiver that was fine has no news',
+    );
+  });
 }

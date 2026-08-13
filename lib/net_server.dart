@@ -171,9 +171,23 @@ class ReceiveServer {
   // receiving into a known state did not finish, so readiness stops claiming
   // otherwise until a transition completes. The reason is kept deliberately
   // free of paths and addresses: it is shown on screen in a shipped build.
-  void noteTransitionFailure() {
-    readinessFailure = ReceiveReadinessFailure.transition;
-    readinessError = 'network transition failed';
+  void noteTransitionFailure() => _setReadiness(
+    ReceiveReadinessFailure.transition,
+    'network transition failed',
+  );
+
+  // Readiness is what the banner is painted from, so every change of it has to
+  // reach the screen — and only a change. Returning to the foreground asks for a
+  // start on every resume, and a receiver that was already fine has no news.
+  //
+  // The one path that used to skip this was the one that finds the listener
+  // already bound where it belongs: it cleared the failure and returned, and the
+  // banner then stood there describing a problem that was over until some
+  // unrelated tick happened to repaint the screen.
+  void _setReadiness(ReceiveReadinessFailure? failure, String? error) {
+    if (readinessFailure == failure && readinessError == error) return;
+    readinessFailure = failure;
+    readinessError = error;
     serverStateChanged();
   }
 
@@ -206,21 +220,18 @@ class ReceiveServer {
     // listener already bound on this port must stop if storage disappears or
     // becomes unwritable while the app is away.
     if (!await canWriteInto(xvRecvDir)) {
-      readinessFailure = ReceiveReadinessFailure.folder;
-      readinessError = 'receive folder unavailable';
-      if (running) {
-        await stop();
-      } else {
-        serverStateChanged();
-      }
+      _setReadiness(
+        ReceiveReadinessFailure.folder,
+        'receive folder unavailable',
+      );
+      if (running) await stop();
       return false;
     }
     // Already listening where the settings point: rebinding would abort the
     // session in flight for nothing. Coming back to the foreground asks for a
     // start on every resume, and an incoming transfer has to survive that.
     if (running && boundPort == currentPort) {
-      readinessFailure = null;
-      readinessError = null;
+      _setReadiness(null, null);
       return true;
     }
     await stop();
@@ -231,15 +242,15 @@ class ReceiveServer {
         port,
         shared: false,
       );
-      readinessFailure = null;
-      readinessError = null;
+      _setReadiness(null, null);
     } on SocketException catch (e) {
       // Busy port must be visible, not a silent failure to receive.
-      readinessFailure = ReceiveReadinessFailure.port;
-      readinessError = e.osError?.message ?? e.message;
+      _setReadiness(
+        ReceiveReadinessFailure.port,
+        e.osError?.message ?? e.message,
+      );
       myPrint('server bind failed on $port: $readinessError');
       _http = null;
-      serverStateChanged();
       return false;
     }
     _http!.listen(_handle, onError: (Object e) => myPrint('server error: $e'));
