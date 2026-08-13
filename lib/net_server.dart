@@ -192,6 +192,15 @@ class ReceiveServer {
   bool get running => _http != null;
   int? get boundPort => _http?.port;
 
+  // Whether the one receive slot is spoken for. Taken from the moment a prepare
+  // arrives and held through the consent question, not merely while files are
+  // moving: by the time the user is asked, every destination has already been
+  // resolved against the receive folder as it was then, and the session will go
+  // on writing there whatever the settings say afterwards. Anything that would
+  // move the folder underneath a transfer has to ask this, not the transfer
+  // list — during consent there is no transfer in it yet.
+  bool get receiveSlotHeld => _preparing || _current != null;
+
   Future<bool> start() async {
     // Existing and newly created folders get the same capability check. A
     // listener already bound on this port must stop if storage disappears or

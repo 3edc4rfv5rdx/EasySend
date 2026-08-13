@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -113,6 +114,65 @@ void main() {
 
     expect(await File(p.join(folderB, 'later.bin')).exists(), isTrue);
     expect(await File(p.join(folderA, 'later.bin')).exists(), isFalse);
+  });
+
+  // What the settings screen asks before letting the folder move. The transfer
+  // list cannot answer it: a request still waiting to be accepted has resolved
+  // every one of its destinations already and appears in no list yet.
+  group('the receive slot is held from the request, not from the first byte', () {
+    test('an idle receiver holds nothing', () {
+      expect(server.receiveSlotHeld, isFalse);
+    });
+
+    test('a prepare waiting for consent holds the slot', () async {
+      xvDevices = [Device(id: 'stranger', name: 'Stranger')];
+      final Completer<void> asked = Completer<void>();
+      final Completer<bool> answer = Completer<bool>();
+      server.askUser =
+          ({
+            required String senderName,
+            required int fileCount,
+            required int totalBytes,
+          }) async {
+            if (!asked.isCompleted) asked.complete();
+            return (await answer.future, false);
+          };
+
+      final HttpClientRequest req = await client.postUrl(url('prepare'));
+      req.headers.contentType = ContentType.json;
+      req.write(
+        json.encode({
+          'senderId': 'stranger',
+          'senderName': 'Stranger',
+          'files': [
+            {'id': 'file-9', 'path': 'asked.bin', 'size': 2},
+          ],
+        }),
+      );
+      final Future<HttpClientResponse> parked = req.close();
+      await asked.future;
+
+      expect(server.receiveSlotHeld, isTrue);
+      expect(
+        xvTransfers,
+        isEmpty,
+        reason: 'nothing in the list yet, which is the whole point',
+      );
+
+      answer.complete(false);
+      final HttpClientResponse resp = await parked;
+      await resp.drain<void>();
+      expect(resp.statusCode, 403);
+      expect(server.receiveSlotHeld, isFalse, reason: 'a refusal frees it');
+    });
+
+    test('an accepted session holds it until it finishes', () async {
+      final String session = await prepare('held.bin', 'file-3');
+      expect(server.receiveSlotHeld, isTrue);
+
+      await deliver(session, 'file-3');
+      expect(server.receiveSlotHeld, isFalse);
+    });
   });
 
   test('canWriteInto tells a usable folder from an unusable one', () async {

@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 
 import 'android_helpers.dart';
 import 'globals.dart';
+import 'net_server.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -146,7 +147,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   // A receive in flight has already planned where every one of its files goes.
   // Moving the folder under it is a question nobody asked the transfer.
-  bool get _receiving => xvTransfers.any((t) => t.incoming && t.isRunning);
+  //
+  // The receiver's own slot, not the transfer list: a request still waiting for
+  // the user to accept it has resolved its destinations already and appears in
+  // no list yet, so scanning the list let the folder be changed in exactly the
+  // window where the change goes unnoticed — the files then land in the old
+  // folder while the settings screen names the new one.
+  bool get _receiving => receiveServer.receiveSlotHeld;
 
   Future<void> _editRecvFolder() async {
     if (_receiving) {
