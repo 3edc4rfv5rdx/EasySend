@@ -590,7 +590,10 @@ class _HomeScreenState extends State<HomeScreen>
       // Nothing is asked and nothing is stopped: a running transfer carries on
       // in the background, which is the whole point of the switch.
       if (_windowSaveTimer?.isActive ?? false) await _saveWindowBounds();
-      if (!await finishActivityAndTask()) await SystemNavigator.pop();
+      // Deliberately not finishActivityAndTask(): the screen closes but the
+      // Recents card stays, because the app is still running and that card is
+      // the ordinary way back to it. Only a full exit takes the card away.
+      await SystemNavigator.pop();
       return;
     }
 

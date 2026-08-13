@@ -2,6 +2,7 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+- F: Closing the screen over a running background receiver keeps the app's card in Recents, so it can be reopened from there as well as from the notification; only a full exit clears the card
 - N: With "Receive in background" on, ✕ now closes only the screen and leaves the receiver, its service and its notification running; the notification's "Exit" is what ends the app, and a full exit still happens whenever the switch is off or background readiness was lost
 - F: The Light theme writes in pure black instead of near-black
 - E: The ongoing notification's buttons are drawn again: their labels were sent from Dart but never carried into the Intent the service builds the notification from, and a label-less button is not drawn

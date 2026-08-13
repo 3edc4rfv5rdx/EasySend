@@ -134,6 +134,18 @@ void main() {
     // screen, this button is what ends the app afterwards.
     expect(home, contains('_exitApp(mayKeepReceiving: false)'));
     expect(home, contains('exitKeepsReceiving('));
+
+    // Closing the screen over a running receiver must leave the Recents card:
+    // the app is still there, and the card is how the user gets back to it.
+    final String? keeping = RegExp(
+      r'if \(exitKeepsReceiving\((.*?)\n      return;',
+      dotAll: true,
+    ).firstMatch(home)?.group(1);
+    expect(keeping, isNotNull, reason: 'the keep-receiving exit changed shape');
+    expect(keeping, contains('SystemNavigator.pop()'));
+    // The call, not the word: the comment above it names the function to say
+    // why it is deliberately not used here.
+    expect(keeping, isNot(contains('await finishActivityAndTask')));
   });
 
   // The channel call and the Intent are two hops, and the service reads the
