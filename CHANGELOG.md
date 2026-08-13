@@ -2,6 +2,7 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+- I: A fresh deep audit of lib/, the Kotlin service and the Android manifest against SPEC.md left ten findings in ADD/tofix5.md, three of them P1, each written as a standalone prompt; the parts that were checked and found sound are listed there too, so the next pass does not spend the time on them again
 - N: A transfer log that hits its 500-line cap now gives up the files that simply arrived instead of its oldest line, so a failure early in a transfer of thousands is still there when the log is opened; the log closes with "Other files went through without a word" and their count
 - I: OUT/ holds exactly two links — the AppImage and the arm64-v8a APK under their own full names, version and build number included — and everything else there, the previous build included, is swept away; 01-LinkOut.sh is that step on its own, for picking up a build that already exists, and 00-MakeAll.sh runs it after the build
 - E: A network transition that failed anywhere other than in the listener itself passed without a trace in a release build — the log line it wrote is compiled out — and the screen went on showing a device list or a receiver that was no longer there; readiness now reads as failed, the existing red banner says "Network setup did not finish, receiving may be off", advertising stops, and the next successful transition clears it, while a transition superseded on purpose stays silent
