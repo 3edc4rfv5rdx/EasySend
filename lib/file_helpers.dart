@@ -288,6 +288,30 @@ Future<CollectedFiles> collectFiles(
   );
 }
 
+// What stops a set of freshly picked files from joining the selection. Every
+// path that adds files asks this one question against the selection as it
+// stands: an ordinary pick, a drop, a share, and the backslash repair, which
+// used to check the count alone and could build a selection the receiver is
+// guaranteed to refuse for its size.
+enum SelectionLimit { files, bytes }
+
+SelectionLimit? selectionLimitBroken(
+  Iterable<FileItem> selected,
+  Iterable<FileItem> fresh,
+) {
+  if (selected.length + fresh.length > maxManifestFiles) {
+    return SelectionLimit.files;
+  }
+  int total = 0;
+  for (final FileItem f in selected) {
+    total += f.size;
+  }
+  for (final FileItem f in fresh) {
+    total += f.size;
+  }
+  return total > maxDeclaredTransferBytes ? SelectionLimit.bytes : null;
+}
+
 class FileSnapshot {
   final String sourcePath;
   final String relativePath;

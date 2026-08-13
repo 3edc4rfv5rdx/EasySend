@@ -101,4 +101,59 @@ void main() {
     expect(renamed.sourcePath, original.sourcePath);
     expect(renamed.size, 42);
   });
+
+  group('selection limits', () {
+    test('an addition that fits is admitted', () {
+      expect(
+        selectionLimitBroken([item('a.txt')], [item('b.txt')]),
+        isNull,
+      );
+    });
+
+    test('exactly at either limit still fits', () {
+      final List<FileItem> selected = [
+        for (int i = 0; i < maxManifestFiles - 1; i++) item('f$i.txt'),
+      ];
+      expect(selectionLimitBroken(selected, [item('last.txt')]), isNull);
+      expect(
+        selectionLimitBroken(
+          [item('big.bin', size: maxDeclaredTransferBytes - 10)],
+          [item('tail.bin', size: 10)],
+        ),
+        isNull,
+      );
+    });
+
+    test('one file too many is refused by count', () {
+      final List<FileItem> selected = [
+        for (int i = 0; i < maxManifestFiles; i++) item('f$i.txt'),
+      ];
+      expect(
+        selectionLimitBroken(selected, [item('one-more.txt')]),
+        SelectionLimit.files,
+      );
+    });
+
+    // The repair path checked the count and nothing else, so a repaired file
+    // could take the selection past a size the receiver refuses outright.
+    test('a file that only crosses the total size is refused', () {
+      expect(
+        selectionLimitBroken(
+          [item('big.bin', size: maxDeclaredTransferBytes - 10)],
+          [item('repaired.bin', size: 11)],
+        ),
+        SelectionLimit.bytes,
+      );
+    });
+
+    test('an empty addition never breaks a limit', () {
+      expect(
+        selectionLimitBroken(
+          [item('big.bin', size: maxDeclaredTransferBytes)],
+          <FileItem>[],
+        ),
+        isNull,
+      );
+    });
+  });
 }

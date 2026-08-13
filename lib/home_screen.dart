@@ -530,15 +530,7 @@ class _HomeScreenState extends State<HomeScreen>
     // The receiver refuses a manifest past these limits, and it refuses the
     // whole thing. Said here, before anything is sent, it is one sentence
     // instead of a transfer that gets as far as the other end and dies.
-    if (_selected.length + picked.fresh.length > maxManifestFiles) {
-      okInfoBarRed('${lw('Too many files at once')}: $maxManifestFiles');
-      return;
-    }
-    if (picked.fresh.fold(_totalBytes, (sum, f) => sum + f.size) >
-        maxDeclaredTransferBytes) {
-      okInfoBarRed(lw('The selection is too large'));
-      return;
-    }
+    if (_refuseOverLimit(picked.fresh)) return;
 
     setState(() => _selected.addAll(picked.fresh));
     if (picked.duplicates > 0) {
@@ -561,12 +553,25 @@ class _HomeScreenState extends State<HomeScreen>
     await _addRepaired(repaired);
   }
 
+  // Whether the selection may not grow by these files, said out loud when so.
+  // Both admission paths ask it: the repair used to check the count alone and
+  // could add a file that pushed the whole selection past the size limit.
+  bool _refuseOverLimit(List<FileItem> fresh) {
+    switch (selectionLimitBroken(_selected, fresh)) {
+      case SelectionLimit.files:
+        okInfoBarRed('${lw('Too many files at once')}: $maxManifestFiles');
+        return true;
+      case SelectionLimit.bytes:
+        okInfoBarRed(lw('The selection is too large'));
+        return true;
+      case null:
+        return false;
+    }
+  }
+
   Future<void> _addRepaired(List<FileItem> repaired) async {
     final picked = sortPickedFiles(repaired, _selected);
-    if (_selected.length + picked.fresh.length > maxManifestFiles) {
-      okInfoBarRed('${lw('Too many files at once')}: $maxManifestFiles');
-      return;
-    }
+    if (_refuseOverLimit(picked.fresh)) return;
     setState(() => _selected.addAll(picked.fresh));
     if (picked.refused.isNotEmpty) {
       okInfoBarOrange(
