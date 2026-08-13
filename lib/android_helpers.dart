@@ -340,6 +340,8 @@ class AndroidService {
         );
       // The buttons on the ongoing notification. Answered by the screen that
       // owns the transfers and the exit, not here.
+      case 'serviceGone':
+        noteServiceGone();
       case 'notificationStop':
         await onNotificationStop?.call();
       case 'notificationExit':
@@ -367,6 +369,31 @@ class AndroidService {
   }
 
   Future<void> sync() => _syncQueue.add(_syncNow);
+
+  /// Posts the notification again as though the service were not up.
+  ///
+  /// Dart never sees the service die: Android takes it with a removed task or a
+  /// low-memory kill without telling anyone, `_serviceUp` stays true, and the
+  /// idle text never changes, so the rate limit in `_push` refuses to post it
+  /// again. The receiver then runs with nothing on screen to say so. Call this
+  /// while the app is still in the foreground, where starting a foreground
+  /// service is allowed.
+  Future<void> reassert() {
+    _serviceUp = false;
+    _lastText = '';
+    return sync();
+  }
+
+  /// Android destroyed the service, whoever asked for it.
+  ///
+  /// Nothing is restarted here: from the background that is not allowed, and
+  /// the stop may well be our own. Recording the truth is enough — the next
+  /// reassert from the foreground puts it back.
+  void noteServiceGone() {
+    _serviceUp = false;
+    _transferMode = false;
+    _lastText = '';
+  }
 
   // Leaving the app has to take the service with it. The engine outlives the
   // Activity now, so `SystemNavigator.pop()` ends the screen and nothing else

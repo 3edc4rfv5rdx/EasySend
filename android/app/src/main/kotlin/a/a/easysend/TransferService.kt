@@ -250,6 +250,11 @@ class TransferService : Service() {
 
     override fun onDestroy() {
         releaseLocks()
+        // Dart has no other way of learning this. Android destroys the service
+        // on its own — with a removed task, or under memory pressure — and a
+        // Dart side that still believes it is up will never post the
+        // notification again, leaving a receiver nothing on screen represents.
+        (application as EasySendApplication).notifyDart("serviceGone")
         super.onDestroy()
     }
 }

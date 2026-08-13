@@ -176,6 +176,39 @@ void main() {
 
       await press('notificationStop');
       await press('notificationExit');
+      // The service reporting its own death arrives on the same channel.
+      await press('serviceGone');
+    });
+  });
+
+  group('a service Android took away is put back', () {
+    test('an identical idle notification is posted again on reassert', () async {
+      final AndroidService service = AndroidService(android: true);
+
+      await service.sync();
+      expect(calls, ['start']);
+
+      // The rate limit refuses this: the idle text never changes.
+      await service.sync();
+      expect(calls, ['start']);
+
+      // Leaving the screen, or coming back to it, has to post it regardless —
+      // the service may be gone without Dart having been told.
+      await service.reassert();
+      expect(calls, ['start', 'start']);
+    });
+
+    test('a destroyed service is remembered as down', () async {
+      final AndroidService service = AndroidService(android: true);
+
+      await service.sync();
+      expect(calls, ['start']);
+
+      service.noteServiceGone();
+
+      // Not an update of something that is no longer there: a start.
+      await service.sync();
+      expect(calls, ['start', 'start']);
     });
   });
 

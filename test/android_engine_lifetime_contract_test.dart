@@ -129,6 +129,10 @@ void main() {
     expect(activity, contains('removeExtra(EXTRA_EXIT_REQUESTED)'));
     expect(helpers, contains("case 'notificationStop':"));
     expect(helpers, contains("case 'notificationExit':"));
+    // A service Android destroyed on its own has to reach Dart, or the app goes
+    // on believing a notification is up that nobody can see.
+    expect(service, contains('notifyDart("serviceGone")'));
+    expect(helpers, contains("case 'serviceGone':"));
     expect(home, contains('onNotificationStop = _stop'));
     // The one exit that never keeps the receiver running: ✕ may close only the
     // screen, this button is what ends the app afterwards.
@@ -143,6 +147,9 @@ void main() {
     ).firstMatch(home)?.group(1);
     expect(keeping, isNotNull, reason: 'the keep-receiving exit changed shape');
     expect(keeping, contains('SystemNavigator.pop()'));
+    // The last foreground moment: if Android has taken the service, only here
+    // may it be started again.
+    expect(keeping, contains('androidService.reassert()'));
     // The call, not the word: the comment above it names the function to say
     // why it is deliberately not used here.
     expect(keeping, isNot(contains('await finishActivityAndTask')));

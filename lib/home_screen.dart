@@ -255,6 +255,13 @@ class _HomeScreenState extends State<HomeScreen>
     _exiting = decision.stillExiting;
     final bool? desired = decision.desired;
     if (desired != null) _setNetworkDesired(desired);
+    // Back on screen is the other moment a foreground service may be started,
+    // and the moment to repair a notification Android took while we were away.
+    // _setNetworkDesired above is a no-op whenever the network never stopped,
+    // so nothing else here would notice the service had gone.
+    if (state == AppLifecycleState.resumed) {
+      unawaited(androidService.reassert());
+    }
   }
 
   // "Share -> EasySend" drops straight into the selection, so all that is left
@@ -589,6 +596,13 @@ class _HomeScreenState extends State<HomeScreen>
     )) {
       // Nothing is asked and nothing is stopped: a running transfer carries on
       // in the background, which is the whole point of the switch.
+      //
+      // The notification is posted again first. This is the last moment the app
+      // is in the foreground, and if Android has quietly taken the service —
+      // which it does when a task is removed — this is the only place allowed
+      // to bring it back. Leaving the screen without it would leave a receiver
+      // running with nothing on screen to say so.
+      await androidService.reassert();
       if (_windowSaveTimer?.isActive ?? false) await _saveWindowBounds();
       // Deliberately not finishActivityAndTask(): the screen closes but the
       // Recents card stays, because the app is still running and that card is
