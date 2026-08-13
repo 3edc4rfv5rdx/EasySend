@@ -36,15 +36,56 @@ void main() {
     expect(line, startsWith(formatClock(event.at)));
   });
 
-  test('the log keeps its last lines and drops the oldest', () {
+  test('the log keeps its last lines and drops the quiet ones', () {
     final TransferSession transfer = session();
     for (int i = 0; i < maxTransferEvents + 20; i++) {
-      transfer.log('Sent', file: 'file$i.bin');
+      transfer.log('Sent', file: 'file$i.bin', routine: true);
     }
 
     expect(transfer.events.length, maxTransferEvents);
     expect(transfer.events.first.file, 'file20.bin');
     expect(transfer.events.last.file, 'file${maxTransferEvents + 19}.bin');
+    expect(transfer.quietFiles, 20);
+  });
+
+  // The whole point of the log is the file that did not make it. A transfer of
+  // three thousand ordinary files must not be able to push it out.
+  test('a flood of quiet lines never drops a failure', () {
+    final TransferSession transfer = session();
+    transfer.log('Not sent', file: 'early.bin', failure: true);
+    for (int i = 0; i < maxTransferEvents * 6; i++) {
+      transfer.log('Sent', file: 'file$i.bin', routine: true);
+    }
+    transfer.log('Deleted here', file: 'early.bin');
+
+    expect(transfer.events.length, maxTransferEvents);
+    expect(transfer.events.first.file, 'early.bin');
+    expect(transfer.events.first.failure, isTrue);
+    // Not a failure, but it says a source file was removed — never dropped.
+    expect(transfer.events.last.message, 'Deleted here');
+    expect(transfer.quietFiles, maxTransferEvents * 6 + 2 - maxTransferEvents);
+  });
+
+  test('a log of nothing but failures still drops its oldest', () {
+    final TransferSession transfer = session();
+    for (int i = 0; i < maxTransferEvents + 5; i++) {
+      transfer.log('Not sent', file: 'file$i.bin', failure: true);
+    }
+
+    expect(transfer.events.length, maxTransferEvents);
+    expect(transfer.events.first.file, 'file5.bin');
+    expect(transfer.quietFiles, 0, reason: 'no quiet line was there to give up');
+  });
+
+  test('a trimmed log accounts for the files it stopped naming', () {
+    final TransferSession transfer = session();
+    expect(quietFilesLine(transfer), isNull);
+    for (int i = 0; i < maxTransferEvents + 7; i++) {
+      transfer.log('Received', file: 'file$i.bin', routine: true);
+    }
+
+    expect(quietFilesLine(transfer), endsWith(': 7'));
+    expect(transferLogText(transfer).split('\n').last, quietFilesLine(transfer));
   });
 
   test('copied text starts with the build and repeats the header', () {

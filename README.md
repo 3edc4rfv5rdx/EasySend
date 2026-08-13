@@ -34,7 +34,10 @@ no internet: the two devices talk to each other and nothing else.
 - **Every transfer explains itself** — tap one to open its log: what happened to each file,
   response codes, refusal reasons, a line per failed attempt. One button copies the whole
   thing, build number included, so a bug report does not have to be typed off a phone
-  screen. It lives in memory and goes away with the transfer; the app keeps no history.
+  screen. A log holds 500 lines, and the ones it gives up first are the files that simply
+  arrived — a failure is never pushed out by a thousand successes, and a trimmed log ends
+  with the count of the files it stopped naming. It lives in memory and goes with the app;
+  the app keeps no history between runs.
 - **Move instead of copy** — the *delete originals* tick beside Send removes each source
   once that file has been received and verified at the far end. The file is the unit: what
   did not get there stays where it is, a cancelled transfer deletes nothing, and the tick

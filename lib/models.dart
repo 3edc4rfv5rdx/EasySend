@@ -122,6 +122,9 @@ class TransferEvent {
   // Something went wrong here. The screen paints these apart: the one line that
   // explains an outcome should not have to be found by reading all of them.
   final bool failure;
+  // One file, nothing to report. These are the only lines a full log gives up:
+  // everything else either went wrong, ended the transfer, or deleted something.
+  final bool routine;
 
   const TransferEvent({
     required this.at,
@@ -129,6 +132,7 @@ class TransferEvent {
     this.file,
     this.detail,
     this.failure = false,
+    this.routine = false,
   });
 }
 
@@ -149,6 +153,13 @@ List<String> transferLogHeader(TransferSession transfer) => [
   if (transfer.error != null) '${lw('Error')}: ${transfer.error}',
 ];
 
+// The last line of a log the cap has trimmed, on screen and in the clipboard
+// alike. Null when nothing was trimmed and every file has its own line.
+String? quietFilesLine(TransferSession transfer) => transfer.quietFiles == 0
+    ? null
+    : '${lw('Other files went through without a word')}: '
+          '${transfer.quietFiles}';
+
 // The whole log as one piece of text. The version goes first: a log quoted in
 // a report is worth nothing without the build it came from.
 String transferLogText(TransferSession transfer) => [
@@ -156,6 +167,7 @@ String transferLogText(TransferSession transfer) => [
   ...transferLogHeader(transfer),
   '',
   ...transfer.events.map(formatTransferEvent),
+  if (transfer.quietFiles > 0) quietFilesLine(transfer)!,
 ].join('\n');
 
 // One transfer, in either direction. Not persisted: the app keeps no history
@@ -183,11 +195,17 @@ class TransferSession {
   // session, so it goes away with it instead of growing for the whole run.
   final List<TransferEvent> events = [];
 
+  // Routine lines the cap has taken away. Counted rather than kept, and said in
+  // one line at the end of the log, so the reader knows those files are simply
+  // fine and not missing from the account.
+  int quietFiles = 0;
+
   void log(
     String message, {
     String? file,
     String? detail,
     bool failure = false,
+    bool routine = false,
   }) {
     events.add(
       TransferEvent(
@@ -196,11 +214,19 @@ class TransferSession {
         file: file,
         detail: detail,
         failure: failure,
+        routine: routine,
       ),
     );
-    // Thousands of files with a retry each would otherwise be held whole. The
-    // end is what explains an outcome, so the oldest line is the one to drop.
-    if (events.length > maxTransferEvents) events.removeAt(0);
+    // Thousands of files with a retry each would otherwise be held whole. What
+    // goes is the oldest line that says a file simply arrived: a transfer of
+    // three thousand would otherwise push its early failures out of its own log
+    // — the one thing the log exists to answer. Only when there is no such line
+    // left does the oldest one go, whatever it says.
+    if (events.length > maxTransferEvents) {
+      final int quiet = events.indexWhere((TransferEvent e) => e.routine);
+      events.removeAt(quiet < 0 ? 0 : quiet);
+      if (quiet >= 0) quietFiles++;
+    }
     myPrint([file, message, detail].nonNulls.join(' '));
   }
 

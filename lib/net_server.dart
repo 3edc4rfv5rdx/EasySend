@@ -776,7 +776,13 @@ class ReceiveServer {
       item.destinationPath = dest;
       item.done = true;
       item.failed = false;
-      session.transfer.log('Received', file: item.relativePath);
+      session.transfer.log(
+        'Received',
+        file: item.relativePath,
+        // Nothing to report about this one, so it is the first line the cap
+        // takes back when a transfer of thousands fills the log.
+        routine: true,
+      );
       session.transfer.noteProgress(
         session.progressOffsets[fileId]! + item.size,
       );

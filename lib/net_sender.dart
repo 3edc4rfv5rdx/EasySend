@@ -313,6 +313,9 @@ class SendService {
         item.done ? 'Sent' : 'Not sent',
         file: item.relativePath,
         failure: !item.done,
+        // A file that simply went is the line the cap may drop; one that did
+        // not, and the deletion that follows a move, are never dropped.
+        routine: item.done,
       );
       settled += item.size;
       transfer.noteProgress(settled);
