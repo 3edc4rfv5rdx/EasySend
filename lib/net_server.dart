@@ -713,27 +713,31 @@ class ReceiveServer {
       }
 
       // Only now does the file get its real name: a partial file must never look
-      // like a complete one.
-      if (await FileSystemEntity.type(dest, followLinks: false) !=
-          FileSystemEntityType.notFound) {
-        final Set<String> reserved = {
-          for (final entry in session.finalPaths.entries)
-            if (entry.key != fileId) pathEqualityKey(entry.value),
-        };
-        dest = await uniquePath(dest, reserved: reserved);
-        session.finalPaths[fileId] = dest;
-        item.destinationPath = dest;
-      }
-      if (!await ensureSafeDestination(
-            session.recvDir,
-            dest,
-            resolvedRoot: session.resolvedRoot,
-          ) ||
-          !await ensureSafeDestination(
+      // like a complete one. Publication claims the name before it renames, so
+      // an entry that appears between the two keeps its place and this file
+      // takes the next free name instead.
+      final Set<String> reserved = {
+        for (final entry in session.finalPaths.entries)
+          if (entry.key != fileId) pathEqualityKey(entry.value),
+      };
+      final String? published =
+          await ensureSafeDestination(
             session.recvDir,
             part.path,
             resolvedRoot: session.resolvedRoot,
-          )) {
+          )
+          ? await publishVerifiedFile(
+              part,
+              dest,
+              accept: (String candidate) => ensureSafeDestination(
+                session.recvDir,
+                candidate,
+                resolvedRoot: session.resolvedRoot,
+              ),
+              reserved: reserved,
+            )
+          : null;
+      if (published == null) {
         await deleteQuietly(part);
         session.transfer.log(
           'Cannot write here',
@@ -743,7 +747,9 @@ class ReceiveServer {
         session.phase = _ReceivePhase.ready;
         return _status(req, HttpStatus.conflict);
       }
-      await part.rename(dest);
+      dest = published;
+      session.finalPaths[fileId] = dest;
+      item.destinationPath = dest;
       item.done = true;
       item.failed = false;
       session.transfer.log('Received', file: item.relativePath);

@@ -80,4 +80,101 @@ void main() {
     ], windows: false);
     expect(plan.length, 2);
   });
+
+  Future<File> part(String name, String content) async {
+    final File f = File(p.join(root.path, name));
+    await f.writeAsString(content);
+    return f;
+  }
+
+  test('a file created in the claim window keeps its place', () async {
+    final File incoming = await part('0.part', 'incoming');
+    final String planned = p.join(root.path, 'photo.jpg');
+    final File late = File(planned);
+
+    // accept() runs immediately before the name is claimed, which is exactly
+    // the window a plain check-then-rename cannot see into.
+    final String? published = await publishVerifiedFile(
+      incoming,
+      planned,
+      accept: (String candidate) async {
+        if (candidate == planned && !await late.exists()) {
+          await late.writeAsString('created after the check');
+        }
+        return true;
+      },
+    );
+
+    expect(published, p.join(root.path, 'photo (1).jpg'));
+    expect(await late.readAsString(), 'created after the check');
+    expect(await File(published!).readAsString(), 'incoming');
+    expect(await incoming.exists(), isFalse);
+  });
+
+  test('a link at the destination is never replaced', () async {
+    final File incoming = await part('0.part', 'incoming');
+    final File target = await part('elsewhere.txt', 'user data');
+    final String planned = p.join(root.path, 'linked.txt');
+    await Link(planned).create(target.path);
+
+    final String? published = await publishVerifiedFile(
+      incoming,
+      planned,
+      accept: (_) async => true,
+    );
+
+    expect(published, p.join(root.path, 'linked (1).txt'));
+    expect(await Link(planned).target(), target.path);
+    expect(await target.readAsString(), 'user data');
+  });
+
+  test('two contenders for one name both land intact', () async {
+    final File first = await part('0.part', 'first');
+    final File second = await part('1.part', 'second');
+    final String planned = p.join(root.path, 'shared.bin');
+    Future<bool> accept(_) async => true;
+
+    final List<String?> names = await Future.wait([
+      publishVerifiedFile(first, planned, accept: accept),
+      publishVerifiedFile(second, planned, accept: accept),
+    ]);
+
+    expect(names.whereType<String>().toSet().length, 2);
+    expect(await File(names[0]!).readAsString(), 'first');
+    expect(await File(names[1]!).readAsString(), 'second');
+  });
+
+  test('a refused publication leaves no empty placeholder', () async {
+    final File incoming = await part('0.part', 'incoming');
+    final String planned = p.join(root.path, 'refused.bin');
+
+    expect(
+      await publishVerifiedFile(incoming, planned, accept: (_) async => false),
+      isNull,
+    );
+    expect(await File(planned).exists(), isFalse);
+    expect(await incoming.readAsString(), 'incoming');
+  });
+
+  test('the name past the numbered range is checked and reserved', () async {
+    final String planned = p.join(root.path, 'full.txt');
+    final Set<String> reserved = {
+      pathEqualityKey(planned),
+      for (int i = 1; i < 10000; i++)
+        pathEqualityKey(p.join(root.path, 'full ($i).txt')),
+    };
+
+    final String? first = await uniquePath(planned, reserved: reserved);
+    final String? second = await uniquePath(planned, reserved: reserved);
+
+    expect(first, isNotNull);
+    expect(second, isNotNull);
+    expect(first, isNot(second));
+    expect(reserved, contains(pathEqualityKey(first!)));
+    expect(reserved, contains(pathEqualityKey(second!)));
+    // Whatever the fallback is called, it is a name in the receive folder that
+    // nothing occupies — the old one was returned without ever looking.
+    expect(p.dirname(first), root.path);
+    expect(await File(first).exists(), isFalse);
+  });
 }

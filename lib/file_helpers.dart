@@ -412,11 +412,15 @@ Future<Map<String, String>> buildDestinationPlan(
     if (full == null) {
       throw const DestinationPlanException('path escapes receive directory');
     }
-    result[files[i].id] = await uniquePath(
+    final String? free = await uniquePath(
       full,
       reserved: reserved,
       windows: windows,
     );
+    if (free == null) {
+      throw const DestinationPlanException('no free destination name');
+    }
+    result[files[i].id] = free;
   }
   return result;
 }
@@ -665,8 +669,11 @@ Future<void> cleanupOrphanSessions() async {
   }
 }
 
-// 'photo.jpg' -> 'photo (1).jpg' when taken.
-Future<String> uniquePath(
+// 'photo.jpg' -> 'photo (1).jpg' when taken. Null when nothing is free: every
+// name this returns has been checked and reserved, so a caller may act on it.
+// Handing back an unchecked fallback was the same bug in miniature — a name the
+// caller believes is free while something already sits there.
+Future<String?> uniquePath(
   String fullPath, {
   Set<String>? reserved,
   bool? windows,
@@ -690,7 +697,80 @@ Future<String> uniquePath(
       return candidate;
     }
   }
-  return p.join(dir, '$stem ${DateTime.now().millisecondsSinceEpoch}$ext');
+  // Ten thousand ' (n)' names are all taken. A timestamp is the last thing to
+  // try, and it is checked like everything else.
+  for (int i = 0; i < 16; i++) {
+    // The attempt index keeps two allocations in the same microsecond apart,
+    // so a retry can never hand back the name it was just refused.
+    final int micros = DateTime.now().microsecondsSinceEpoch;
+    final String candidate = p.join(
+      dir,
+      '$stem ${i == 0 ? micros : '$micros-$i'}$ext',
+    );
+    if (!await unavailable(candidate)) {
+      reserved?.add(pathEqualityKey(candidate, windows: windows));
+      return candidate;
+    }
+  }
+  myPrint('no free name left for $fullPath');
+  return null;
+}
+
+// How many times publication may lose the name to somebody else before the
+// file is refused. Each loss means an entry appeared between the check and the
+// claim, which on a normal machine does not happen twice.
+const int _publishAttempts = 8;
+
+// Give a verified part its real name without ever replacing an entry that
+// appeared while we were looking. `File.rename` is a clobbering operation: it
+// removes whatever holds the destination (documented Dart behaviour), so a
+// 'is it free?' check followed by a rename can still destroy a file created in
+// between. The name is claimed first with an exclusive create, which fails if
+// anybody else already holds it; the rename then only ever replaces our own
+// empty placeholder. Returns the name the file actually got, or null when it
+// could not be published — the part is left alone for the caller to deal with.
+Future<String?> publishVerifiedFile(
+  File part,
+  String planned, {
+  // Containment check for a name this function picks by itself; the caller owns
+  // the receive root, so it owns the rule.
+  required Future<bool> Function(String candidate) accept,
+  Set<String>? reserved,
+  bool? windows,
+}) async {
+  String? candidate = planned;
+  for (int attempt = 0; attempt < _publishAttempts; attempt++) {
+    if (candidate == null) return null;
+    if (!await accept(candidate)) return null;
+    if (await _claimName(candidate)) {
+      try {
+        await part.rename(candidate);
+        return candidate;
+      } catch (e) {
+        myPrint('cannot publish ${part.path} as $candidate: $e');
+        // The placeholder is ours and nothing landed in it.
+        await deleteQuietly(File(candidate));
+        return null;
+      }
+    }
+    // Lost the race for this name: it belongs to whoever created it.
+    reserved?.add(pathEqualityKey(candidate, windows: windows));
+    candidate = await uniquePath(planned, reserved: reserved, windows: windows);
+  }
+  myPrint('no name could be claimed for ${part.path}');
+  return null;
+}
+
+// The only no-clobber primitive dart:io has. Whoever wins the exclusive create
+// owns the name; everybody else sees the entry and picks another. It fails on a
+// directory or a link there too, which is exactly the answer we want.
+Future<bool> _claimName(String path) async {
+  try {
+    await File(path).create(exclusive: true);
+    return true;
+  } catch (e) {
+    return false;
+  }
 }
 
 Future<bool> _taken(String path) async =>
