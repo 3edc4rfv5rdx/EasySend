@@ -414,6 +414,13 @@ class DiscoveryService {
 
 final DiscoveryService discovery = DiscoveryService();
 
+// What asking a manual device who it is came back with. Three answers rather
+// than a yes and a no, because a device that is switched off and a device that
+// has become somebody else are different news and deserve different sentences:
+// one boolean told the user their trust relationship had broken every time a
+// laptop was merely closed.
+enum IdentityCheck { confirmed, changed, unreachable }
+
 // Devices behind a router never hear our broadcast and never answer one, so
 // their reachability is probed over HTTP instead — the very channel the files
 // will take, firewalls included (SPEC 5.4).
@@ -485,16 +492,28 @@ class ManualPoller {
 
   Future<void> pollNow() => _pollAll();
 
-  Future<bool> verifyIdentity(Device device) async {
-    final Map<String, dynamic>? info = await _ask(device.address, device.port);
-    final PeerInfo? peer = validatedPeerInfo(info, fallbackPort: device.port);
+  // Who answered at a manual device's address, before anything is sent to it.
+  //
+  // The identity is only ever called changed when a valid identity was read and
+  // it differs — DHCP handing the saved address to somebody else, which is the
+  // case this check exists for. Everything else is a device we could not reach:
+  // a closed port, a timeout, and an answer that is not a usable /info too,
+  // because unreadable bytes are no evidence about who lives there. Claiming a
+  // broken trust relationship on that would be the same overreach in reverse.
+  Future<IdentityCheck> verifyIdentity(Device device) async {
+    final PeerInfo? peer = validatedPeerInfo(
+      await _ask(device.address, device.port),
+      fallbackPort: device.port,
+    );
     if (peer == null || peer.id != device.id) {
+      // Neither outcome proves the device is there, so neither leaves it
+      // looking reachable.
       device.lastSeen = null;
       devicesChanged();
-      return false;
+      return peer == null ? IdentityCheck.unreachable : IdentityCheck.changed;
     }
     device.lastSeen = DateTime.now();
-    return true;
+    return IdentityCheck.confirmed;
   }
 
   // '192.168.1.10' or '192.168.1.10:15353'

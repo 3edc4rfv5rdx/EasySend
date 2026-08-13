@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:easysend/globals.dart';
 import 'package:easysend/net_discovery.dart';
+import 'package:easysend/net_sender.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -49,15 +50,94 @@ void main() {
     expect(device.name, 'Saved');
     expect(device.lastSeen, isNull);
 
+    // An id that fails validation is not a readable identity, so it is not
+    // evidence that this address belongs to somebody else either.
     response = '{"id":""}';
-    expect(await poller.verifyIdentity(device), isFalse);
+    expect(await poller.verifyIdentity(device), IdentityCheck.unreachable);
     expect(device.lastSeen, isNull);
   });
 
   test('malformed info remains offline', () async {
     response = 'not-json';
-    expect(await poller.verifyIdentity(device), isFalse);
+    expect(await poller.verifyIdentity(device), IdentityCheck.unreachable);
     expect(device.lastSeen, isNull);
+  });
+
+  // One boolean used to carry both, so a laptop that was merely closed told the
+  // user their trust relationship had broken.
+  group('the three answers are told apart', () {
+    test('the device it says it is', () async {
+      expect(await poller.verifyIdentity(device), IdentityCheck.confirmed);
+      expect(device.lastSeen, isNotNull);
+    });
+
+    test('somebody else at the saved address', () async {
+      response = '{"id":"somebody-else","name":"Other"}';
+      expect(await poller.verifyIdentity(device), IdentityCheck.changed);
+      expect(device.lastSeen, isNull);
+    });
+
+    test('nothing at all at the saved address', () async {
+      final ServerSocket probe = await ServerSocket.bind(
+        InternetAddress.loopbackIPv4,
+        0,
+      );
+      final int closed = probe.port;
+      await probe.close();
+      device.port = closed;
+
+      expect(await poller.verifyIdentity(device), IdentityCheck.unreachable);
+      expect(device.lastSeen, isNull);
+    });
+  });
+
+  group('the send says which of the two happened', () {
+    late Directory sandbox;
+    late List<FileItem> batch;
+
+    setUp(() async {
+      sandbox = await Directory.systemTemp.createTemp('easysend-identity-');
+      final File file = File('${sandbox.path}/one.bin');
+      await file.writeAsBytes(const [1, 2, 3]);
+      batch = [
+        FileItem(
+          id: 'f1',
+          relativePath: 'one.bin',
+          size: 3,
+          sourcePath: file.path,
+        ),
+      ];
+      xvDeviceName = 'Sender';
+      xvTransfers = [];
+    });
+
+    tearDown(() => sandbox.delete(recursive: true));
+
+    test('a different device is named as such', () async {
+      response = '{"id":"somebody-else","name":"Other"}';
+
+      expect(
+        await sender.send(peer: device, files: batch),
+        TransferStatus.failed,
+      );
+      expect(xvTransfers.single.error, 'Device identity changed');
+    });
+
+    test('a device that is switched off is not called an impostor', () async {
+      final ServerSocket probe = await ServerSocket.bind(
+        InternetAddress.loopbackIPv4,
+        0,
+      );
+      final int closed = probe.port;
+      await probe.close();
+      device.port = closed;
+
+      expect(
+        await sender.send(peer: device, files: batch),
+        TransferStatus.failed,
+      );
+      expect(xvTransfers.single.error, 'Device is offline');
+    });
   });
 
   test('an answer outside the protocol limits leaves it offline', () async {

@@ -112,9 +112,22 @@ class SendService {
     transfersChanged();
 
     try {
-      if (peer.manual && !await manualPoller.verifyIdentity(peer)) {
-        _fail(transfer, lw('Device identity changed'));
-        return transfer.status;
+      if (peer.manual) {
+        // Two ways to fail this, and the user can act on only one of them: a
+        // device that has become somebody else needs its address checked, one
+        // that did not answer needs turning on.
+        final IdentityCheck identity = await manualPoller.verifyIdentity(peer);
+        if (identity != IdentityCheck.confirmed) {
+          _fail(
+            transfer,
+            lw(
+              identity == IdentityCheck.changed
+                  ? 'Device identity changed'
+                  : 'Device is offline',
+            ),
+          );
+          return transfer.status;
+        }
       }
       final String? sessionId = await _prepare(peer, files);
       if (sessionId == null) return transfer.status;
