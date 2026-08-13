@@ -412,7 +412,7 @@ report the outcome the fix settles on.
 
 ---
 
-### 8. P2 — Files copied into the cache by the picker are never deleted, and a Move deletes the copy instead of the user's file
+### 8. P2 [FIXED afbaaef] — Files copied into the cache by the picker are never deleted, and a Move deletes the copy instead of the user's file
 
 **Affected components:**
 `android/app/src/main/kotlin/a/a/easysend/MainActivity.kt` (`copyToCache`,
