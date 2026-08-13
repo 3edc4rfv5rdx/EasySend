@@ -175,6 +175,60 @@ void main() {
     });
   });
 
+  group('an exit is not undone by the events that follow it', () {
+    // The whole point of the guard: with background receiving on, every state
+    // asks for the network to be up, so the teardown after the exit button used
+    // to reopen the sockets the exit had just closed.
+    test('teardown events decide nothing while exiting', () {
+      for (final bool background in [false, true]) {
+        for (final AppLifecycleState state in [
+          AppLifecycleState.inactive,
+          AppLifecycleState.paused,
+          AppLifecycleState.detached,
+          AppLifecycleState.hidden,
+        ]) {
+          final LifecycleNetworkDecision decision = lifecycleNetworkDecision(
+            state,
+            receiveInBackground: background,
+            exiting: true,
+          );
+          expect(decision.desired, isNull, reason: '$state background=$background');
+          expect(decision.stillExiting, isTrue, reason: '$state background=$background');
+        }
+      }
+    });
+
+    test('becoming visible again ends the exit and asks for the network', () {
+      for (final bool background in [false, true]) {
+        final LifecycleNetworkDecision decision = lifecycleNetworkDecision(
+          AppLifecycleState.resumed,
+          receiveInBackground: background,
+          exiting: true,
+        );
+        expect(decision.desired, isTrue, reason: 'background=$background');
+        expect(decision.stillExiting, isFalse, reason: 'background=$background');
+      }
+    });
+
+    test('without an exit in progress the plain rule still decides', () {
+      for (final bool background in [false, true]) {
+        for (final AppLifecycleState state in AppLifecycleState.values) {
+          final LifecycleNetworkDecision decision = lifecycleNetworkDecision(
+            state,
+            receiveInBackground: background,
+            exiting: false,
+          );
+          expect(
+            decision.desired,
+            networkDesiredFor(state, receiveInBackground: background),
+            reason: '$state background=$background',
+          );
+          expect(decision.stillExiting, isFalse, reason: '$state background=$background');
+        }
+      }
+    });
+  });
+
   test('receiver advertisement follows readiness exactly', () async {
     int starts = 0;
     int stops = 0;

@@ -41,6 +41,40 @@ bool? networkDesiredFor(
   }
 }
 
+// What one lifecycle event means once the exit button has already run.
+class LifecycleNetworkDecision {
+  const LifecycleNetworkDecision(this.desired, this.stillExiting);
+
+  /// The state the network should be in, null when this event decides nothing.
+  final bool? desired;
+
+  /// Whether the exit is still waiting for the app to become visible again.
+  final bool stillExiting;
+}
+
+// The exit stops the network itself, but on Android the engine outlives the
+// Activity, so this observer is still alive for the paused/detached events that
+// the teardown delivers afterwards. With background receiving on,
+// networkDesiredFor answers true for those states, which would reopen the very
+// sockets the exit just closed and leave the device announcing itself while the
+// user believes the app is closed (SPEC 7). Worse, the flag left at true then
+// makes the next resumed a no-op in _setNetworkDesired, so the app starts with
+// no network at all. An exit therefore swallows every event until the app is
+// genuinely visible again, and that resumed is what ends it.
+LifecycleNetworkDecision lifecycleNetworkDecision(
+  AppLifecycleState state, {
+  required bool receiveInBackground,
+  required bool exiting,
+}) {
+  if (exiting && state != AppLifecycleState.resumed) {
+    return const LifecycleNetworkDecision(null, true);
+  }
+  return LifecycleNetworkDecision(
+    networkDesiredFor(state, receiveInBackground: receiveInBackground),
+    false,
+  );
+}
+
 Future<bool> updateReceiverAdvertisement({
   required bool receiverReady,
   required Future<bool> Function() startAdvertisement,
@@ -154,6 +188,10 @@ class _HomeScreenState extends State<HomeScreen>
   // socket is doing, so it waits for the transfer that is using it.
   bool _restartPending = false;
   bool _disposed = false;
+  // Set once the exit has committed. The widget tree survives the exit together
+  // with the engine, so this is what tells the lifecycle observer that the
+  // events still coming are a teardown and not the user leaving the app.
+  bool _exiting = false;
   int _networkEpoch = 0;
   final SerialQueue _networkQueue = SerialQueue('network transition');
   Future<void> _networkTail = Future<void>.value();
@@ -205,10 +243,13 @@ class _HomeScreenState extends State<HomeScreen>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (!Platform.isAndroid) return;
-    final bool? desired = networkDesiredFor(
+    final LifecycleNetworkDecision decision = lifecycleNetworkDecision(
       state,
       receiveInBackground: xdef['Receive in background'] == 'true',
+      exiting: _exiting,
     );
+    _exiting = decision.stillExiting;
+    final bool? desired = decision.desired;
     if (desired != null) _setNetworkDesired(desired);
   }
 
@@ -542,6 +583,10 @@ class _HomeScreenState extends State<HomeScreen>
       if (!yes) return;
     }
 
+    // Before the first await, not after: the stops below can be overtaken by
+    // the lifecycle events of the app going away, and with background receiving
+    // on those ask for the network to come straight back up.
+    _exiting = true;
     // Tell the network state machine rather than going around it. On Android
     // the engine belongs to EasySendApplication and outlives this Activity, so
     // everything here survives the exit — and _setNetworkDesired returns early
