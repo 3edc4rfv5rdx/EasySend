@@ -123,6 +123,11 @@ class ReceiveServer {
   })?
   askUser;
 
+  // The completion notification. A test replaces this to fail it or to hold it
+  // open while something else tries to end the same session.
+  @visibleForTesting
+  Future<void> Function(String text) notifyFinished = notifyTransferFinished;
+
   // Set when this process cannot truthfully advertise itself as a receiver.
   ReceiveReadinessFailure? readinessFailure;
   String? readinessError;
@@ -194,7 +199,12 @@ class ReceiveServer {
     // server that is going away, not to the one that may take its place.
     _generation++;
     _abortConsent();
-    final _Incoming? session = _current;
+    // A session already finishing keeps its outcome: its files are verified and
+    // its own cleanup is running. Marking it cancelled here would make the row
+    // disagree with what the sender was told.
+    final _Incoming? session = _current?.phase == _ReceivePhase.finishing
+        ? null
+        : _current;
     if (session != null) {
       session.cancelled = true;
       session.phase = _ReceivePhase.cancelled;
@@ -776,34 +786,56 @@ class ReceiveServer {
         'reason': 'out-of-order',
       }, status: HttpStatus.conflict);
     }
+    // From here this session is over and nothing else may decide otherwise:
+    // every file it holds is either verified and published or missed, and a
+    // cancel arriving during the notification would only rewrite a settled
+    // outcome. The inactivity timer goes with it — the session is no longer
+    // waiting for anything.
     session.phase = _ReceivePhase.finishing;
+    session.inactivityTimer?.cancel();
 
     final TransferSession transfer = session.transfer;
-    for (final FileItem f in transfer.files) {
-      if (f.done) continue;
-      f.failed = true;
-      // The sender gave up on this one and moved past it; from here it simply
-      // never arrived, and the log has to say so for every such file.
-      transfer.log('Not received', file: f.relativePath, failure: true);
+    try {
+      for (final FileItem f in transfer.files) {
+        if (f.done) continue;
+        f.failed = true;
+        // The sender gave up on this one and moved past it; from here it simply
+        // never arrived, and the log has to say so for every such file.
+        transfer.log('Not received', file: f.relativePath, failure: true);
+      }
+      transfer.status = transfer.failedCount == 0
+          ? TransferStatus.done
+          : TransferStatus.partial;
+      transfer.noteProgress(transfer.bytesTotal);
+      try {
+        await notifyFinished(
+          transfer.failedCount == 0
+              ? '${lw('Received')}: ${transfer.doneCount} — ${formatBytes(transfer.bytesTotal)}'
+              : '${lw('Received')} ${transfer.doneCount}/${transfer.files.length}, ${lw('failed')}: ${transfer.failedCount}',
+        );
+      } catch (e) {
+        // Telling the user is best-effort. A notification that cannot be posted
+        // changes nothing about the files that did arrive, and it must not cost
+        // the sender its answer or leave the receive slot occupied.
+        myPrint('cannot notify about the finished transfer: $e');
+      }
+    } finally {
+      // Exactly once, whatever happened above.
+      await _cleanupParts(session);
+      if (_current == session) _current = null;
+      transfersChanged();
     }
-    transfer.status = transfer.failedCount == 0
-        ? TransferStatus.done
-        : TransferStatus.partial;
-    transfer.noteProgress(transfer.bytesTotal);
-    await notifyTransferFinished(
-      transfer.failedCount == 0
-          ? '${lw('Received')}: ${transfer.doneCount} — ${formatBytes(transfer.bytesTotal)}'
-          : '${lw('Received')} ${transfer.doneCount}/${transfer.files.length}, ${lw('failed')}: ${transfer.failedCount}',
-    );
-    await _cleanupParts(session);
-    _current = null;
-    transfersChanged();
     return _json(req, {'ok': true});
   }
 
   Future<void> _cancel(HttpRequest req) async {
     final _Incoming? session = _sessionOf(req);
     if (session == null) return _status(req, HttpStatus.badRequest);
+    if (session.phase == _ReceivePhase.finishing) {
+      return _json(req, {
+        'reason': 'out-of-order',
+      }, status: HttpStatus.conflict);
+    }
     session.transfer.log('Cancelled by the sender');
     await _abort(session, TransferStatus.cancelled);
     return _json(req, {'ok': true});
@@ -814,6 +846,8 @@ class ReceiveServer {
   Future<void> cancelCurrent() async {
     final _Incoming? session = _current;
     if (session == null || !session.transfer.isRunning) return;
+    // Finish has already committed this transfer's outcome.
+    if (session.phase == _ReceivePhase.finishing) return;
     session.cancelled = true;
     session.transfer.log('Cancelled');
     await _abort(session, TransferStatus.cancelled);
@@ -840,7 +874,9 @@ class ReceiveServer {
     if (active != null) await active;
     session.transfer.status = status;
     await _cleanupParts(session);
-    _current = null;
+    // Only if it is still this session's slot: a prepare that arrived while
+    // this abort was awaiting owns it now.
+    if (_current == session) _current = null;
     transfersChanged();
   }
 

@@ -2,6 +2,7 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+- E: A completion notification that could not be posted — permission revoked while the app was in the background — left the sender with a 500 and the receiver's slot occupied until the session timed out; the notification is now best-effort, the session is released exactly once whatever happens, and a Stop or a sender cancel arriving during the finish no longer rewrites an outcome that is already decided
 - I: Dropped the hand-written test index; it duplicated what a search over the test files answers and had to be corrected on every change
 - E: Picking or dropping a folder of hundreds of thousands of files no longer reads the whole tree into memory before refusing it: the walk stops one file past the count or size limit, releases the directory it was reading, and says "Too many files at once" straight away; a folder that cannot be listed now loses only itself instead of the whole selection
 - E: A name of 255 Cyrillic, CJK or emoji characters was accepted and then failed to be written on Linux and Android, where a filename is capped at 255 bytes and not 255 characters: every component is now measured against both limits, refused at pick time with the usual "the name is too long", and a ` (n)` collision suffix trims the stem instead of bursting the limit
