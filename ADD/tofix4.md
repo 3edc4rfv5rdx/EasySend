@@ -150,7 +150,7 @@ identity check, replace the path, and assert the replacement survives. Cover
 same-size/same-content replacements, renamed hard links where supported,
 unchanged originals, missing originals, and Linux/Android/Windows semantics.
 
-### 4. P1 — Validated Unicode names can exceed Linux and Android filesystem byte limits
+### 4. P1 [FIXED fbd6a3e] — Validated Unicode names can exceed Linux and Android filesystem byte limits
 
 **Affected components:** `lib/file_helpers.dart` (`maxPathComponentChars`,
 `sanitizeRelPath`, `isPathTooLong`), pick/refusal UI,
