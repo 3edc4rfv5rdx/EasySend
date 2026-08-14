@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
@@ -656,6 +657,10 @@ bool isAppOwnedCopy(String sourcePath, String? copiesRoot) =>
 // gigabytes in the cache for good. Swept once per run rather than after each
 // transfer, because a copy may still be sitting in the picked list — and that
 // list does not survive a restart, so by the next one nothing refers to them.
+//
+// "Once per run" means once per launch of the app, not once per process: on
+// Android the process outlives an exit, so both flags are cleared on the way
+// out and the next launch sweeps again.
 bool _copiesSwept = false;
 
 Future<void> sweepPickedCopiesOnce() async {
@@ -805,6 +810,25 @@ Future<void> sweepOrphanSessionsOnce() async {
   if (_orphansSwept) return;
   _orphansSwept = true;
   await cleanupOrphanSessions();
+}
+
+// Whether this launch has already done its once-a-launch cleaning.
+@visibleForTesting
+bool get sweepsDone => _copiesSwept && _orphansSwept;
+
+// Everything an exit is supposed to take with it. On the desktop the process
+// ends and this costs nothing; on Android the Activity goes and the engine
+// stays in Application, so without this the next launch inherits the finished
+// transfers of the last one and never sweeps the cache again.
+void clearSessionState() {
+  _copiesSwept = false;
+  _orphansSwept = false;
+  // Finished ones only. An outgoing send is not cancelled by an exit — on
+  // Android the process carries it on — and a transfer still writing progress
+  // into a session nothing lists any more would be work with no way to see it
+  // or stop it. It leaves with its own last tick, like any other.
+  xvTransfers.removeWhere((TransferSession t) => !t.isRunning);
+  transfersChanged();
 }
 
 // Startup recovery deletes the session directories this run's predecessors

@@ -232,7 +232,9 @@ class DiscoveryService {
     for (final Device device in List.of(xvDevices)) {
       final InternetAddress? address = InternetAddress.tryParse(device.address);
       if (address == null) continue;
-      _sendTo('bye', address, bindPort);
+      // The port this socket is actually on, not the one that was asked for:
+      // the two differ whenever the bind port was left to the system.
+      _sendTo('bye', address, _port);
     }
   }
 

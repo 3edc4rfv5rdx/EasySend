@@ -21,7 +21,7 @@ final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 const String prgName = 'easysend';
 const String progVersion = '0.4.260814';
-const int buildNumber = 106;
+const int buildNumber = 107;
 const String progAuthor = 'Eugen';
 
 const String langFile = 'assets/locales.json';
@@ -220,10 +220,10 @@ Color clInfo = const Color(0xFF1565C0);
 Color clSuccess = const Color(0xFF2E7D32);
 // Reachable devices; read from the palette like everything else.
 Color clGreen = const Color(0xFF43A047);
-// A device that closed the app instead of merely going quiet. Kept at the
-// weight of muted ink so the row stays as quiet as any other offline one, and
-// away from the warm tones, which all mean something went wrong.
-Color clDeparted = const Color(0xFF8C5878);
+// A device that closed the app instead of merely going quiet. Filled badge, so
+// the colour is light on purpose: the icon inside is painted by contrast with
+// it (onColor) and is what carries the mark on a light palette.
+Color clDeparted = const Color(0xFFF0A93C);
 
 // Snack bars are painted from the Dark palette whatever theme is on: a strip
 // floating over the page reads best in those tones, and a warning then looks
@@ -443,7 +443,7 @@ void applyTheme(String themeName) {
   clProgress = hexToColor(theme['progress'] ?? '#FF9800');
   clUnconfirmed = hexToColor(theme['unconfirmed'] ?? '#75579B');
   clGreen = hexToColor(theme['online'] ?? '#43A047');
-  clDeparted = hexToColor(theme['departed'] ?? '#8C5878');
+  clDeparted = hexToColor(theme['departed'] ?? '#F0A93C');
   clError = hexToColor(theme['error'] ?? '#C62828');
   clWarning = hexToColor(theme['warning'] ?? '#EF6C00');
   clInfo = hexToColor(theme['info'] ?? '#1565C0');

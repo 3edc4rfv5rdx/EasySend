@@ -293,6 +293,10 @@ class _HomeScreenState extends State<HomeScreen>
   // The picked list doubles as the queue: a file that arrived and passed its
   // checksum leaves it, so whatever remains is exactly what did not get there.
   void _pruneSentFiles() {
+    // The exit path empties this list itself and has already taken the network
+    // down by hand. Answering its tick would queue one more transition behind
+    // an app that is leaving, and prune a selection nobody will see again.
+    if (_exiting) return;
     // Whatever was postponed while the sockets were busy gets its turn as soon
     // as they are idle: shutting the network down, or rebinding a new port.
     if ((!_networkDesired || _restartPending) &&
@@ -795,13 +799,16 @@ class _HomeScreenState extends State<HomeScreen>
     // The foreground service outlives the Activity for the same reason, and its
     // notification claims a receiver that just stopped listening.
     if (Platform.isAndroid) await androidService.stopService();
-    // How anyone left is news from a session that is over. On Android the
-    // process outlives this exit — finishActivityAndTask() below closes the
-    // screen, nothing kills us — so a badge left standing here would greet the
-    // next launch as if it had just happened.
+    // The session ends here, whether or not the process does. On Android it
+    // does not — finishActivityAndTask() below closes the screen, nothing kills
+    // us — so everything that is supposed to last one run has to be let go by
+    // hand: the transfer list, the sweeps that run once a launch, and the
+    // badges saying who left, which would otherwise greet the next launch as
+    // news that had just arrived.
     for (final Device device in xvDevices) {
       device.departedAt = null;
     }
+    clearSessionState();
     // A move or resize in the last 400 ms is still sitting in the debounce, and
     // exit(0) below would take it with it: the window would come back where it
     // was two positions ago, which reads as the feature not working.
