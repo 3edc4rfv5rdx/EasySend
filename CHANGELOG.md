@@ -4,6 +4,8 @@
 > F is the same thing done better; E is behaviour that was wrong, whatever the size of the fix.
 
 ## Unreleased
+
+## v0.3.260814+100
 - I: The changelog legend drops R and T — four entries between them, and T was not even used in the sense it was given — and says where the line between N, E and F runs.
 - I: The version line now moves by itself: a release with an N: entry waiting under Unreleased takes the minor up once, however many features are waiting, and only the first build after them. README says what makes 1.0.
 - I: IDEAS.txt now carries the reconciler idea for the network state machine — why it looks the way it does, what the alternative is, and why we are not touching it.
