@@ -309,9 +309,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 }
                 await _apply(() => xdef['Receive in background'] = '$v');
                 await androidService.sync();
-                // Doze still cuts connections on a long idle unless the app is
-                // exempt, so point the user at that setting once.
-                if (v) {
+                // Doze cuts connections on a long idle unless the app is
+                // exempt, so it is asked for here rather than described: the
+                // system dialog is one tap, and an app that is already exempt
+                // is not asked at all. Only a refusal leaves anything to say.
+                if (v && !await ensureBatteryExemption()) {
                   okInfoBarBlue(
                     lw('Also exclude it from battery optimisation'),
                   );

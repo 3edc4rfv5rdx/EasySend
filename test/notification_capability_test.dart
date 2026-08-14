@@ -47,6 +47,70 @@ void main() {
     });
   }
 
+  // Doze cuts a background receiver's network on a long idle, so the exemption
+  // is asked for when the switch goes on — and only then, and only once.
+  group('the battery exemption is asked for, not described', () {
+    test('an app that is already exempt is not asked', () async {
+      int requests = 0;
+      final bool exempt = await ensureBatteryExemption(
+        android: true,
+        status: () async => PermissionStatus.granted,
+        request: () async {
+          requests++;
+          return PermissionStatus.denied;
+        },
+      );
+
+      expect(exempt, isTrue);
+      expect(requests, 0);
+    });
+
+    test('one that is not gets the system dialog', () async {
+      final bool exempt = await ensureBatteryExemption(
+        android: true,
+        status: () async => PermissionStatus.denied,
+        request: () async => PermissionStatus.granted,
+      );
+
+      expect(exempt, isTrue);
+    });
+
+    test('a refusal is answered, not thrown', () async {
+      expect(
+        await ensureBatteryExemption(
+          android: true,
+          status: () async => PermissionStatus.denied,
+          request: () async => PermissionStatus.permanentlyDenied,
+        ),
+        isFalse,
+      );
+      // A platform that cannot answer at all is a refusal too, never a crash
+      // on the way into the settings screen.
+      expect(
+        await ensureBatteryExemption(
+          android: true,
+          status: () async => throw PlatformException(code: 'unavailable'),
+          request: () async => throw PlatformException(code: 'unavailable'),
+        ),
+        isFalse,
+      );
+    });
+
+    test('off Android there is nothing to ask', () async {
+      int asked = 0;
+      final bool exempt = await ensureBatteryExemption(
+        android: false,
+        status: () async {
+          asked++;
+          return PermissionStatus.denied;
+        },
+      );
+
+      expect(exempt, isTrue);
+      expect(asked, 0);
+    });
+  });
+
   test(
     'missing permission declines consent without showing anything',
     () async {

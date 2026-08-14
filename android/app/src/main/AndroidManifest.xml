@@ -19,6 +19,13 @@
     <!-- Progress and "ready to receive" notifications. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
 
+    <!-- Lets the app ask, in one system dialog, to be left alone by Doze:
+         without the exemption a long idle cuts the network of a background
+         receiver, which is the whole of what "Receive in background" promises.
+         Asked only when that switch goes on, and only if it is not exempt
+         already. -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/>
+
     <!-- Survives being backgrounded mid-transfer. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC"/>

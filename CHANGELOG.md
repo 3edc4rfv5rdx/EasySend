@@ -2,6 +2,7 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+- N: Turning on background receiving now asks Android for the battery exemption it depends on, in one system dialog, and only when the app is not exempt already; the hint about it is left for a refusal.
 - F: Messages across the app are shorter: banners, snack bars, validation errors and log lines say what they have to and stop, in all three languages.
 - E: A selection of very deep paths outgrew the manifest body and died at the far end as HTTP 413; it is refused at pick time now, with a reason.
 - E: Background readiness read as recovered before the service had started, so ✕ could leave a receiver nothing was holding up.

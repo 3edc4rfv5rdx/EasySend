@@ -259,6 +259,47 @@ Future<bool> ensureNotificationPermission({
   }
 }
 
+// Whether Android has been told to leave this app alone when it dozes.
+//
+// Background receiving is only as good as this: without the exemption Doze cuts
+// the network of a backgrounded app on a long idle, which is exactly the wait a
+// receiver spends. Asked rather than assumed, so an app that is already exempt
+// is not nagged about it every time the switch goes on.
+Future<bool> batteryExemptionGranted({
+  bool? android,
+  Future<PermissionStatus> Function()? status,
+}) async {
+  if (!(android ?? Platform.isAndroid)) return true;
+  try {
+    return (await (status?.call() ??
+            Permission.ignoreBatteryOptimizations.status))
+        .isGranted;
+  } catch (e) {
+    myPrint('battery exemption check failed: $e');
+    return false;
+  }
+}
+
+// Ask for it, once, at the moment it starts to matter. The request opens the
+// system's own dialog for this one app — one tap — rather than the list of
+// every installed app, where the user would have to find EasySend by hand.
+Future<bool> ensureBatteryExemption({
+  bool? android,
+  Future<PermissionStatus> Function()? status,
+  Future<PermissionStatus> Function()? request,
+}) async {
+  if (!(android ?? Platform.isAndroid)) return true;
+  if (await batteryExemptionGranted(android: true, status: status)) return true;
+  try {
+    return (await (request?.call() ??
+            Permission.ignoreBatteryOptimizations.request()))
+        .isGranted;
+  } catch (e) {
+    myPrint('battery exemption request failed: $e');
+    return false;
+  }
+}
+
 Future<void> setDiscoveryMulticastEnabled(bool enabled) async {
   if (!Platform.isAndroid) return;
   try {
