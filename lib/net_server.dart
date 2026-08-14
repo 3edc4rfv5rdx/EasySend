@@ -597,7 +597,42 @@ class ReceiveServer {
     if (session == null || item == null) {
       return _status(req, HttpStatus.badRequest);
     }
-    if (session.phase != _ReceivePhase.ready || item.done) {
+    // A session that is closing or closed answers nothing else: its outcome is
+    // already decided and the two recoveries below would reopen it.
+    final bool settled =
+        session.phase == _ReceivePhase.finishing ||
+        session.phase == _ReceivePhase.cancelled;
+    // The file is verified and published. Nothing this request carries can
+    // change that, so it is not an out-of-order request but a sender that never
+    // saw the answer to its verify. Said in its own words, because a sender
+    // that reads "out-of-order" gives the file up and offers a Retry, and that
+    // retry publishes a second copy of a file that is already here.
+    if (item.done && !settled) {
+      return _json(req, {
+        'reason': reasonAlreadyVerified,
+      }, status: HttpStatus.conflict);
+    }
+    // The answer to the previous upload never arrived and the sender is sending
+    // the same file again. Its bytes are still ours to replace — this file has
+    // not been verified — so the part is written again from the start instead
+    // of the file being refused for the rest of the session.
+    //
+    // Only once the previous request has let go of it: the phase is set before
+    // that request's own cleanup runs, and starting a second upload inside that
+    // window would hand the session an operation the first one then completes
+    // and a phase it then resets.
+    final bool restarting =
+        !settled &&
+        session.phase == _ReceivePhase.awaitingVerification &&
+        session.activeFileId == fileId &&
+        session.activeOperation == null;
+    if (restarting) {
+      session.crc.remove(fileId);
+      session.transfer.log(
+        'The file is being sent again',
+        file: item.relativePath,
+      );
+    } else if (session.phase != _ReceivePhase.ready) {
       session.transfer.log(
         'Unexpected request',
         file: item.relativePath,
@@ -761,6 +796,33 @@ class ReceiveServer {
     final FileItem? item = session?.byId[fileId];
     if (session == null || item == null) {
       return _status(req, HttpStatus.badRequest);
+    }
+    // Asked again about a file that is already published: the sender lost the
+    // answer, not the file. The same question gets the same answer, or a
+    // dropped response costs a file that is safely on disk — and the retry that
+    // followed would publish it a second time.
+    final bool settled =
+        session.phase == _ReceivePhase.finishing ||
+        session.phase == _ReceivePhase.cancelled;
+    if (item.done && !settled) {
+      final int? theirs = int.tryParse(
+        req.uri.queryParameters['crc'] ?? '',
+        radix: 16,
+      );
+      final int? ours = session.crc[fileId];
+      if (theirs != null && ours != null && theirs == ours) {
+        _touch(session);
+        return _json(req, {'ok': true, 'reason': reasonAlreadyVerified});
+      }
+      // A different sum for a file we have already written and named. Nothing
+      // can be undone here, but the sender is not told its file arrived under a
+      // checksum the receiver never saw.
+      session.transfer.log(
+        'Checksum did not match',
+        file: item.relativePath,
+        failure: true,
+      );
+      return _json(req, {'reason': 'crc'}, status: HttpStatus.conflict);
     }
     if (session.phase != _ReceivePhase.awaitingVerification ||
         session.activeFileId != fileId ||

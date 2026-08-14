@@ -501,6 +501,18 @@ class SendService {
         ? null
         : sha256.startChunkedConversion(digestOutput);
 
+    // The file is at the far end and named. The fingerprint is what lets a move
+    // delete this source afterwards, and it is taken from the bytes this
+    // attempt read — the window in which the source changes between the read
+    // and the deletion is the one ADD/tofix4.md finding 3 accepts.
+    _FileResult delivered() {
+      final Digest? digest = sourceDigest;
+      if (fingerprintSource && digest != null) {
+        _sentSources[item.id] = _SourceFingerprint(stat, digest);
+      }
+      return _FileResult.sent;
+    }
+
     try {
       final HttpClientRequest req = await _client!
           .postUrl(
@@ -526,8 +538,21 @@ class SendService {
       }
       digestInput?.close();
       final HttpClientResponse resp = await req.close().timeout(headerTimeout);
-      await _drainWithTimeout(resp);
+      // Read rather than drained: a refusal says in its body which refusal it
+      // is, and one of them means the file is already there.
+      final String rejection = await _readSmallBody(
+        resp,
+        inactivityTimeout: headerTimeout,
+        totalTimeout: controlBodyTimeout,
+      );
       if (resp.statusCode != HttpStatus.ok) {
+        if (_reasonOf(rejection) == reasonAlreadyVerified) {
+          transfer.log(
+            'The receiver already has this file',
+            file: item.relativePath,
+          );
+          return delivered();
+        }
         transfer.log(
           'The receiver rejected the file',
           file: item.relativePath,
@@ -537,21 +562,14 @@ class SendService {
         return _FileResult.retry;
       }
 
-      final _ProtocolResponse verify = await _post(
-        _url(peer, 'verify', {
-          'session': _sessionId!,
-          'file': item.id,
-          'crc': crc.toRadixString(16),
-        }),
+      final _ProtocolResponse verify = await _confirmDelivery(
+        peer,
+        transfer,
+        item,
+        crc,
       );
       item.crc32 = crc;
-      if (verify.status == HttpStatus.ok) {
-        final Digest? digest = sourceDigest;
-        if (fingerprintSource && digest != null) {
-          _sentSources[item.id] = _SourceFingerprint(stat, digest);
-        }
-        return _FileResult.sent;
-      }
+      if (verify.status == HttpStatus.ok) return delivered();
       // Each failed attempt writes its own line, so the number of them is what
       // says how many tries the file took.
       transfer.log(
@@ -590,8 +608,56 @@ class SendService {
     return (status: resp.statusCode, body: body);
   }
 
-  Future<void> _drainWithTimeout(HttpClientResponse response) async {
-    await response.drain<void>().timeout(headerTimeout);
+  // Ask again whether the file arrived, rather than send it again.
+  //
+  // The answer to verify is the only thing that says a file is at the far end,
+  // and the receiver publishes the file before it sends that answer. A lost
+  // answer therefore says nothing about the file: sending it a second time gets
+  // the bytes refused, ends with a file the receiver counts as received and the
+  // sender counts as failed, and offers a Retry that would publish a second
+  // copy of it. Asked as quietly, and as many times, as SPEC 5.6.1 gives a
+  // re-send. Out of attempts, the error goes to the caller: a re-upload is then
+  // the only thing left to try, and a receiver that never saw the verify starts
+  // that file over.
+  Future<_ProtocolResponse> _confirmDelivery(
+    Device peer,
+    TransferSession transfer,
+    FileItem item,
+    int crc,
+  ) async {
+    for (int attempt = 0; ; attempt++) {
+      if (_cancelled) throw const _Cancelled();
+      try {
+        return await _post(
+          _url(peer, 'verify', {
+            'session': _sessionId!,
+            'file': item.id,
+            'crc': crc.toRadixString(16),
+          }),
+        );
+      } catch (error) {
+        transfer.log(
+          'The confirmation did not arrive',
+          file: item.relativePath,
+          detail: _describeError(error),
+          failure: true,
+        );
+        if (attempt >= maxResendAttempts) rethrow;
+      }
+    }
+  }
+
+  // The `reason` a control answer carries, for the refusals that mean something
+  // other than "that failed". Anything unreadable is no reason at all.
+  String? _reasonOf(String body) {
+    if (body.isEmpty) return null;
+    try {
+      final dynamic decoded = json.decode(body);
+      final dynamic reason = decoded is Map ? decoded['reason'] : null;
+      return reason is String ? reason : null;
+    } on FormatException {
+      return null;
+    }
   }
 
   Future<String> _readSmallBody(

@@ -68,8 +68,15 @@ const int networkConnectTimeoutSec = 3;
 const int networkHeaderTimeoutSec = 5;
 const int networkIdleTimeoutSec = 10;
 const int consentTransportMarginSec = 3;
-// Automatic re-sends of a file that failed its checksum.
+// Automatic re-sends of a file that failed its checksum. The same allowance
+// covers asking again for a confirmation whose answer never arrived: both are
+// the protocol trying once more without troubling anyone.
 const int maxResendAttempts = 2;
+// What the receiver answers about a file it has already verified and published.
+// Its own reason rather than a plain out-of-order refusal, because a sender
+// that reads this counts the file as delivered instead of failing it and
+// offering a retry that would publish a second copy of it.
+const String reasonAlreadyVerified = 'already-verified';
 // Speed and ETA are averaged over this window; the instant value is unreadable.
 const int speedWindowSec = 5;
 // Log lines one transfer keeps. A run of three thousand files writes one line

@@ -125,29 +125,30 @@ void main() {
     expect(replies.map((r) => r.status), containsAll([200, 409]));
   });
 
+  // A repeat of the request the session is on is a sender that lost the answer,
+  // not a protocol error, and is answered as a recovery — see
+  // resend_recovery_test.dart. What is genuinely out of order still is.
   test(
-    'rejects finish, duplicate upload and duplicate verify out of order',
+    'rejects a finish that comes too early and a session used after it ends',
     () async {
       final prepared = await post('prepare', body: manifest('file.bin'));
       final session = prepared.body['sessionId'] as String;
 
-      final uploadReq = await client.postUrl(
-        url('upload', {'session': session, 'file': 'file-1'}),
-      );
-      uploadReq.contentLength = 1;
-      uploadReq.add([7]);
-      final upload = await uploadReq.close();
-      expect(upload.statusCode, 200);
-      await upload.drain<void>();
+      Future<int> sendFile(List<int> bytes) async {
+        final uploadReq = await client.postUrl(
+          url('upload', {'session': session, 'file': 'file-1'}),
+        );
+        uploadReq.contentLength = bytes.length;
+        uploadReq.add(bytes);
+        final upload = await uploadReq.close();
+        await upload.drain<void>();
+        return upload.statusCode;
+      }
 
+      expect(await sendFile([7]), 200);
+
+      // A file is still waiting to be verified, so the session cannot close.
       expect((await post('finish', query: {'session': session})).status, 409);
-      expect(
-        (await post(
-          'upload',
-          query: {'session': session, 'file': 'file-1'},
-        )).status,
-        409,
-      );
 
       final crc = getCrc32([7]).toRadixString(16);
       expect(
@@ -157,15 +158,10 @@ void main() {
         )).status,
         200,
       );
-      expect(
-        (await post(
-          'verify',
-          query: {'session': session, 'file': 'file-1', 'crc': crc},
-        )).status,
-        409,
-      );
       expect((await post('finish', query: {'session': session})).status, 200);
+      // The session is gone: nothing addressed to it means anything now.
       expect((await post('finish', query: {'session': session})).status, 400);
+      expect(await sendFile([7]), 400);
     },
   );
 

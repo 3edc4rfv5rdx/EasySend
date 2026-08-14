@@ -2,6 +2,7 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+- E: A confirmation whose answer was lost on the way back cost the file it was about: the receiver publishes a file before it answers the verify asking about it, so the sender sent the whole file again, had those bytes refused as out of order for the rest of the session, and ended with a file the receiver counted as received and the sender called failed — offering a Retry that put a second copy in the receive folder; the answer is now asked for again instead of the file being sent again, a receiver that already has the file says so in its own words and the sender counts it delivered, and a receiver that never verified it takes the file from the start
 - I: A fresh deep audit of lib/, the Kotlin service, the Android manifest and the locales against SPEC.md left eight findings in ADD/tofix6.md, two of them P1, each written as a standalone prompt; two were proved with a throw-away probe against the real receive server rather than reasoned about, the weak one says so, and what was checked and found sound is listed there too
 
 ## v0.2.260813+95
