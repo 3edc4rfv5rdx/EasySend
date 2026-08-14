@@ -145,7 +145,7 @@ counts on both sides and leaves one file, not two, in the receive folder.
 
 ---
 
-### 2. P1 — An unguarded `startForeground()` turns a refused foreground service into a process crash
+### 2. P1 [FIXED 9a0e2e2] — An unguarded `startForeground()` turns a refused foreground service into a process crash
 
 **Affected components:** `android/app/src/main/kotlin/a/a/easysend/TransferService.kt`
 `onStartCommand` (lines 59–99) and `startForegroundWith` (lines 101–155);
