@@ -115,6 +115,34 @@ Future<bool> updateReceiverAdvertisement({
   return startAdvertisement();
 }
 
+// Everything an exit does once the user has agreed to it, in the order it has
+// to happen in. Out here rather than inside the button handler because it is
+// the part that can be wrong: the receiver goes first so the goodbye is not
+// advertising a listener that is still up; discovery is the one stop that
+// announces itself; the foreground service goes before the screen, since its
+// notification claims a receiver that has just stopped; and whatever is only
+// meant to last one run is let go at the end, because on Android the process
+// stays alive and the next launch would inherit it.
+//
+// The stops are passed in so this can be run without a network: every one of
+// them binds sockets in production.
+Future<void> shutdownForExit({
+  required bool android,
+  required Future<void> Function() stopReceiver,
+  required Future<void> Function({bool announceLeaving}) stopAdvertisement,
+  required void Function() stopPolling,
+  required Future<void> Function() stopBackgroundService,
+}) async {
+  await stopReceiver();
+  await stopAdvertisement(announceLeaving: true);
+  stopPolling();
+  if (android) await stopBackgroundService();
+  for (final Device device in xvDevices) {
+    device.departedAt = null;
+  }
+  clearSessionState();
+}
+
 // Retry opens a transfer of its own, so it waits for whatever is on screen to
 // end: this device does one transfer at a time, in either direction. Without
 // this the button was live while an incoming transfer ran, and pressing it was
@@ -792,23 +820,13 @@ class _HomeScreenState extends State<HomeScreen>
     // only killing the process recovers.
     _networkDesired = false;
     _networkEpoch++;
-    await receiveServer.stop();
-    // The one stop that is a real departure, so it is the one that says so.
-    await discovery.stop(announceLeaving: true);
-    manualPoller.stop();
-    // The foreground service outlives the Activity for the same reason, and its
-    // notification claims a receiver that just stopped listening.
-    if (Platform.isAndroid) await androidService.stopService();
-    // The session ends here, whether or not the process does. On Android it
-    // does not — finishActivityAndTask() below closes the screen, nothing kills
-    // us — so everything that is supposed to last one run has to be let go by
-    // hand: the transfer list, the sweeps that run once a launch, and the
-    // badges saying who left, which would otherwise greet the next launch as
-    // news that had just arrived.
-    for (final Device device in xvDevices) {
-      device.departedAt = null;
-    }
-    clearSessionState();
+    await shutdownForExit(
+      android: Platform.isAndroid,
+      stopReceiver: receiveServer.stop,
+      stopAdvertisement: discovery.stop,
+      stopPolling: manualPoller.stop,
+      stopBackgroundService: androidService.stopService,
+    );
     // A move or resize in the last 400 ms is still sitting in the debounce, and
     // exit(0) below would take it with it: the window would come back where it
     // was two positions ago, which reads as the feature not working.
