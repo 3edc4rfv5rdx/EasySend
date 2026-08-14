@@ -125,6 +125,28 @@ void main() {
     expect(replies.map((r) => r.status), containsAll([200, 409]));
   });
 
+  // One transfer at a time, in either direction (SPEC 5.7). Sending and
+  // receiving at once left one Stop button acting on whichever of the two
+  // happened to be first in the list.
+  test('a sender of our own makes the receiver busy too', () async {
+    xvTransfers = [
+      TransferSession(
+        id: 'outgoing',
+        incoming: false,
+        peerName: 'Peer',
+        files: [FileItem(id: 'f', relativePath: 'f.bin', size: 1)],
+      )..status = TransferStatus.active,
+    ];
+
+    final Reply refused = await post('prepare', body: manifest('one.bin'));
+    expect(refused.status, 409);
+    expect(refused.body['reason'], 'busy');
+
+    // And the slot is free the moment that transfer is over.
+    xvTransfers.single.status = TransferStatus.done;
+    expect((await post('prepare', body: manifest('one.bin'))).status, 200);
+  });
+
   // A repeat of the request the session is on is a sender that lost the answer,
   // not a protocol error, and is answered as a recovery — see
   // resend_recovery_test.dart. What is genuinely out of order still is.

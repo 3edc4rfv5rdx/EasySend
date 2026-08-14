@@ -284,6 +284,17 @@ void serverStateChanged() => serverTick.value++;
 // can open what arrived; no history is kept between runs.
 List<TransferSession> xvTransfers = [];
 
+// This device is sending right now.
+//
+// One transfer at a time, whichever way it goes. The receiver and the sender
+// are separate machines that knew nothing of each other, so a device could be
+// sending to one peer while another peer sent to it — nothing this app ever
+// promised, and it left a single Stop button acting on whichever of the two
+// happened to be first in the list. An incoming request asks this and answers
+// the same 'busy' a second peer gets.
+bool outgoingTransferRunning() =>
+    xvTransfers.any((TransferSession t) => t.isRunning && !t.incoming);
+
 // An address learned over the wire is worth keeping only if we could dial it
 // back. A loopback source means the sender runs on this very machine — a second
 // copy of the app, or an emulator whose packets arrive through NAT — and

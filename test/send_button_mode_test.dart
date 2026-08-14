@@ -28,4 +28,22 @@ void main() {
       SendButtonMode.send,
     );
   });
+
+  // One transfer at a time, in either direction. Retry starts one of its own,
+  // and it was the only control left that could have made two of them run at
+  // once: an incoming transfer leaves the sender idle, so nothing stopped it.
+  test('Retry waits for whatever is running, incoming included', () {
+    expect(
+      retryEnabled(senderBusy: false, anyTransferRunning: false),
+      isTrue,
+    );
+    expect(
+      retryEnabled(senderBusy: false, anyTransferRunning: true),
+      isFalse,
+    );
+    expect(
+      retryEnabled(senderBusy: true, anyTransferRunning: false),
+      isFalse,
+    );
+  });
 }

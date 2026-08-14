@@ -115,6 +115,13 @@ Future<bool> updateReceiverAdvertisement({
   return startAdvertisement();
 }
 
+// Retry opens a transfer of its own, so it waits for whatever is on screen to
+// end: this device does one transfer at a time, in either direction. Without
+// this the button was live while an incoming transfer ran, and pressing it was
+// the one way left to have two of them at once.
+bool retryEnabled({required bool senderBusy, required bool anyTransferRunning}) =>
+    !senderBusy && !anyTransferRunning;
+
 enum SendButtonMode { send, stop, stopping }
 
 // What the one button at the bottom is at this moment. Cancelling marks the
@@ -1421,7 +1428,13 @@ class _HomeScreenState extends State<HomeScreen>
                 ),
                 if (_canRetry(t))
                   TextButton(
-                    onPressed: sender.busy ? null : () => _retryTransfer(t),
+                    onPressed:
+                        retryEnabled(
+                          senderBusy: sender.busy,
+                          anyTransferRunning: _running != null,
+                        )
+                        ? () => _retryTransfer(t)
+                        : null,
                     child: Text(lw('Retry')),
                   ),
               ],

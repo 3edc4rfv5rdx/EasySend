@@ -322,7 +322,10 @@ class ReceiveServer {
 
   Future<void> _prepare(HttpRequest req) async {
     // One session at a time: parallel writes into the same folder would race.
-    if (_preparing || _current != null) {
+    // An outgoing transfer counts as well — this device does one transfer at a
+    // time, in either direction — and the answer is the same 'busy' a second
+    // sender gets, which the far end already knows how to show.
+    if (_preparing || _current != null || outgoingTransferRunning()) {
       return _json(req, {'reason': 'busy'}, status: HttpStatus.conflict);
     }
 
