@@ -511,7 +511,7 @@ class _HomeScreenState extends State<HomeScreen>
         rebuildApp();
         await androidService.sync();
         okInfoBarRed(
-          lw('Notification permission is required for background receiving'),
+          lw('Background receiving needs notifications'),
         );
         final AppLifecycleState state =
             WidgetsBinding.instance.lifecycleState ??
@@ -564,7 +564,7 @@ class _HomeScreenState extends State<HomeScreen>
     // port until it is done — said out loud, since the setting is already
     // showing the new number.
     if (_transferBusy) {
-      okInfoBarOrange(lw('The new port takes effect when the transfer ends'));
+      okInfoBarOrange(lw('The port changes when the transfer ends'));
     }
     _networkEpoch++;
     _queueNetworkTransition();
@@ -614,7 +614,7 @@ class _HomeScreenState extends State<HomeScreen>
     // look like it did nothing at all.
     if (paths.isEmpty) {
       if (result.files.isNotEmpty) {
-        okInfoBarRed(lw('The file manager returned no usable path'));
+        okInfoBarRed(lw('The file manager gave no path'));
       }
       return;
     }
@@ -869,7 +869,7 @@ class _HomeScreenState extends State<HomeScreen>
         lw(
           _target == null
               ? 'Add files and pick a device'
-              : 'Add files or folders to send',
+              : 'Add files to send',
         ),
       );
       return;

@@ -139,7 +139,7 @@ void main() {
       expect(
         log,
         contains('from-the-cloud.jpg  Could not delete it here: '
-            'The app cannot reach the original'),
+            'The original is out of reach'),
       );
       expect(log, contains('mine.txt  Deleted here'));
     });
@@ -259,7 +259,7 @@ void main() {
     final List<String> lines = xvTransfers.single.events
         .map(formatTransferEvent)
         .toList();
-    expect(lines.first, contains('Sources are deleted after they arrive'));
+    expect(lines.first, contains('Originals will be deleted'));
     expect(
       lines.where((l) => l.contains('moved.txt')),
       contains(contains('Deleted here')),

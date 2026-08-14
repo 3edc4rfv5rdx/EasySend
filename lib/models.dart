@@ -169,10 +169,10 @@ List<String> transferLogHeader(TransferSession transfer) => [
 String? trimmedLogLine(TransferSession transfer) {
   final List<String> parts = [
     if (transfer.quietFiles > 0)
-      '${lw('Other files went through without a word')}: '
+      '${lw('Other files went through quietly')}: '
           '${transfer.quietFiles}',
     if (transfer.droppedLines > 0)
-      '${lw('Older lines the log could not keep')}: '
+      '${lw('Older lines dropped')}: '
           '${transfer.droppedLines}',
   ];
   return parts.isEmpty ? null : parts.join(' — ');

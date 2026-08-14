@@ -139,7 +139,7 @@ class SendService {
     _current = transfer;
     // Said once at the top: reading the log later, the deletions further down
     // should not be the first hint that this was a move.
-    if (move) transfer.log('Sources are deleted after they arrive');
+    if (move) transfer.log('Originals will be deleted');
     xvTransfers.add(transfer);
     transfersChanged();
 
@@ -207,7 +207,7 @@ class SendService {
             transfer.log(
               'Could not delete it here',
               file: item.relativePath,
-              detail: lw('The app cannot reach the original'),
+              detail: lw('The original is out of reach'),
               failure: true,
             );
             continue;
@@ -223,7 +223,7 @@ class SendService {
         if (unreachable > 0) {
           try {
             okInfoBarOrange(
-              '${lw('The app cannot reach the original')}: $unreachable',
+              '${lw('The original is out of reach')}: $unreachable',
             );
           } catch (e) {
             myPrint('cannot report the originals left behind: $e');
@@ -360,7 +360,7 @@ class SendService {
       if (id is! String ||
           id.isEmpty ||
           utf8.encode(id).length > maxProtocolIdBytes) {
-        _fail(transfer, lw('The receiver answered with no session'));
+        _fail(transfer, lw('No session in the answer'));
         return null;
       }
       return id;

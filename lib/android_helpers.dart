@@ -361,7 +361,7 @@ class AndroidService {
     _lastText = '';
     await _keepScreenOn(false);
     final String message = lw(
-      'Background receiving is temporarily unavailable',
+      'Background receiving is unavailable',
     );
     myPrint(message);
     okInfoBarOrange(message);

@@ -8,7 +8,7 @@ void main() {
   test('each reason for not receiving says its own thing', () {
     expect(
       receiveBannerText(ReceiveReadinessFailure.folder, 15352),
-      'Receive folder unavailable, receiving is off',
+      'Folder unavailable, receiving is off',
     );
     expect(
       receiveBannerText(ReceiveReadinessFailure.port, 15352),
@@ -18,7 +18,7 @@ void main() {
     // with the rest of the setup unfinished — so it says "may be off".
     expect(
       receiveBannerText(ReceiveReadinessFailure.transition, 15352),
-      'Network setup did not finish, receiving may be off',
+      'Setup did not finish, receiving may be off',
     );
   });
 

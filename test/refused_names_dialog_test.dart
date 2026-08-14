@@ -25,7 +25,7 @@ void main() {
     await tester.pump();
 
     expect(find.text('Invalid names'), findsOneWidget);
-    expect(find.text('These files cannot be sent:'), findsOneWidget);
+    expect(find.text('These cannot be sent:'), findsOneWidget);
     // Whole, not shortened: the end is where two files in a folder differ.
     expect(find.text(r'report\draft.pdf'), findsOneWidget);
     expect(find.text(long), findsOneWidget);

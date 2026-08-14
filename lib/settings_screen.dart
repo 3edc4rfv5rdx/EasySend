@@ -130,12 +130,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
       initial: xdef['Device name'],
       validator: (String value) {
         return switch (validateDeviceName(value)) {
-          DeviceNameProblem.empty => lw('Device name cannot be empty'),
+          DeviceNameProblem.empty => lw('Cannot be empty'),
           DeviceNameProblem.tooLong => lw(
-            'Device name is too long (maximum 256 UTF-8 bytes)',
+            'Too long, 256 bytes at most',
           ),
           DeviceNameProblem.controlCharacter => lw(
-            'Device name cannot contain control characters',
+            'No control characters',
           ),
           null => null,
         };
@@ -157,14 +157,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _editRecvFolder() async {
     if (_receiving) {
-      okInfoBarOrange(lw('Cannot change the receive folder during a transfer'));
+      okInfoBarOrange(lw('Cannot change it during a transfer'));
       return;
     }
     final String? dir = await pickFolder(initialPath: xvRecvDir);
     if (dir == null) return;
     // Asked again: the picker was open long enough for a transfer to arrive.
     if (_receiving) {
-      okInfoBarOrange(lw('Cannot change the receive folder during a transfer'));
+      okInfoBarOrange(lw('Cannot change it during a transfer'));
       return;
     }
     if (!await canWriteInto(dir)) {
@@ -187,7 +187,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final int? port = int.tryParse(value);
     // Below 1024 needs root on Linux; the ephemeral range gets taken at random.
     if (port == null || port < 1024 || port > 65535) {
-      okInfoBarRed(lw('Port must be between 1024 and 65535'));
+      okInfoBarRed(lw('Port must be 1024 to 65535'));
       return;
     }
     await _apply(() => xdef['Port'] = '$port');
@@ -295,14 +295,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
               value: xdef['Receive in background'] == 'true',
               title: Text(lw('Receive in background'), style: tsNormal),
               subtitle: Text(
-                lw('Keeps a notification and receives with the screen off'),
+                lw('Receives with the screen off'),
                 style: tsSmall,
               ),
               onChanged: (v) async {
                 if (v && !await ensureNotificationPermission()) {
                   okInfoBarRed(
                     lw(
-                      'Notification permission is required for background receiving',
+                      'Background receiving needs notifications',
                     ),
                   );
                   return;
@@ -313,7 +313,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 // exempt, so point the user at that setting once.
                 if (v) {
                   okInfoBarBlue(
-                    lw('Also exclude EasySend from battery optimisation'),
+                    lw('Also exclude it from battery optimisation'),
                   );
                 }
               },
@@ -363,7 +363,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             value: xdef['Ask before exit'] == 'true',
             title: Text(lw('Ask before exit'), style: tsNormal),
             subtitle: Text(
-              lw('A running transfer is always asked about'),
+              lw('A transfer is always asked about'),
               style: tsSmall,
             ),
             onChanged: (v) => _apply(() => xdef['Ask before exit'] = '$v'),
@@ -403,7 +403,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   final bool yes = await okConfirm(
                     title: lw('Revoke trust'),
                     message:
-                        '${lw('Ask again before accepting from this device')}?\n${d.name}',
+                        '${lw('Ask again next time')}?\n${d.name}',
                   );
                   if (yes) await _apply(() => d.trusted = false);
                 },

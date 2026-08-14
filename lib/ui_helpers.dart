@@ -57,12 +57,12 @@ ButtonStyle get bannerButtonStyle => TextButton.styleFrom(
 String receiveBannerText(ReceiveReadinessFailure? failure, int port) =>
     switch (failure) {
       ReceiveReadinessFailure.folder => lw(
-        'Receive folder unavailable, receiving is off',
+        'Folder unavailable, receiving is off',
       ),
       ReceiveReadinessFailure.port =>
         '${lw('Port is busy, receiving is off')}: $port',
       ReceiveReadinessFailure.transition => lw(
-        'Network setup did not finish, receiving may be off',
+        'Setup did not finish, receiving may be off',
       ),
       null => '',
     };
@@ -418,7 +418,7 @@ Future<bool> showRefusedNamesDialog(List<RefusedPick> refused) async {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('${lw('These files cannot be sent')}:', style: tsNormal),
+            Text('${lw('These cannot be sent')}:', style: tsNormal),
             const SizedBox(height: 8),
             Flexible(
               child: Scrollbar(
@@ -601,7 +601,7 @@ Future<bool> showNetworkSafetyWarning({BuildContext? context}) async {
         ),
         content: Text(
           lw(
-            'Transfers are unencrypted. Use EasySend only on private networks you trust, not on public or guest Wi-Fi.',
+            'Traffic is not encrypted. Use EasySend only on a network you trust, not on public Wi-Fi.',
           ),
           style: tsNormal,
         ),

@@ -75,7 +75,7 @@ void main() {
       expect(transfer.isRunning, isFalse);
       expect(transfer.status, TransferStatus.failed);
       // Named for what went wrong, not caught by the last-resort net in send().
-      expect(transfer.error, 'The receiver answered with no session');
+      expect(transfer.error, 'No session in the answer');
     });
   }
 
