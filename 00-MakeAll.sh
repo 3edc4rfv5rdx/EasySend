@@ -9,41 +9,33 @@
 # Finally 01-LinkOut.sh puts the AppImage and the arm64-v8a APK into OUT/ as
 # links under their own names, and sweeps whatever else was there.
 #
-# Arguments go to 10-MakeRelease.sh: --minor and --keep-line overrule what the
-# changelog says about the version line (README, Versions).
-#
 cd "$(dirname "$0")"
 
 if [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
-    sed -n '2,13p' "$0"
+    sed -n '2,10p' "$0"
     exit 0
 fi
 
 SKIPPED=""
 
-run() { # run <script> <fatal|optional> [arguments for the script]
-    local script="$1"
-    local kind="$2"
-    shift 2
+run() { # run <script> <fatal|optional>
     echo
-    echo "=== $script ==="
-    if [ ! -x "$script" ]; then
-        echo ">>> $script is missing or not executable"
-        [ "$kind" = "fatal" ] && exit 1
-        SKIPPED="$SKIPPED $script"
+    echo "=== $1 ==="
+    if [ ! -x "$1" ]; then
+        echo ">>> $1 is missing or not executable"
+        [ "$2" = "fatal" ] && exit 1
+        SKIPPED="$SKIPPED $1"
         return 0
     fi
-    if ./"$script" "$@"; then
+    if ./"$1"; then
         return 0
     fi
-    echo ">>> $script failed"
-    [ "$kind" = "fatal" ] && exit 1
-    SKIPPED="$SKIPPED $script"
+    echo ">>> $1 failed"
+    [ "$2" = "fatal" ] && exit 1
+    SKIPPED="$SKIPPED $1"
 }
 
-# Only the release step takes arguments; the rest of the run has nothing to
-# decide.
-run 10-MakeRelease.sh fatal "$@"
+run 10-MakeRelease.sh fatal
 run 11-EmulRELEASE.sh optional
 run 12-PhoneRELEASE.sh optional
 # 14 builds the Linux release itself, so 13 would only do the same work twice.

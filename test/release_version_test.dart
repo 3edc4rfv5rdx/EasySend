@@ -39,52 +39,6 @@ void main() {
     expect((result.stdout as String).trim(), '0.3.260811+65');
   });
 
-  group('the changelog says whether a feature is waiting', () {
-    Future<int> hasFeature(String changelog) async {
-      final Directory temp = await Directory.systemTemp.createTemp('easysend-cl-');
-      addTearDown(() => temp.delete(recursive: true));
-      final File file = File('${temp.path}/CHANGELOG.md');
-      await file.writeAsString(changelog);
-      final result = await Process.run('bash', [
-        '10-MakeRelease.sh',
-        '--has-feature',
-        file.path,
-      ], workingDirectory: Directory.current.path);
-      return result.exitCode;
-    }
-
-    test('a feature under Unreleased is found', () async {
-      expect(
-        await hasFeature('## Unreleased\n- E: a fix\n- N: something new\n'),
-        0,
-      );
-    });
-
-    test('fixes and tweaks alone are not one', () async {
-      expect(
-        await hasFeature('## Unreleased\n- E: a fix\n- F: a tweak\n'),
-        isNot(0),
-      );
-    });
-
-    // What was released long ago must not keep demanding a line of its own.
-    test('a feature in an older section does not count', () async {
-      expect(
-        await hasFeature(
-          '## Unreleased\n- E: a fix\n\n## v0.2.260813+95\n- N: an old one\n',
-        ),
-        isNot(0),
-      );
-    });
-
-    test('an empty Unreleased is quiet', () async {
-      expect(
-        await hasFeature('## Unreleased\n\n## v0.2.260813+95\n- N: an old one\n'),
-        isNot(0),
-      );
-    });
-  });
-
   test('rejects malformed input before mutation', () async {
     final result = await compute('not-a-version', '260811');
     expect(result.exitCode, isNot(0));
@@ -97,7 +51,6 @@ void main() {
   group('the line follows the changelog by itself', () {
     Future<String> dryRun(
       String changelog, {
-      List<String> flags = const [],
       String version = '0.2.260811+72',
     }) async {
       final Directory root = await Directory.systemTemp.createTemp(
@@ -126,7 +79,7 @@ void main() {
 
       final ProcessResult result = await Process.run(
         'bash',
-        ['10-MakeRelease.sh', '--dry-run', ...flags],
+        ['10-MakeRelease.sh', '--dry-run'],
         workingDirectory: root.path,
         environment: {'PATH': '${bin.path}:${Platform.environment['PATH']}'},
       );
@@ -179,45 +132,36 @@ void main() {
       );
     });
 
-    test('either overrule wins over the changelog', () async {
+    // Nothing waiting at all is the ordinary state right after a release.
+    test('an empty Unreleased leaves the line alone', () async {
       expect(
-        await dryRun(
-          '## Unreleased\n- N: something new\n',
-          flags: ['--keep-line'],
-        ),
+        await dryRun('## Unreleased\n\n## v0.2.260811+72\n- N: an old one\n'),
         startsWith('0.2.'),
-      );
-      expect(
-        await dryRun('## Unreleased\n- E: a fix\n', flags: ['--minor']),
-        startsWith('0.3.'),
       );
     });
   });
 
   test('repository version sources agree in dry-run mode', () async {
     // Derived from the file rather than written down: a build number spelled
-    // out here would make this test fail on the release after next.
+    // out here would make this test fail on the release after next. What the
+    // line does belongs to the group above; here it only has to be well formed.
     final RegExpMatch? current = RegExp(
-      r'^version:\s*(\d+\.\d+)\.\d{6}\+(\d+)\s*$',
+      r'^version:\s*\d+\.\d+\.\d{6}\+(\d+)\s*$',
       multiLine: true,
     ).firstMatch(await File('pubspec.yaml').readAsString());
     expect(current, isNotNull, reason: 'pubspec.yaml carries no version line');
-    final String line = current!.group(1)!;
-    final int nextBuild = int.parse(current.group(2)!) + 1;
+    final int nextBuild = int.parse(current!.group(1)!) + 1;
 
-    // --keep-line so this stays a question about the two version sources: what
-    // the line does depends on the changelog, and the group above owns that.
     final result = await Process.run('bash', [
       '10-MakeRelease.sh',
       '--dry-run',
-      '--keep-line',
     ], workingDirectory: Directory.current.path);
     // A non-zero exit is the script refusing pubspec.yaml and globals.dart
     // after they drifted apart, which is the disagreement this test is for.
     expect(result.exitCode, 0, reason: '${result.stderr}');
     expect(
       (result.stdout as String).trim(),
-      matches(RegExp('^${RegExp.escape(line)}\\.\\d{6}\\+$nextBuild\$')),
+      matches(RegExp('^\\d+\\.\\d+\\.\\d{6}\\+$nextBuild\$')),
     );
   });
 }

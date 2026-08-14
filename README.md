@@ -106,9 +106,8 @@ The line — `major.minor` — is decided by the changelog, and moves on its own
 release carrying an `N:` entry under `Unreleased` since the last tag takes the
 minor up by one, and everything else — fixes, tweaks, refactors, plumbing —
 keeps the line and just moves the date. So the decision is made once, when the
-entry is written as `N:` rather than `E:`, and nothing has to be remembered at
-build time. `--minor` and `--keep-line` overrule it either way, for the release
-that is an exception.
+entry is written as `N:` rather than `E:`; there is nothing to remember at build
+time and no flag to pass.
 
 `1.0` is not a mood either: it is the twelve readiness criteria in `SPEC.md`
 §13, all met, with the "not in v1" list of §12 still out.

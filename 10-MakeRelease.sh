@@ -9,7 +9,7 @@
 # Installing is a separate step: 11-EmulRELEASE.sh, 12-PhoneRELEASE.sh
 #
 # The major.minor line moves by itself when CHANGELOG has an N: entry waiting
-# since the last tag. --minor and --keep-line overrule that either way.
+# since the last tag; there is nothing to pass and nothing to remember.
 #
 set -e
 cd "$(dirname "$0")"
@@ -52,7 +52,7 @@ unreleased_has_feature() {
         /^## / { inside = 0 }
         inside && /^- N:/ { found = 1 }
         END { exit !found }
-    ' "${1:-CHANGELOG.md}"
+    ' CHANGELOG.md
 }
 
 # The line the last release went out on, so the rule fires once per feature and
@@ -69,21 +69,6 @@ released_line() {
     return 0
 }
 
-# Taken out of the argument list first, so they may be given in any order.
-# Neither is normally needed: the changelog decides, and these two are only for
-# overruling it in either direction.
-FORCE_MINOR=false
-FORCE_KEEP=false
-ARGS=()
-for arg in "$@"; do
-    case "$arg" in
-        --minor) FORCE_MINOR=true ;;
-        --keep-line) FORCE_KEEP=true ;;
-        *) ARGS+=("$arg") ;;
-    esac
-done
-set -- ${ARGS[@]+"${ARGS[@]}"}
-
 if [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
     sed -n '2,13p' "$0"
     exit 0
@@ -91,12 +76,6 @@ fi
 
 if [ "$1" = "--compute" ]; then
     compute_next_version "$2" "$3" "${4:-}"
-    exit
-fi
-
-# Asked on its own so the rule can be tested without building anything.
-if [ "$1" = "--has-feature" ]; then
-    unreleased_has_feature "${2:-CHANGELOG.md}"
     exit
 fi
 
@@ -113,19 +92,15 @@ if [ "$CURRENT_VERSION" != "$GLOBAL_VERSION" ] || [ "$CURRENT_BUILD" != "$GLOBAL
     exit 1
 fi
 # The line moves by itself when the changelog says a feature is waiting and the
-# last release went out on this same line. Nothing to remember and nothing to
-# type: the decision was made when the entry was written as N: rather than E:.
-# Asked once here, so --dry-run answers exactly what a build would produce.
+# last release went out on this same line. Nothing to pass and nothing to
+# remember: the decision was made when the entry was written as N: rather than
+# E:. Asked once here, so --dry-run answers exactly what a build would produce.
 RELEASED_LINE=$(released_line)
 BUMP=""
-if [ "$FORCE_KEEP" != true ]; then
-    if [ "$FORCE_MINOR" = true ]; then
-        BUMP=minor
-    elif [ -n "$RELEASED_LINE" ] &&
-         [ "$RELEASED_LINE" = "$CURRENT_VERSION_LINE" ] &&
-         unreleased_has_feature; then
-        BUMP=minor
-    fi
+if [ -n "$RELEASED_LINE" ] &&
+   [ "$RELEASED_LINE" = "$CURRENT_VERSION_LINE" ] &&
+   unreleased_has_feature; then
+    BUMP=minor
 fi
 FULL_VER=$(compute_next_version "$CURRENT_FULL" "$(date +%y%m%d)" "$BUMP")
 VERSION=${FULL_VER%+*}
