@@ -1,8 +1,10 @@
 # CHANGELOG
-> N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
+> N=new feature, E=error fix, F=fine-tune, I=infrastructure
+> N moves the version line: the app can do something it could not before.
+> F is the same thing done better; E is behaviour that was wrong, whatever the size of the fix.
 
 ## Unreleased
-- I: 00-MakeAll.sh hands its arguments to the release step, so ./00-MakeAll.sh --minor works like the release script's own flag.
+- I: The changelog legend drops R and T — four entries between them, and T was not even used in the sense it was given — and says where the line between N, E and F runs.
 - I: The version line now moves by itself: a release with an N: entry waiting under Unreleased takes the minor up once, however many features are waiting, and only the first build after them. README says what makes 1.0.
 - I: IDEAS.txt now carries the reconciler idea for the network state machine — why it looks the way it does, what the alternative is, and why we are not touching it.
 - N: Turning on background receiving now asks Android for the battery exemption it depends on, in one system dialog, and only when the app is not exempt already; the hint about it is left for a refusal.
@@ -10,7 +12,7 @@
 - E: A selection of very deep paths outgrew the manifest body and died at the far end as HTTP 413; it is refused at pick time now, with a reason.
 - E: Background readiness read as recovered before the service had started, so ✕ could leave a receiver nothing was holding up.
 - E: Every refused verify was logged as a checksum mismatch; only a real mismatch says that now, the rest carry the code.
-- F: One transfer at a time, in either direction: while sending, an incoming request gets "receiver is busy", and Retry waits.
+- E: One transfer at a time, in either direction: while sending, an incoming request gets "receiver is busy", and Retry waits.
 - E: Two picked documents with one name overwrote each other in the cache and one was sent under the other's name; each copy gets its own directory.
 - E: A foreground service Android refused to start took the process with it; the refusal is caught and background receiving reports itself unavailable.
 - E: Stopping a receive left the sender retrying every remaining file into a dead session; it now ends the transfer at once.
@@ -43,7 +45,7 @@
 - E: A file that appeared in the receive folder while the last checks were running was silently replaced by the incoming one: the final name is now claimed with an exclusive create before the rename, so the file that got there first keeps its place and the arrival takes the next free name; the allocator's last-resort name is checked and reserved like every other instead of being handed out blind
 - E: A received folder shaped exactly like an unfinished session — the same name prefix and the same marker file inside — was deleted at the next startup; ownership is now recorded in the app's own settings directory before the session directory is created, where no transfer can reach it, and the record's absolute path also cleans up a folder that has since stopped being the receive folder
 - E: Muted text was unreadable on a selected row: a device chosen and then gone offline left it at 4.15:1 in the Dark palette, under the 4.5:1 it needs, so the dimming step was raised to clear both surfaces in every palette
-- T: Contrast of muted, body and app bar text is measured against every palette in colors.json, and the device row's icon rule is a tested function instead of a branch inside the widget
+- I: Contrast of muted, body and app bar text is measured against every palette in colors.json, and the device row's icon rule is a tested function instead of a branch inside the widget
 - F: An offline device is marked by a struck-through platform icon instead of the word "offline", which wrapped its address onto a third line; the word is still there as the icon's tooltip
 - F: The remove buttons in the file and device lists sit closer to the right edge, leaving that width to the name beside them; the buttons keep their full tap target
 - F: Everything quieter than body text — an offline device with its icon, remove and copy buttons, row chevrons, refusal reasons, input hints, the bar of a cancelled transfer — is dimmed from the theme's text colour instead of the frame colour, which was too faint to read on the light backgrounds
@@ -89,7 +91,7 @@
 - F: The theme states its density and minimum tap target instead of letting Material pick them per platform, so a control is the same size on the desktop as on the phone, which is the single layout SPEC 4 asks for
 - N: A "delete originals" tick beside the Send button moves instead of copying — each source is deleted once that file is verified on the other side, failures and cancelled transfers delete nothing, and every deletion is written to the log
 - F: The Send button no longer repeats the count and the size the Selected heading already carries, and says "Move" while the tick is on
-- R: The receive server and the sender delete through one shared helper instead of each having its own
+- I: The receive server and the sender delete through one shared helper instead of each having its own
 - N: A tap on any transfer opens its log — what happened to every file, response codes, refusal reasons and a line per failed attempt — with a copy button that takes the build version with it
 - F: The tap on a transfer no longer opens the received file, which only ever worked on incoming rows and which the receive-folder button already does
 - F: The add-device and receive-folder buttons in the section headings are larger
@@ -188,7 +190,7 @@
 - F: A heavier + and folder icon in the section headings, 22 px instead of 18 in the same button
 - F: The selection list shows its scrollbar while scrolling instead of pinning it beside a list of two rows
 - F: The receive folder in the settings keeps its end: the phone storage prefix every path starts with is dropped, and what still does not fit loses its head to the ellipsis instead of the folder name
-- R: The Send button drops its disabled branch: a running transfer already turns it into Stop, so the greyed-out state and the _armed getter behind it could never be reached
+- I: The Send button drops its disabled branch: a running transfer already turns it into Stop, so the greyed-out state and the _armed getter behind it could never be reached
 - F: Settings in the busy-port banner is a button and not a word: it inverts the banner, the ink becoming the surface and the error colour the label, so the only tappable thing in the strip looks tappable
 - F: A section heading is one rule across the row with the name and the button lying over it, instead of pieces of line fitted around them; nothing has to be measured, so no heading shortens itself while the row is half empty
 - F: The buttons in the section headings match the rest: Add device and Open the receive folder are the same framed button on the button colour, instead of a filled black circle and a bare icon
@@ -214,7 +216,7 @@
 - F: Buttons take the fill colour, the one meant for controls, instead of the menu colour, which named a thing this app does not have
 - F: Section headings are a 2 px rule with the name laid into it in 18 pt bold, instead of a filled coloured strip; one sectionTitle() now serves both screens
 - N: Two designed palettes, Sand and Slate: one warm base with a cold accent and the reverse, two tones each instead of six
-- R: Message colours come from the palette now, not from Colors.blue/red/orange/green in the code, so a theme owns the whole screen
+- I: Message colours come from the palette now, not from Colors.blue/red/orange/green in the code, so a theme owns the whole screen
 - F: Readable message banners: the ink is whichever of black or white contrasts better by WCAG ratio, the text is body size and semibold, and a banner stays up a second or two longer
 - F: Text over the accent is a palette colour of its own
 - F: Dark is decided by the palette's background rather than by the theme being called Dark, so stock widgets follow a dark palette of any name
