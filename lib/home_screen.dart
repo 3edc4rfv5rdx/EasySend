@@ -1328,17 +1328,21 @@ class _HomeScreenState extends State<HomeScreen>
       // picked, and a dead row with no explanation is worse than a long one.
       //
       // A device that said goodbye gets the filled badge the reachable ones get,
-      // in plum instead of green: the struck-through icon inside still says
+      // in amber instead of green: the struck-through icon inside still says
       // unreachable, and only the badge carries which of the two silences this
       // is. Tinting the outline instead was invisible — a hue in a 20 px line
       // reads as no change at all.
+      //
+      // The icon is read off the badge rather than painted in the background
+      // colour the green one uses: this badge is light on purpose, and a light
+      // icon on it would disappear the same way the tinted outline did.
       if (device.departed) {
         return Tooltip(
           message: lw('exited'),
           child: CircleAvatar(
             radius: 16,
             backgroundColor: clDeparted,
-            child: Icon(icon, color: clFon, size: 18),
+            child: Icon(icon, color: onColor(clDeparted), size: 18),
           ),
         );
       }

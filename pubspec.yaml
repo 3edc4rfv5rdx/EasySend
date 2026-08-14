@@ -4,7 +4,7 @@ publish_to: 'none'
 
 # The build number lives in two places that must stay in sync: `version:` here
 # and progVersion / buildNumber in lib/globals.dart.
-version: 0.4.260814+105
+version: 0.4.260814+106
 
 environment:
   sdk: ^3.11.5
