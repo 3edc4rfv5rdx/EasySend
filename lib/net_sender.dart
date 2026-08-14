@@ -55,6 +55,24 @@ class _SourceFingerprint {
       stat.mode == mode;
 }
 
+// What the log says about a verify the receiver refused.
+//
+// Only one of those refusals is a checksum that did not match. A file the
+// session is not expecting, a name it could not write, a failure of its own —
+// all of them used to be written down as a mismatch as well, and the status
+// code that tells them apart was thrown away. This is the line a bug report is
+// quoted from, so it has to say which refusal it was, the way the line about a
+// refused upload already does.
+({String message, String? detail}) verifyRefusalLine(int status, String? reason) {
+  if (status == HttpStatus.conflict && reason == reasonChecksum) {
+    return (message: 'Checksum did not match', detail: null);
+  }
+  return (
+    message: 'The receiver did not confirm the file',
+    detail: reason == null ? 'HTTP $status' : 'HTTP $status: $reason',
+  );
+}
+
 // Sending side. One transfer at a time, files strictly in sequence.
 class SendService {
   final Duration connectTimeout;
@@ -597,12 +615,18 @@ class SendService {
       );
       item.crc32 = crc;
       if (verify.status == HttpStatus.ok) return delivered();
-      if (_reasonOf(verify.body) == reasonNoSession) throw const _SessionGone();
+      final String? refusal = _reasonOf(verify.body);
+      if (refusal == reasonNoSession) throw const _SessionGone();
       // Each failed attempt writes its own line, so the number of them is what
       // says how many tries the file took.
+      final ({String message, String? detail}) line = verifyRefusalLine(
+        verify.status,
+        refusal,
+      );
       transfer.log(
-        'Checksum did not match',
+        line.message,
         file: item.relativePath,
+        detail: line.detail,
         failure: true,
       );
       return _FileResult.retry;

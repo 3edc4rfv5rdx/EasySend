@@ -83,6 +83,10 @@ const String reasonAlreadyVerified = 'already-verified';
 // at once instead of offering every remaining file to a receiver that has
 // nowhere to put any of them.
 const String reasonNoSession = 'no-session';
+// The one refusal of a verify that means the file arrived damaged, as against
+// every other reason a verify can be refused. Named on both sides so the sender
+// can tell the mismatch it retries for from the refusals it cannot mend.
+const String reasonChecksum = 'crc';
 // Speed and ETA are averaged over this window; the instant value is unreadable.
 const int speedWindowSec = 5;
 // Log lines one transfer keeps. A run of three thousand files writes one line

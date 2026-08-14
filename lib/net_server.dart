@@ -823,7 +823,7 @@ class ReceiveServer {
         file: item.relativePath,
         failure: true,
       );
-      return _json(req, {'reason': 'crc'}, status: HttpStatus.conflict);
+      return _json(req, {'reason': reasonChecksum}, status: HttpStatus.conflict);
     }
     if (session.phase != _ReceivePhase.awaitingVerification ||
         session.activeFileId != fileId ||
@@ -859,7 +859,7 @@ class ReceiveServer {
           failure: true,
         );
         session.phase = _ReceivePhase.ready;
-        return _json(req, {'reason': 'crc'}, status: HttpStatus.conflict);
+        return _json(req, {'reason': reasonChecksum}, status: HttpStatus.conflict);
       }
 
       // Only now does the file get its real name: a partial file must never look
