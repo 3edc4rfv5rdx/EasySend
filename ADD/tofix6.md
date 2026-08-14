@@ -488,7 +488,7 @@ behaviour.
 
 ---
 
-### 8. P3 — The sender bounds its selection by count and bytes, but never by the size of the manifest it will have to send
+### 8. P3 [FIXED 37587c3] — The sender bounds its selection by count and bytes, but never by the size of the manifest it will have to send
 
 **Affected components:** `lib/file_helpers.dart` `selectionLimitBroken` (lines
 299–314); `lib/home_screen.dart` `_refuseOverLimit` (lines 676–687);

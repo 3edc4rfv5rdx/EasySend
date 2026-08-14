@@ -2,6 +2,7 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+- E: A selection of legal but very deep paths could outgrow the body the manifest travels in and died at the far end as a bare HTTP 413; the third limit is now asked at pick time with the other two, and says the names are too long to send.
 - E: After a foreground-service timeout, the first transfer sync declared background receiving recovered before trying to start the service, so a start Android refused left ✕ closing the screen and promising a receiver that nothing was holding up; readiness now comes back only once a start has actually worked, as the idle path already did.
 - E: Every refusal of a verify was written into the transfer log as "Checksum did not match", whatever the receiver had actually said, with the status code thrown away; only a real mismatch reads that way now, and the rest name the refusal and carry the code.
 - F: The app now does one transfer at a time in either direction: while it is sending, an incoming request gets the same "receiver is busy" a second sender gets, and Retry waits for whatever is running. Sending and receiving at once left the single Stop button acting on whichever of the two was first in the list.
