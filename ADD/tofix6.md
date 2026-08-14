@@ -439,7 +439,7 @@ with a CRC reason still produces the checksum message.
 
 ---
 
-### 7. P3 — `_dataSyncTimedOut` is cleared before the push that may fail, so lost background readiness reports itself as recovered
+### 7. P3 [FIXED bf3d1d6] — `_dataSyncTimedOut` is cleared before the push that may fail, so lost background readiness reports itself as recovered
 
 **Affected components:** `lib/android_helpers.dart` `_syncNow` (lines 415–438 vs
 lines 442–459), `backgroundReady` (line 292); `lib/globals.dart`
