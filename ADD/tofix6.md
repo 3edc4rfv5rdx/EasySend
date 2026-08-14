@@ -400,7 +400,7 @@ for 0, 1 and 2, tested directly (the rule can be named, so it belongs outside
 
 ---
 
-### 6. P3 — Every failed `verify` is written into the log as a checksum mismatch, without the code that caused it
+### 6. P3 [FIXED 2210c0d] — Every failed `verify` is written into the log as a checksum mismatch, without the code that caused it
 
 **Affected components:** `lib/net_sender.dart` `_sendFile` (lines 556–562);
 SPEC 4 ("лог отвечает, что случилось с каждым файлом: принят или нет, **коды

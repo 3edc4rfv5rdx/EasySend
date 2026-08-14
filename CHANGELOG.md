@@ -2,6 +2,7 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+- E: Every refusal of a verify was written into the transfer log as "Checksum did not match", whatever the receiver had actually said, with the status code thrown away; only a real mismatch reads that way now, and the rest name the refusal and carry the code.
 - F: The app now does one transfer at a time in either direction: while it is sending, an incoming request gets the same "receiver is busy" a second sender gets, and Retry waits for whatever is running. Sending and receiving at once left the single Stop button acting on whichever of the two was first in the list.
 - E: Picking two documents with the same name from different cloud or card folders overwrote one copy with the other, dropped one of them as a duplicate and sent a file whose name and content came from different documents; every copy now gets a directory of its own and keeps its own name.
 - E: A foreground service Android refused to start took the whole process with it, transfer and sockets included; the refusal is now caught, the service gives itself up as it does on a timeout, and the app says background receiving is unavailable.
