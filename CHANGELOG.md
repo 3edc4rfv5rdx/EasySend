@@ -4,6 +4,9 @@
 > F is the same thing done better; E is behaviour that was wrong, whatever the size of the fix.
 
 ## Unreleased
+- N: Exiting the app sends a farewell packet — to the whole subnet and straight to every device on the list, manual ones on other subnets included — so the device turns offline on their screens at once instead of after 20 seconds of silence.
+- F: A device that said goodbye gets a plum badge and a tooltip saying so for a minute, apart from one that merely went quiet; every palette names that colour itself.
+- F: The finished-transfer bar now takes the palette's success colour instead of the one that means "device online".
 
 ## v0.3.260814+100
 - I: The changelog legend drops R and T — four entries between them, and T was not even used in the sense it was given — and says where the line between N, E and F runs.

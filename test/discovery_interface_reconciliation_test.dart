@@ -65,4 +65,52 @@ void main() {
     expect(leaves, 1);
     expect(broadcasts.sublist(broadcasts.length - 2), ['query', 'announce']);
   });
+
+  test('only a real exit says goodbye, and it says it to the list', () async {
+    final List<String> broadcasts = [];
+    final List<String> unicasts = [];
+    xvDeviceId = 'test-device';
+    xvDeviceName = 'Test device';
+    xvPlatform = 'linux';
+    // What this machine actually has in front of it: two devices added by hand
+    // on other subnets, which no multicast of ours will ever reach.
+    xvDevices = [
+      Device(
+        id: 'phone',
+        name: 'A36',
+        address: '192.168.204.250',
+        manual: true,
+      ),
+      Device(
+        id: 'emu',
+        name: 'Emulator',
+        address: '192.168.54.250',
+        port: 15352,
+        manual: true,
+      ),
+      Device(id: 'nowhere', name: 'Never seen', address: ''),
+    ];
+
+    final DiscoveryService service = DiscoveryService(
+      bindPort: 0,
+      interfaceProvider: () async => const [],
+      broadcastOverride: broadcasts.add,
+      unicastOverride: (String type, String address) =>
+          unicasts.add('$type $address'),
+    );
+    addTearDown(service.stop);
+
+    expect(await service.start(), isTrue);
+    // A restart, a lost network or a screen going away stops the same service.
+    await service.stop();
+    expect(broadcasts.contains('bye'), isFalse);
+    expect(unicasts, isEmpty);
+
+    expect(await service.start(), isTrue);
+    await service.stop(announceLeaving: true);
+    expect(broadcasts.last, 'bye');
+    // Straight to every address on the list, and nothing sent into the void.
+    expect(unicasts, ['bye 192.168.204.250', 'bye 192.168.54.250']);
+    expect(service.running, isFalse);
+  });
 }

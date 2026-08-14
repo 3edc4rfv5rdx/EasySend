@@ -106,23 +106,23 @@
 const FALLBACK = {
   Light: { text:"#000000", background:"#EFF2F5", appBar:"#5A6B7A", appBarText:"#FFFFFF",
     accent:"#4C6785", fill:"#FFFFFF", selected:"#D8E3EE", button:"#C8D2DC", frame:"#A9B4C0",
-    progress:"#B26430", online:"#3E7D52", error:"#A93F35", warning:"#D98A3F",
+    progress:"#B26430", online:"#3E7D52", departed:"#8C5878", error:"#A93F35", warning:"#D98A3F",
     info:"#4C6785", success:"#3E7D52", unconfirmed:"#75579B" },
   Dark: { text:"#F0F4F8", background:"#0D1117", appBar:"#26333F", appBarText:"#FFFFFF",
     accent:"#37698C", fill:"#171D24", selected:"#2F4A66", button:"#2A333D", frame:"#55636F",
-    progress:"#E09A4E", online:"#56C08A", error:"#E4695C", warning:"#E09A4E",
+    progress:"#E09A4E", online:"#56C08A", departed:"#C58AA6", error:"#E4695C", warning:"#E09A4E",
     info:"#6FB0DA", success:"#56C08A", unconfirmed:"#A98CD8" },
   Sand: { text:"#12100C", background:"#F6F1E7", appBar:"#3D6E6A", appBarText:"#FFFDF8",
     accent:"#1F6F6B", fill:"#FFFDF8", selected:"#CFE3E0", button:"#E0D3B8", frame:"#B8AE9A",
-    progress:"#C2683F", online:"#4E7A3C", error:"#A8412F", warning:"#DE9256",
+    progress:"#C2683F", online:"#4E7A3C", departed:"#8A5473", error:"#A8412F", warning:"#DE9256",
     info:"#3D6E6A", success:"#4E7A3C", unconfirmed:"#8B5C93" },
   Slate: { text:"#E8EDF2", background:"#12181F", appBar:"#7A5A34", appBarText:"#F3E6D4",
     accent:"#A8763C", fill:"#1B232D", selected:"#4A3A26", button:"#2E3A48", frame:"#47566A",
-    progress:"#E0A458", online:"#5FBF9A", error:"#D2695B", warning:"#E0A458",
+    progress:"#E0A458", online:"#5FBF9A", departed:"#C78CAB", error:"#D2695B", warning:"#E0A458",
     info:"#74A8C9", success:"#5FBF9A", unconfirmed:"#AE8BD2" },
   Olive: { text:"#0D0F0A", background:"#E9EAD6", appBar:"#9DA07B", appBarText:"#1E2118",
     accent:"#5A8C24", fill:"#F7F8EC", selected:"#D9DAC6", button:"#C7CBB1", frame:"#9DA283",
-    progress:"#B07A3A", online:"#4A8A4A", error:"#A34A4A", warning:"#D79A4A",
+    progress:"#B07A3A", online:"#4A8A4A", departed:"#8A5175", error:"#A34A4A", warning:"#D79A4A",
     info:"#2A7BA8", success:"#4A8A4A", unconfirmed:"#7E5C9C" }
 };
 
@@ -141,9 +141,9 @@ const ACCENT_VARIANTS = {
 };
 
 const KEYS = ["text","background","appBar","appBarText","accent","fill","selected","button","frame",
-              "progress","online","error","warning","info","success","unconfirmed"];
+              "progress","online","departed","error","warning","info","success","unconfirmed"];
 const SURFACE = ["background","fill","button","selected"];
-const MESSAGE = ["progress","online","error","warning","info","success","unconfirmed"];
+const MESSAGE = ["progress","online","departed","error","warning","info","success","unconfirmed"];
 
 let PALETTES = JSON.parse(JSON.stringify(FALLBACK));
 let fileHandle = null;          // set once the File System Access API opens the JSON
@@ -215,6 +215,9 @@ function screenHtml(p) {
         </div>
         <div class="line" style="border-top:1px solid ${dim(p.frame, .4)};color:${p.frame}">
           <span class="dot" style="background:${p.frame}"></span> tablet-kitchen · офлайн
+        </div>
+        <div class="line" style="border-top:1px solid ${dim(p.frame, .4)};color:${p.frame}">
+          <span class="dot" style="background:${p.departed}"></span> phone-eugen · вышел
         </div>
       </div>
 

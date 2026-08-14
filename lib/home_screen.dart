@@ -789,11 +789,19 @@ class _HomeScreenState extends State<HomeScreen>
     _networkDesired = false;
     _networkEpoch++;
     await receiveServer.stop();
-    await discovery.stop();
+    // The one stop that is a real departure, so it is the one that says so.
+    await discovery.stop(announceLeaving: true);
     manualPoller.stop();
     // The foreground service outlives the Activity for the same reason, and its
     // notification claims a receiver that just stopped listening.
     if (Platform.isAndroid) await androidService.stopService();
+    // How anyone left is news from a session that is over. On Android the
+    // process outlives this exit — finishActivityAndTask() below closes the
+    // screen, nothing kills us — so a badge left standing here would greet the
+    // next launch as if it had just happened.
+    for (final Device device in xvDevices) {
+      device.departedAt = null;
+    }
     // A move or resize in the last 400 ms is still sitting in the debounce, and
     // exit(0) below would take it with it: the window would come back where it
     // was two positions ago, which reads as the feature not working.
@@ -1318,6 +1326,22 @@ class _HomeScreenState extends State<HomeScreen>
     if (!device.online) {
       // Still spelled out for anyone who asks: an unreachable device cannot be
       // picked, and a dead row with no explanation is worse than a long one.
+      //
+      // A device that said goodbye gets the filled badge the reachable ones get,
+      // in plum instead of green: the struck-through icon inside still says
+      // unreachable, and only the badge carries which of the two silences this
+      // is. Tinting the outline instead was invisible — a hue in a 20 px line
+      // reads as no change at all.
+      if (device.departed) {
+        return Tooltip(
+          message: lw('exited'),
+          child: CircleAvatar(
+            radius: 16,
+            backgroundColor: clDeparted,
+            child: Icon(icon, color: clFon, size: 18),
+          ),
+        );
+      }
       return Tooltip(
         message: lw('offline'),
         child: Icon(icon, color: clTextMuted),
@@ -1518,8 +1542,11 @@ class _HomeScreenState extends State<HomeScreen>
         return clError;
       case TransferStatus.cancelled:
         return clTextMuted;
+      // The outcome of an operation, not the presence of a device: they share a
+      // value in every palette today, but they are two different meanings and
+      // the palette is free to tell them apart.
       case TransferStatus.done:
-        return clGreen;
+        return clSuccess;
       // Every file is here, and something still went wrong: neither the green
       // of a clean finish nor the red of a failure. A hue of its own, because
       // every other state of this bar is warm and a warning tone would read as

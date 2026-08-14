@@ -28,7 +28,27 @@ const Duration discoveryAdmissionWindow = Duration(seconds: 5);
 const Duration discoveryUiUpdateInterval = Duration(milliseconds: 100);
 
 bool isSupportedDiscoveryMessage(dynamic message) =>
-    message is Map && (message['t'] == 'announce' || message['t'] == 'query');
+    message is Map &&
+    (message['t'] == 'announce' ||
+        message['t'] == 'query' ||
+        message['t'] == 'bye');
+
+// A departing device says so once, and the packet may well be lost, so a bye
+// only ages the record out of the online window instead of dropping it: the
+// device leaves the list on the ordinary schedule, and a single announce puts
+// it back. The silence timeout stays the mechanism actually relied on.
+//
+// Past the longer of the two windows, because a manual device is judged by the
+// polling interval rather than the announce one and has to fall out of both.
+DateTime lastSeenAfterBye(DateTime now) => now.subtract(
+  Duration(
+    seconds:
+        (deviceTimeoutSec > manualPollSec * 2
+            ? deviceTimeoutSec
+            : manualPollSec * 2) +
+        1,
+  ),
+);
 
 // UDP presence on the local subnet. Broadcast never crosses a router, so
 // devices behind one are added by hand instead (SPEC 5.2, 5.4).
@@ -38,6 +58,7 @@ class DiscoveryService {
   final void Function(NetworkInterface interface)? _joinOverride;
   final void Function(NetworkInterface interface)? _leaveOverride;
   final void Function(String type)? _broadcastOverride;
+  final void Function(String type, String address)? _unicastOverride;
   final int maxTransientDevices;
   final int maxNewPeersPerWindow;
   final int maxNewPeersPerSource;
@@ -62,6 +83,7 @@ class DiscoveryService {
     void Function(NetworkInterface interface)? joinOverride,
     void Function(NetworkInterface interface)? leaveOverride,
     void Function(String type)? broadcastOverride,
+    void Function(String type, String address)? unicastOverride,
     this.maxTransientDevices = maxTransientDiscoveryDevices,
     this.maxNewPeersPerWindow = maxNewDiscoveryPeersPerWindow,
     this.maxNewPeersPerSource = maxNewDiscoveryPeersPerSource,
@@ -72,6 +94,7 @@ class DiscoveryService {
        _joinOverride = joinOverride,
        _leaveOverride = leaveOverride,
        _broadcastOverride = broadcastOverride,
+       _unicastOverride = unicastOverride,
        _now = now ?? DateTime.now;
 
   bool get running => _socket != null;
@@ -102,8 +125,8 @@ class DiscoveryService {
       return false;
     }
     // Ask everyone to speak up, then keep announcing on a timer.
-    _broadcast('query');
-    _broadcast('announce');
+    unawaited(_broadcast('query'));
+    unawaited(_broadcast('announce'));
     _announceTimer = Timer.periodic(
       const Duration(seconds: announceIntervalSec),
       (_) => unawaited(_tick()),
@@ -112,9 +135,19 @@ class DiscoveryService {
     return true;
   }
 
-  Future<void> stop() async {
+  // announceLeaving belongs to a real exit only. A stop for a restart, a lost
+  // network or a screen going away leaves a receiver that is still meant to be
+  // found, and telling everyone otherwise would blank the app out of their
+  // lists for no reason.
+  Future<void> stop({bool announceLeaving = false}) async {
     _announceTimer?.cancel();
     _announceTimer = null;
+    // The last packets before the socket goes, so peers switch the row to
+    // offline now instead of waiting out the silence.
+    if (announceLeaving) {
+      _farewellUnicast();
+      await _broadcast('bye');
+    }
     _socket?.close();
     _socket = null;
     _interfaces = const {};
@@ -138,8 +171,8 @@ class DiscoveryService {
       // A stop/restart may finish while interface enumeration is in flight.
       // That obsolete tick must not broadcast through the replacement socket.
       if (socket == null || _socket != socket) return;
-      if (changed) _broadcast('query');
-      _broadcast('announce');
+      if (changed) unawaited(_broadcast('query'));
+      unawaited(_broadcast('announce'));
       _forgetStaleDevices();
       // Going offline is a silent event: nothing arrives to signal it. Without
       // a nudge here the list would keep showing a dead device as reachable.
@@ -160,7 +193,8 @@ class DiscoveryService {
     transferPort: currentPort,
   );
 
-  void _broadcast(String type) {
+  // Awaitable so a farewell packet can be seen out before the socket closes.
+  Future<void> _broadcast(String type) async {
     final RawDatagramSocket? socket = _socket;
     if (socket == null) return;
     final void Function(String type)? override = _broadcastOverride;
@@ -172,14 +206,33 @@ class DiscoveryService {
     // Limited broadcast remains as a compatibility fallback. Multicast does
     // not depend on an assumed /24 netmask and is sent on every interface.
     socket.send(data, InternetAddress('255.255.255.255'), _port);
-    _sendMulticast(data);
+    await _sendMulticast(data);
   }
 
   void _sendTo(String type, InternetAddress address, int port) {
+    final void Function(String type, String address)? override =
+        _unicastOverride;
+    if (override != null) {
+      override(type, address.address);
+      return;
+    }
     try {
       _socket?.send(utf8.encode(json.encode(_payload(type))), address, port);
     } catch (e) {
       myPrint('unicast to ${address.address} failed: $e');
+    }
+  }
+
+  // Goodbye straight to everyone on the list, at the discovery port they all
+  // listen on rather than their transfer port. Multicast never leaves the
+  // subnet, so a device added by hand — behind a router, on another subnet,
+  // over a VPN — would otherwise never hear it. A peer that is already gone
+  // costs one datagram nobody reads.
+  void _farewellUnicast() {
+    for (final Device device in List.of(xvDevices)) {
+      final InternetAddress? address = InternetAddress.tryParse(device.address);
+      if (address == null) continue;
+      _sendTo('bye', address, bindPort);
     }
   }
 
@@ -296,6 +349,11 @@ class DiscoveryService {
       // points back here, so there is nothing to remember about it.
       if (!isReachableAddress(packet.address.address)) return;
 
+      if (msg is Map && msg['t'] == 'bye') {
+        _noteDeparture(id: peer.id, address: packet.address.address);
+        return;
+      }
+
       _touchDevice(
         id: peer.id,
         name: peer.name.isEmpty ? peer.id : peer.name,
@@ -353,7 +411,35 @@ class DiscoveryService {
       device.address = address;
       device.port = port;
       device.lastSeen = _now();
+      // It is back, whatever it said last time.
+      device.departedAt = null;
     }
+    _scheduleDevicesChanged();
+  }
+
+  // A device saying it is leaving. It never creates a record — an unknown
+  // device leaving is nothing to show — and it is only believed from the
+  // address the device is already listed at, so a stranger cannot blank out a
+  // row by putting somebody else's id in a packet.
+  //
+  // Manual devices are included: the poller would find out within ten seconds
+  // anyway, and it puts the row back on the next answer, so the worst a forged
+  // packet buys is one polling interval of a row that says offline early.
+  void _noteDeparture({required String id, required String address}) {
+    final int index = xvDevices.indexWhere((d) => d.id == id);
+    if (index < 0) return;
+    final Device device = xvDevices[index];
+    if (device.address != address) {
+      // Worth a line: a device with two interfaces can leave from an address
+      // its record has never seen, and the row then quietly waits out the
+      // timeout instead of turning grey at once.
+      myPrint(
+        'bye for ${device.name} from $address, listed at ${device.address}',
+      );
+      return;
+    }
+    device.lastSeen = lastSeenAfterBye(_now());
+    device.departedAt = _now();
     _scheduleDevicesChanged();
   }
 
@@ -396,6 +482,10 @@ class DiscoveryService {
     address: address,
     port: port,
   );
+
+  @visibleForTesting
+  void noteDepartureForTesting({required String id, required String address}) =>
+      _noteDeparture(id: id, address: address);
 
   // Devices worth remembering stay in the list while offline; the rest are
   // dropped a minute after going quiet.
@@ -487,6 +577,8 @@ class ManualPoller {
     if (peer.name.isNotEmpty) device.name = peer.name;
     if (peer.platform.isNotEmpty) device.platform = peer.platform;
     device.lastSeen = DateTime.now();
+    // It answers, so whatever it said on the way out is history.
+    device.departedAt = null;
     devicesChanged();
   }
 
@@ -513,6 +605,7 @@ class ManualPoller {
       return peer == null ? IdentityCheck.unreachable : IdentityCheck.changed;
     }
     device.lastSeen = DateTime.now();
+    device.departedAt = null;
     return IdentityCheck.confirmed;
   }
 
@@ -543,6 +636,7 @@ class ManualPoller {
       device.port = port;
       device.manual = true;
       device.lastSeen = DateTime.now();
+      device.departedAt = null;
     } else {
       xvDevices.add(
         Device(

@@ -20,8 +20,8 @@ final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey =
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 const String prgName = 'easysend';
-const String progVersion = '0.3.260814';
-const int buildNumber = 100;
+const String progVersion = '0.4.260814';
+const int buildNumber = 105;
 const String progAuthor = 'Eugen';
 
 const String langFile = 'assets/locales.json';
@@ -40,6 +40,9 @@ const String apiPrefix = '/api/v1';
 // Announce every 5 s, forget a silent device after 20 s.
 const int announceIntervalSec = 5;
 const int deviceTimeoutSec = 20;
+// How long a row keeps saying that this device left rather than went quiet.
+// The same minute a discovered device is kept in the list after falling silent.
+const int departedNoticeSec = 60;
 // Manual devices send no announces, so they are polled over HTTP instead.
 const int manualPollSec = 10;
 const int manualPollTimeoutSec = 2;
@@ -217,6 +220,10 @@ Color clInfo = const Color(0xFF1565C0);
 Color clSuccess = const Color(0xFF2E7D32);
 // Reachable devices; read from the palette like everything else.
 Color clGreen = const Color(0xFF43A047);
+// A device that closed the app instead of merely going quiet. Kept at the
+// weight of muted ink so the row stays as quiet as any other offline one, and
+// away from the warm tones, which all mean something went wrong.
+Color clDeparted = const Color(0xFF8C5878);
 
 // Snack bars are painted from the Dark palette whatever theme is on: a strip
 // floating over the page reads best in those tones, and a warning then looks
@@ -436,6 +443,7 @@ void applyTheme(String themeName) {
   clProgress = hexToColor(theme['progress'] ?? '#FF9800');
   clUnconfirmed = hexToColor(theme['unconfirmed'] ?? '#75579B');
   clGreen = hexToColor(theme['online'] ?? '#43A047');
+  clDeparted = hexToColor(theme['departed'] ?? '#8C5878');
   clError = hexToColor(theme['error'] ?? '#C62828');
   clWarning = hexToColor(theme['warning'] ?? '#EF6C00');
   clInfo = hexToColor(theme['info'] ?? '#1565C0');

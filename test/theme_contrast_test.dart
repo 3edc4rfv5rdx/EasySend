@@ -95,6 +95,52 @@ void main() {
     }
   });
 
+  test('the badge of a departed device is visible, and not the online one', () {
+    // The filled badge a device gets when it closed the app: the circle against
+    // the page and against a selected row, and the struck-through icon punched
+    // out of it in the background colour. The hue checks keep it out of the
+    // green that means the device is there, and away from the warm tones every
+    // failure on this screen is painted in.
+    for (final String name in loadedThemes.keys) {
+      applyTheme(name);
+      expect(
+        loadedThemes[name]!['departed'],
+        isNotNull,
+        reason: '$name has no departed colour of its own',
+      );
+      expect(
+        contrastRatio(clDeparted, clFon),
+        greaterThanOrEqualTo(3),
+        reason: '$name: the departed badge on the background',
+      );
+      expect(
+        contrastRatio(clDeparted, _selectedSurface),
+        greaterThanOrEqualTo(3),
+        reason: '$name: the departed badge on a selected row',
+      );
+      expect(
+        contrastRatio(clFon, clDeparted),
+        greaterThanOrEqualTo(minTextContrast),
+        reason: '$name: the icon punched out of the departed badge',
+      );
+      expect(
+        HSLColor.fromColor(clDeparted).saturation,
+        greaterThanOrEqualTo(0.15),
+        reason: '$name: departed is grey, which is what it has to differ from',
+      );
+      expect(
+        _hueGap(clDeparted, clGreen),
+        greaterThanOrEqualTo(60),
+        reason: '$name: departed is too close to the colour of being there',
+      );
+      expect(
+        _hueGap(clDeparted, clError),
+        greaterThanOrEqualTo(30),
+        reason: '$name: departed reads as a failure',
+      );
+    }
+  });
+
   test('every palette names the unconfirmed colour itself', () {
     // Without it a new palette silently borrows the fallback, which belongs to
     // another theme and can land anywhere against its background.

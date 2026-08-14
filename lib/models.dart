@@ -10,6 +10,10 @@ class Device {
   bool trusted; // accept from it without asking
   bool manual; // added by hand, stays in the list while offline
   DateTime? lastSeen;
+  // When it said goodbye rather than merely going quiet: the app was closed
+  // there, the network did not drop. Cleared by the next announce, and never
+  // persisted — an app that starts knows nothing about how anyone left.
+  DateTime? departedAt;
 
   Device({
     required this.id,
@@ -20,7 +24,18 @@ class Device {
     this.trusted = false,
     this.manual = false,
     this.lastSeen,
+    this.departedAt,
   });
+
+  // Whether the row still says how this device went away. It is news, not a
+  // property: the minute it was worth telling apart from an ordinary silence
+  // passes, and a device nobody can reach is just offline again. The same
+  // minute a discovered device is kept in the list for after it goes quiet.
+  bool get departed {
+    final DateTime? left = departedAt;
+    if (left == null) return false;
+    return DateTime.now().difference(left).inSeconds <= departedNoticeSec;
+  }
 
   // Discovered devices go silent when gone; manual ones are polled over HTTP
   // and lastSeen is stamped by the poller, so one rule covers both.
@@ -114,7 +129,15 @@ typedef RefusedPick = ({FileItem file, PickProblem problem});
 // instead of closing it — its finish was refused, timed out or dropped. Neither
 // `done` nor `cancelled` is true of that, and calling it cancelled over a full
 // receive folder made the two ends describe one event differently (SPEC 3.3).
-enum TransferStatus { pending, active, done, partial, unconfirmed, cancelled, failed }
+enum TransferStatus {
+  pending,
+  active,
+  done,
+  partial,
+  unconfirmed,
+  cancelled,
+  failed,
+}
 
 // One thing that happened during a transfer. The message is an English key
 // translated on the log screen; the detail is the part worth quoting in a bug

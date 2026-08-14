@@ -93,6 +93,8 @@ void learnSenderAddress(
     if (!wasOnline) device.manual = true;
   }
   device.lastSeen = DateTime.now();
+  // Whatever it announced on its way out last time, it is back and talking.
+  device.departedAt = null;
 }
 
 // Receiving side of a transfer in flight.
