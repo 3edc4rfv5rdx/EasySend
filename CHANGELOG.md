@@ -2,6 +2,7 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+- I: A fresh deep audit of lib/, the Kotlin service, the Android manifest and the locales against SPEC.md left eight findings in ADD/tofix6.md, two of them P1, each written as a standalone prompt; two were proved with a throw-away probe against the real receive server rather than reasoned about, the weak one says so, and what was checked and found sound is listed there too
 
 ## v0.2.260813+95
 - F: The bar of a transfer that arrived whole but was never confirmed is violet, a colour of its own in every palette: it had been drawn in the warning tone, which in the light palettes sits a few degrees from the running colour and read as a transfer still going; a test now holds every palette's version of it clear of both the running and the failure hue
