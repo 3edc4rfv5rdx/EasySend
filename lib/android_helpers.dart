@@ -420,7 +420,6 @@ class AndroidService {
         await _keepScreenOn(false);
         return;
       }
-      _dataSyncTimedOut = false;
       final bool enteringTransfer = !_transferMode;
       await _keepScreenOn(true);
       final int percent = (active.progress * 100).round();
@@ -433,6 +432,12 @@ class AndroidService {
         starting: !_serviceUp,
         force: enteringTransfer,
       );
+      // On evidence, and only on evidence — the same rule the idle branch below
+      // follows. _push swallows a refusal from Android, so clearing this before
+      // it left background readiness claiming to be back with no service behind
+      // it, and ✕ then closed the screen promising a receiver that nothing was
+      // holding up.
+      if (_serviceUp) _dataSyncTimedOut = false;
       _transferMode = true;
       return;
     }

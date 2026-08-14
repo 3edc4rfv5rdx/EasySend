@@ -1,6 +1,7 @@
 import 'package:easysend/android_helpers.dart';
 import 'package:easysend/globals.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -91,6 +92,47 @@ void main() {
     expect(calls, ['start']);
     expect(service.backgroundReady, isTrue);
     expect(xdef['Receive in background'], 'true');
+  });
+
+  // Background readiness is what ✕ asks before closing the screen and leaving
+  // the receiver running. A start Android refused leaves no service behind, so
+  // it must not read as recovered.
+  test('a refused start during a transfer does not restore readiness', () async {
+    final AndroidService service = AndroidService(android: true);
+    await service.noteServiceTimeout();
+    expect(service.backgroundReady, isFalse);
+
+    xvTransfers = [
+      TransferSession(
+        id: 'x',
+        incoming: true,
+        peerName: 'Peer',
+        files: [FileItem(id: 'f', relativePath: 'f.bin', size: 1)],
+      )..status = TransferStatus.active,
+    ];
+    // Off screen with the quota spent, nothing is attempted at all: starting
+    // another dataSync service from there is what throws.
+    await service.sync();
+    expect(calls, isEmpty);
+
+    // On screen the quota resets, so it may try again — and a refusal is not a
+    // recovery.
+    final TestWidgetsFlutterBinding binding =
+        TestWidgetsFlutterBinding.ensureInitialized();
+    binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    addTearDown(
+      () => binding.handleAppLifecycleStateChanged(AppLifecycleState.paused),
+    );
+    failWith = PlatformException(code: 'ForegroundServiceStartNotAllowed');
+    await service.sync();
+
+    expect(calls, ['start']);
+    expect(service.backgroundReady, isFalse);
+
+    // A start that actually worked is what brings it back.
+    failWith = null;
+    await service.sync();
+    expect(service.backgroundReady, isTrue);
   });
 
   group('the ongoing notification carries its buttons', () {
