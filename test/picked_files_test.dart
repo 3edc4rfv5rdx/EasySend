@@ -1,6 +1,9 @@
+import 'dart:convert';
+
 import 'package:easysend/globals.dart';
 import 'package:easysend/home_screen.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:uuid/uuid.dart';
 
 void main() {
   FileItem item(String relativePath, {String? source, int size = 1}) => FileItem(
@@ -144,6 +147,73 @@ void main() {
         ),
         SelectionLimit.bytes,
       );
+    });
+
+    // The third limit the receiver enforces: the manifest travels inside a
+    // bounded body, and a path may be four kilobytes deep. Three thousand legal
+    // ones used to come back as a bare HTTP 413.
+    group('the manifest has to fit the body it travels in', () {
+      // 4 KB of path is legal, and a hundred of them outgrow a 4 MiB body.
+      List<FileItem> longNames(int count) => [
+        for (int i = 0; i < count; i++)
+          item('${'d' * 200}/' * 20 + 'file$i.bin'),
+      ];
+
+      test('a folder of ordinary names is untouched by it', () {
+        expect(
+          selectionLimitBroken(<FileItem>[], [
+            for (int i = 0; i < maxManifestFiles; i++)
+              item(
+                'Pictures/Camera Roll/2026/08/Holiday in the mountains/'
+                'IMG_20260811_123456_$i.jpg',
+              ),
+          ]),
+          isNull,
+        );
+      });
+
+      test('names that will not fit are refused for being names', () {
+        expect(
+          selectionLimitBroken(<FileItem>[], longNames(1200)),
+          SelectionLimit.names,
+        );
+      });
+
+      test('the addition is measured against what is already picked', () {
+        final List<FileItem> selected = longNames(600);
+        expect(selectionLimitBroken(selected, <FileItem>[]), isNull);
+        expect(
+          selectionLimitBroken(selected, longNames(600)),
+          SelectionLimit.names,
+        );
+      });
+
+      // The estimate is only worth having if it is on the safe side of the
+      // real thing: what the sender lets through has to encode inside the body
+      // the receiver accepts, with the widest sender id and name there can be.
+      test('what it lets through really does fit', () {
+        List<FileItem> selection = longNames(1200);
+        while (selectionLimitBroken(<FileItem>[], selection) != null) {
+          selection = selection.sublist(0, selection.length - 1);
+        }
+        final String body = json.encode({
+          'senderId': 'i' * maxProtocolIdBytes,
+          // Every character of a name may double under JSON escaping.
+          'senderName': '"' * (maxSenderNameBytes ~/ 2),
+          'senderPort': 65535,
+          'files': [
+            for (final FileItem f in selection)
+              {
+                'id': const Uuid().v4(),
+                'path': f.relativePath,
+                'size': maxDeclaredFileBytes,
+              },
+          ],
+        });
+
+        expect(selection, isNotEmpty);
+        expect(utf8.encode(body).length, lessThan(maxPrepareBodyBytes));
+      });
     });
 
     test('an empty addition never breaks a limit', () {

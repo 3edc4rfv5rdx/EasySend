@@ -294,7 +294,19 @@ Future<CollectedFiles> collectFiles(
 // stands: an ordinary pick, a drop, a share, and the backslash repair, which
 // used to check the count alone and could build a selection the receiver is
 // guaranteed to refuse for its size.
-enum SelectionLimit { files, bytes }
+enum SelectionLimit { files, bytes, names }
+
+// What the manifest for these files will weigh on the wire, without building
+// it: the paths are the only part that varies, and everything around each one
+// is bounded. Estimated rather than encoded, because this is asked on every
+// pick and a folder can hold three thousand files.
+int manifestBodyBytes(Iterable<FileItem> files) {
+  int total = manifestEnvelopeBytes;
+  for (final FileItem file in files) {
+    total += manifestEntryOverheadBytes + utf8.encode(file.relativePath).length;
+  }
+  return total;
+}
 
 SelectionLimit? selectionLimitBroken(
   Iterable<FileItem> selected,
@@ -310,7 +322,16 @@ SelectionLimit? selectionLimitBroken(
   for (final FileItem f in fresh) {
     total += f.size;
   }
-  return total > maxDeclaredTransferBytes ? SelectionLimit.bytes : null;
+  if (total > maxDeclaredTransferBytes) return SelectionLimit.bytes;
+  // The third limit the receiver enforces, asked here with the other two. A
+  // path may be 4 KB deep, so three thousand legal ones can outgrow the body
+  // the manifest travels in — and that came back as a bare HTTP 413, which
+  // names nothing the user can act on.
+  final int body =
+      manifestBodyBytes(selected) +
+      manifestBodyBytes(fresh) -
+      manifestEnvelopeBytes;
+  return body > maxPrepareBodyBytes ? SelectionLimit.names : null;
 }
 
 class FileSnapshot {

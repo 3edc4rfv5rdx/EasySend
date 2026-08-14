@@ -52,6 +52,14 @@ const int maxManifestFiles = 3000;
 // The manifest travels inside this, so the two move together: a full manifest
 // of real paths has to fit, with room for deeper ones than a phone produces.
 const int maxPrepareBodyBytes = 4 * 1024 * 1024;
+// What one entry of that manifest costs besides its own path: the id, the
+// declared size, and the punctuation around them. Rounded up from the 83 bytes
+// the widest real entry takes, so the sender refuses a shade earlier than the
+// receiver would rather than a shade later.
+const int manifestEntryOverheadBytes = 96;
+// And everything in the body that is not the file list — the sender's id and
+// name and the fields around them, each bounded in its own right.
+const int manifestEnvelopeBytes = 1024;
 const int maxProtocolIdBytes = 128;
 const int maxSenderNameBytes = 256;
 const int maxDeclaredFileBytes = 16 * 1024 * 1024 * 1024 * 1024;

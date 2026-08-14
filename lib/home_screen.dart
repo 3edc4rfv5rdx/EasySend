@@ -688,6 +688,9 @@ class _HomeScreenState extends State<HomeScreen>
       case SelectionLimit.bytes:
         okInfoBarRed(lw('The selection is too large'));
         return true;
+      case SelectionLimit.names:
+        okInfoBarRed(lw('The names in this selection are too long to send'));
+        return true;
       case null:
         return false;
     }
