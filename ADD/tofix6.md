@@ -51,7 +51,7 @@ Invariants this audit measured against:
 
 ## Findings
 
-### 1. P1 — A lost `verify` answer makes the two ends disagree, and Retry then plants a duplicate
+### 1. P1 [FIXED bab2525] — A lost `verify` answer makes the two ends disagree, and Retry then plants a duplicate
 
 **Affected components:** `lib/net_sender.dart` `_sendFile` (lines 528–562) and
 `_sendOneByOne` (lines 355–387); `lib/net_server.dart` `_upload` (lines 600–610)
