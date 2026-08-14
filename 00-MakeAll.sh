@@ -9,8 +9,8 @@
 # Finally 01-LinkOut.sh puts the AppImage and the arm64-v8a APK into OUT/ as
 # links under their own names, and sweeps whatever else was there.
 #
-# Arguments go to 10-MakeRelease.sh, which takes one: --minor, for the release
-# that moves the version line (README, Versions).
+# Arguments go to 10-MakeRelease.sh: --minor and --keep-line overrule what the
+# changelog says about the version line (README, Versions).
 #
 cd "$(dirname "$0")"
 

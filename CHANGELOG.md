@@ -3,7 +3,7 @@
 
 ## Unreleased
 - I: 00-MakeAll.sh hands its arguments to the release step, so ./00-MakeAll.sh --minor works like the release script's own flag.
-- I: The version line now moves by itself: a release with an N: entry waiting under Unreleased takes the minor up, nothing has to be remembered at build time, and --minor/--keep-line overrule it. README says what makes 1.0.
+- I: The version line now moves by itself: a release with an N: entry waiting under Unreleased takes the minor up once, however many features are waiting, and only the first build after them; --minor/--keep-line overrule it. README says what makes 1.0.
 - I: IDEAS.txt now carries the reconciler idea for the network state machine — why it looks the way it does, what the alternative is, and why we are not touching it.
 - N: Turning on background receiving now asks Android for the battery exemption it depends on, in one system dialog, and only when the app is not exempt already; the hint about it is left for a refusal.
 - F: Messages across the app are shorter: banners, snack bars, validation errors and log lines say what they have to and stop, in all three languages.

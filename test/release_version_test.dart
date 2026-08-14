@@ -95,18 +95,24 @@ void main() {
   // and a changelog the test writes. What the line does is the whole point of
   // the rule, and it is decided by those three together.
   group('the line follows the changelog by itself', () {
-    Future<String> dryRun(String changelog, {List<String> flags = const []}) async {
+    Future<String> dryRun(
+      String changelog, {
+      List<String> flags = const [],
+      String version = '0.2.260811+72',
+    }) async {
       final Directory root = await Directory.systemTemp.createTemp(
         'easysend-line-',
       );
       addTearDown(() => root.delete(recursive: true));
       await File('10-MakeRelease.sh').copy('${root.path}/10-MakeRelease.sh');
+      final String name = version.split('+').first;
+      final String build = version.split('+').last;
       await File(
         '${root.path}/pubspec.yaml',
-      ).writeAsString('name: test_app\nversion: 0.2.260811+72\n');
+      ).writeAsString('name: test_app\nversion: $version\n');
       await Directory('${root.path}/lib').create();
       await File('${root.path}/lib/globals.dart').writeAsString(
-        "const String progVersion = '0.2.260811';\nconst int buildNumber = 72;\n",
+        "const String progVersion = '$name';\nconst int buildNumber = $build;\n",
       );
       await File('${root.path}/CHANGELOG.md').writeAsString(changelog);
       // The last release this fixture knows about went out on 0.2.
@@ -148,6 +154,28 @@ void main() {
           '## Unreleased\n- E: a fix\n\n## v0.2.260811+72\n- N: an old one\n',
         ),
         startsWith('0.2.'),
+      );
+    });
+
+    // Several at once are still one release, so one step: the minor counts
+    // releases that carried something new, not the things they carried.
+    test('several features are one step, not several', () async {
+      expect(
+        await dryRun('## Unreleased\n- N: one\n- E: a fix\n- N: two\n'),
+        startsWith('0.3.'),
+      );
+    });
+
+    // The load-bearing half: many builds go out between two tags, and only the
+    // first of them moves the line. Without this the version would run away by
+    // one step per build for as long as the feature sat unreleased.
+    test('a line already moved is not moved again', () async {
+      expect(
+        await dryRun(
+          '## Unreleased\n- N: something new\n',
+          version: '0.3.260812+80',
+        ),
+        startsWith('0.3.'),
       );
     });
 
