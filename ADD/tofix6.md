@@ -329,7 +329,16 @@ grows one.
 
 ---
 
-### 5. P2 — With a transfer running in each direction there is one Stop button and it acts on whichever started first
+### 5. P2 [FIXED b0dd8d7, differently] — With a transfer running in each direction there is one Stop button and it acts on whichever started first
+
+**Resolved by removing the case, not the ambiguity.** Two transfers at once was
+nothing the product ever promised — it only existed because `ReceiveServer` and
+`SendService` knew nothing of each other. This device now does one transfer at a
+time in either direction: an incoming `prepare` gets the same `409 busy` a
+second sender gets while this one is sending, and Retry waits for whatever is
+running. The per-row cancel control below was therefore *not* added, and SPEC 4
+п.4 and 5.7 were corrected to describe the bottom button as the only cancel.
+The original prompt is kept as written, for the record.
 
 **Affected components:** `lib/home_screen.dart` `_buildTransferTile` (lines
 1403–1421), `_running` (lines 1551–1556), `_stop` (lines 1560–1568),

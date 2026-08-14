@@ -20,8 +20,8 @@ final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey =
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 const String prgName = 'easysend';
-const String progVersion = '0.2.260813';
-const int buildNumber = 96;
+const String progVersion = '0.2.260814';
+const int buildNumber = 97;
 const String progAuthor = 'Eugen';
 
 const String langFile = 'assets/locales.json';
