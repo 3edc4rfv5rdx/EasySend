@@ -207,7 +207,7 @@ and record in the finding that the native guard itself is verified by inspection
 
 ---
 
-### 3. P2 — A receive cancelled on the receiving device is never told to the sender
+### 3. P2 [FIXED fc1f2df] — A receive cancelled on the receiving device is never told to the sender
 
 **Affected components:** `lib/net_server.dart` `cancelCurrent` (lines 943–951),
 `_abort` (lines 953–978), `_sessionOf` (lines 986–991) and the `_status(req,
