@@ -22,6 +22,16 @@ class MainActivity : FlutterActivity() {
         private const val PRIMARY_STORAGE = "/storage/emulated/0"
         private const val EXTERNAL_STORAGE_AUTHORITY = "com.android.externalstorage.documents"
         private const val PICK_FILES_REQUEST = 4711
+
+        // Where copies of picked documents go. The Dart side knows this name —
+        // `pickedCopiesDirName` in file_helpers.dart — and a test holds the two
+        // together.
+        private const val COPIES_DIR = "picked"
+
+        // Counts the copies this process has made, so each gets a directory of
+        // its own. Process-wide rather than per-Activity: the Activity is
+        // destroyed and re-created while the picker is on screen.
+        private val copySlot = java.util.concurrent.atomic.AtomicInteger()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -144,7 +154,20 @@ class MainActivity : FlutterActivity() {
     private fun copyToCache(uri: android.net.Uri): String? {
         val name = displayName(uri) ?: return null
         return try {
-            val target = File(cacheDir, "picked").apply { mkdirs() }.let { File(it, name) }
+            // A directory of its own for every copy. Two documents can carry the
+            // same display name — a report.pdf from each of two cloud folders —
+            // and one cache file for both leaves the second's bytes under the
+            // first's path: the Dart side then folds the two picks into one,
+            // because it tells picked files apart by their source path, and
+            // sends a file whose name and content came from different
+            // documents. The name has to stay the one its owner gave it, so the
+            // uniqueness goes into the directory around it.
+            val slot = File(
+                File(cacheDir, COPIES_DIR),
+                "${System.currentTimeMillis()}-${copySlot.getAndIncrement()}",
+            )
+            if (!slot.mkdirs()) return null
+            val target = File(slot, name)
             contentResolver.openInputStream(uri)?.use { input ->
                 target.outputStream().use { output -> input.copyTo(output) }
             } ?: return null

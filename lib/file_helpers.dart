@@ -604,7 +604,9 @@ Future<bool> ensureSafeDestination(
 // Where the Android side puts a copy of a picked document it could not hand
 // over as a plain file. Kept in step with `MainActivity.copyToCache` by name:
 // getTemporaryDirectory() is that Activity's `cacheDir`, and `picked` is the
-// subdirectory it makes inside it.
+// subdirectory it makes inside it. Every copy gets a directory of its own under
+// that — two documents may share a display name — so this is the root of a
+// tree, not the folder the copies sit in.
 const String pickedCopiesDirName = 'picked';
 
 Future<String?> pickedCopiesRoot() async {
