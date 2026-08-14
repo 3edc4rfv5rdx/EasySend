@@ -14,6 +14,11 @@ finding says otherwise. None of them was reproduced on a device: the exit path
 is Android-specific and the machine this was written on cannot drive it beyond
 `adb`.
 
+All six were re-checked against `ec41e46` before this file was written down, and
+none of them is done. Finding 5 was narrowed at that check: part of what it
+claimed was untested turned out to be held by an existing contract test, which
+it now names.
+
 ## Shared root
 
 Three of the six findings come from one platform fact, stated here once:
@@ -195,24 +200,34 @@ online only if it answers now.
 **Tests to add:** the bye tests in `test/discovery_admission_test.dart` return
 to a stubbed clock and assert the badge expires exactly at `departedNoticeSec`.
 
-### 5. P3 — Everything before `shutdownForExit()` is still untested
+### 5. P3 — Part of `_exitApp` before the shutdown is untested — but less of it than it looks
 
 **Affected components:** `lib/home_screen.dart` `_exitApp` (the confirmation,
-the keep-receiving branch, `_exiting`, `_networkDesired`, `_networkEpoch`, the
-window-bounds save, the platform ending).
+`_exiting`, `_networkDesired`, `_networkEpoch`, the window-bounds save, the
+platform ending).
 
-**Current behavior:** `shutdownForExit()` is covered by
-`test/exit_shutdown_test.dart`, and the two rules that decide the shape of an
-exit — `exitKeepsReceiving()` and `exitNeedsConfirmation()` — are covered on
-their own. What no test reaches is the wiring between them: that a ✕ with
-background receiving on returns *before* the shutdown, that `_exiting` is set
-before the first `await` (a lifecycle event arriving mid-exit used to restart
-the network), and that the window bounds are saved before the process ends.
+**Already covered — do not redo this part.** The keep-receiving branch is held
+in place by a contract test that reads the source:
+`test/android_engine_lifetime_contract_test.dart` (the block matched by
+`RegExp(r'if \(exitKeepsReceiving\((.*?)\n      return;')`) asserts that the
+branch returns before anything else, that it contains `SystemNavigator.pop()`
+and `androidService.reassert()`, and that it does **not** call
+`finishActivityAndTask` — the Recents card has to stay. The rule itself is a
+table test in `test/network_lifecycle_test.dart` (around lines 305-330), and
+`shutdownForExit()` is covered by `test/exit_shutdown_test.dart`.
+
+**Current behavior:** what no test reaches is the rest of the wiring: that
+`_exiting` is set before the first `await` (a lifecycle event arriving mid-exit
+used to restart the network), that the confirmation is asked exactly when
+`exitNeedsConfirmation()` says so and a "no" leaves everything running, and that
+the debounced window bounds are flushed before the process ends.
 
 **What to implement:** lift the decision into a pure function — given platform,
 `mayKeepReceiving`, the two settings, whether a transfer runs and the user's
 answer, return an enum: `keepReceiving`, `shutDown`, `stay`. `_exitApp` then
-reads as a switch over it.
+reads as a switch over it. Keep the shape the contract test above matches, or
+update that test in the same change: it reads the source text, so a refactor
+that is correct in every other way still breaks it.
 
 **Constraints not to break:** the order inside `_exitApp` is load-bearing and is
 documented in place: `_exiting = true` before the first await, and the debounced
