@@ -2,15 +2,15 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
-- E: A selection of legal but very deep paths could outgrow the body the manifest travels in and died at the far end as a bare HTTP 413; the third limit is now asked at pick time with the other two, and says the names are too long to send.
-- E: After a foreground-service timeout, the first transfer sync declared background receiving recovered before trying to start the service, so a start Android refused left ✕ closing the screen and promising a receiver that nothing was holding up; readiness now comes back only once a start has actually worked, as the idle path already did.
-- E: Every refusal of a verify was written into the transfer log as "Checksum did not match", whatever the receiver had actually said, with the status code thrown away; only a real mismatch reads that way now, and the rest name the refusal and carry the code.
-- F: The app now does one transfer at a time in either direction: while it is sending, an incoming request gets the same "receiver is busy" a second sender gets, and Retry waits for whatever is running. Sending and receiving at once left the single Stop button acting on whichever of the two was first in the list.
-- E: Picking two documents with the same name from different cloud or card folders overwrote one copy with the other, dropped one of them as a duplicate and sent a file whose name and content came from different documents; every copy now gets a directory of its own and keeps its own name.
-- E: A foreground service Android refused to start took the whole process with it, transfer and sockets included; the refusal is now caught, the service gives itself up as it does on a timeout, and the app says background receiving is unavailable.
-- E: Stopping a receive on the receiving device left the sender retrying every remaining file into a session that no longer existed; a gone session now says so and the sender ends the transfer at once.
-- E: A lost answer to a verify cost the file it was about: the sender re-sent it, had the bytes refused, and offered a Retry that published a second copy. The answer is asked for again instead.
-- I: A fresh deep audit of lib/, the Kotlin service and the locales left eight findings in ADD/tofix6.md, two of them P1.
+- E: A selection of very deep paths outgrew the manifest body and died at the far end as HTTP 413; it is refused at pick time now, with a reason.
+- E: Background readiness read as recovered before the service had started, so ✕ could leave a receiver nothing was holding up.
+- E: Every refused verify was logged as a checksum mismatch; only a real mismatch says that now, the rest carry the code.
+- F: One transfer at a time, in either direction: while sending, an incoming request gets "receiver is busy", and Retry waits.
+- E: Two picked documents with one name overwrote each other in the cache and one was sent under the other's name; each copy gets its own directory.
+- E: A foreground service Android refused to start took the process with it; the refusal is caught and background receiving reports itself unavailable.
+- E: Stopping a receive left the sender retrying every remaining file into a dead session; it now ends the transfer at once.
+- E: A lost answer to a verify cost the file, and Retry then published a second copy; the answer is asked for again instead.
+- I: A deep audit of lib/, the Kotlin service and the locales left eight findings in ADD/tofix6.md.
 
 ## v0.2.260813+95
 - F: The bar of a transfer that arrived whole but was never confirmed is violet, a colour of its own in every palette: it had been drawn in the warning tone, which in the light palettes sits a few degrees from the running colour and read as a transfer still going; a test now holds every palette's version of it clear of both the running and the failure hue
