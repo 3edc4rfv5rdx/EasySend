@@ -8,6 +8,9 @@
 #
 # Installing is a separate step: 11-EmulRELEASE.sh, 12-PhoneRELEASE.sh
 #
+# The major.minor line moves by itself when CHANGELOG has an N: entry waiting
+# since the last tag. --minor and --keep-line overrule that either way.
+#
 set -e
 cd "$(dirname "$0")"
 
@@ -22,9 +25,8 @@ PUB_FILE="pubspec.yaml"
 GLOB_FILE="lib/globals.dart"
 APK_PATH="build/app/outputs/flutter-apk"
 
-# The line — major.minor — is the one part of a version decided by hand. It is
-# carried over verbatim unless the caller says otherwise; see --minor and the
-# rule below it.
+# The line — major.minor — is carried over verbatim unless the caller asks for
+# a bump; who asks, and on what grounds, is decided further down.
 compute_next_version() {
     local current="$1"
     local date_part="$2"
@@ -67,20 +69,23 @@ released_line() {
     return 0
 }
 
-# Taken out of the argument list first, so it may be given in any order.
-BUMP_LINE=false
+# Taken out of the argument list first, so they may be given in any order.
+# Neither is normally needed: the changelog decides, and these two are only for
+# overruling it in either direction.
+FORCE_MINOR=false
+FORCE_KEEP=false
 ARGS=()
 for arg in "$@"; do
-    if [ "$arg" = "--minor" ]; then
-        BUMP_LINE=true
-    else
-        ARGS+=("$arg")
-    fi
+    case "$arg" in
+        --minor) FORCE_MINOR=true ;;
+        --keep-line) FORCE_KEEP=true ;;
+        *) ARGS+=("$arg") ;;
+    esac
 done
 set -- ${ARGS[@]+"${ARGS[@]}"}
 
 if [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
-    sed -n '2,10p' "$0"
+    sed -n '2,13p' "$0"
     exit 0
 fi
 
@@ -107,11 +112,22 @@ if [ "$CURRENT_VERSION" != "$GLOBAL_VERSION" ] || [ "$CURRENT_BUILD" != "$GLOBAL
     echo "Version sources disagree: $CURRENT_FULL vs $GLOBAL_VERSION+$GLOBAL_BUILD" >&2
     exit 1
 fi
-if [ "$BUMP_LINE" = true ]; then
-    FULL_VER=$(compute_next_version "$CURRENT_FULL" "$(date +%y%m%d)" minor)
-else
-    FULL_VER=$(compute_next_version "$CURRENT_FULL" "$(date +%y%m%d)")
+# The line moves by itself when the changelog says a feature is waiting and the
+# last release went out on this same line. Nothing to remember and nothing to
+# type: the decision was made when the entry was written as N: rather than E:.
+# Asked once here, so --dry-run answers exactly what a build would produce.
+RELEASED_LINE=$(released_line)
+BUMP=""
+if [ "$FORCE_KEEP" != true ]; then
+    if [ "$FORCE_MINOR" = true ]; then
+        BUMP=minor
+    elif [ -n "$RELEASED_LINE" ] &&
+         [ "$RELEASED_LINE" = "$CURRENT_VERSION_LINE" ] &&
+         unreleased_has_feature; then
+        BUMP=minor
+    fi
 fi
+FULL_VER=$(compute_next_version "$CURRENT_FULL" "$(date +%y%m%d)" "$BUMP")
 VERSION=${FULL_VER%+*}
 BUILD=${FULL_VER##*+}
 
@@ -120,21 +136,8 @@ if [ "$1" = "--dry-run" ]; then
     exit
 fi
 
-# A feature has landed and the line has not moved since the last release, so
-# this build is the one that moves it. Refused rather than bumped on its own:
-# the line is the developer's decision, and this only makes it impossible to
-# forget. --dry-run above stays a plain question and answers whatever the flags
-# ask for.
-RELEASED_LINE=$(released_line)
-if [ "$BUMP_LINE" != true ] &&
-   [ -n "$RELEASED_LINE" ] &&
-   [ "$RELEASED_LINE" = "$CURRENT_VERSION_LINE" ] &&
-   unreleased_has_feature; then
-    echo "CHANGELOG has a new feature (N:) waiting under Unreleased, and the" >&2
-    echo "line is still $RELEASED_LINE. A release with a feature moves it:" >&2
-    echo "    $0 --minor" >&2
-    echo "See README, 'Versions'." >&2
-    exit 1
+if [ "$BUMP" = minor ]; then
+    echo ">>> A feature is waiting in CHANGELOG, so the line moves to ${VERSION%.*}"
 fi
 
 VERSION_BACKUP=$(mktemp -d)

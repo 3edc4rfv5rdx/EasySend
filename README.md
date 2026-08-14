@@ -102,12 +102,13 @@ beside clang (`lld`); `13-MakeLinux.sh` checks for both and says what is missing
 `10-MakeRelease.sh` and never go backwards: Android refuses an update whose
 build number is not larger than the installed one.
 
-The line — `major.minor` — is the only part decided by hand, and the changelog
-decides it. A release carrying an `N:` entry since the last tag moves the minor:
-`./10-MakeRelease.sh --minor`. The script refuses to build without that flag
-once it sees a new feature waiting under `Unreleased`, so the decision cannot be
-forgotten, only made. Everything else — fixes, tweaks, refactors, plumbing —
-keeps the line and just moves the date.
+The line — `major.minor` — is decided by the changelog, and moves on its own: a
+release carrying an `N:` entry under `Unreleased` since the last tag takes the
+minor up by one, and everything else — fixes, tweaks, refactors, plumbing —
+keeps the line and just moves the date. So the decision is made once, when the
+entry is written as `N:` rather than `E:`, and nothing has to be remembered at
+build time. `--minor` and `--keep-line` overrule it either way, for the release
+that is an exception.
 
 `1.0` is not a mood either: it is the twelve readiness criteria in `SPEC.md`
 §13, all met, with the "not in v1" list of §12 still out.

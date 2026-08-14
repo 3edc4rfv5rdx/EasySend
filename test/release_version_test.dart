@@ -91,6 +91,81 @@ void main() {
     expect(result.stderr, contains('Malformed version'));
   });
 
+  // End to end, on a fixture of its own: a project with one tag, one version
+  // and a changelog the test writes. What the line does is the whole point of
+  // the rule, and it is decided by those three together.
+  group('the line follows the changelog by itself', () {
+    Future<String> dryRun(String changelog, {List<String> flags = const []}) async {
+      final Directory root = await Directory.systemTemp.createTemp(
+        'easysend-line-',
+      );
+      addTearDown(() => root.delete(recursive: true));
+      await File('10-MakeRelease.sh').copy('${root.path}/10-MakeRelease.sh');
+      await File(
+        '${root.path}/pubspec.yaml',
+      ).writeAsString('name: test_app\nversion: 0.2.260811+72\n');
+      await Directory('${root.path}/lib').create();
+      await File('${root.path}/lib/globals.dart').writeAsString(
+        "const String progVersion = '0.2.260811';\nconst int buildNumber = 72;\n",
+      );
+      await File('${root.path}/CHANGELOG.md').writeAsString(changelog);
+      // The last release this fixture knows about went out on 0.2.
+      final Directory bin = await Directory('${root.path}/fake-bin').create();
+      final File git = File('${bin.path}/git');
+      await git.writeAsString(
+        '#!/usr/bin/env bash\n'
+        '[ "\$1" = "tag" ] && echo "v0.2.260811+72"\nexit 0\n',
+      );
+      await Process.run('chmod', ['+x', git.path]);
+
+      final ProcessResult result = await Process.run(
+        'bash',
+        ['10-MakeRelease.sh', '--dry-run', ...flags],
+        workingDirectory: root.path,
+        environment: {'PATH': '${bin.path}:${Platform.environment['PATH']}'},
+      );
+      expect(result.exitCode, 0, reason: '${result.stderr}');
+      return (result.stdout as String).trim();
+    }
+
+    test('a feature waiting takes the minor up', () async {
+      expect(
+        await dryRun('## Unreleased\n- E: a fix\n- N: something new\n'),
+        startsWith('0.3.'),
+      );
+    });
+
+    test('fixes alone leave it where it was', () async {
+      expect(
+        await dryRun('## Unreleased\n- E: a fix\n- F: a tweak\n'),
+        startsWith('0.2.'),
+      );
+    });
+
+    test('a feature already released does not move it again', () async {
+      expect(
+        await dryRun(
+          '## Unreleased\n- E: a fix\n\n## v0.2.260811+72\n- N: an old one\n',
+        ),
+        startsWith('0.2.'),
+      );
+    });
+
+    test('either overrule wins over the changelog', () async {
+      expect(
+        await dryRun(
+          '## Unreleased\n- N: something new\n',
+          flags: ['--keep-line'],
+        ),
+        startsWith('0.2.'),
+      );
+      expect(
+        await dryRun('## Unreleased\n- E: a fix\n', flags: ['--minor']),
+        startsWith('0.3.'),
+      );
+    });
+  });
+
   test('repository version sources agree in dry-run mode', () async {
     // Derived from the file rather than written down: a build number spelled
     // out here would make this test fail on the release after next.
@@ -102,9 +177,12 @@ void main() {
     final String line = current!.group(1)!;
     final int nextBuild = int.parse(current.group(2)!) + 1;
 
+    // --keep-line so this stays a question about the two version sources: what
+    // the line does depends on the changelog, and the group above owns that.
     final result = await Process.run('bash', [
       '10-MakeRelease.sh',
       '--dry-run',
+      '--keep-line',
     ], workingDirectory: Directory.current.path);
     // A non-zero exit is the script refusing pubspec.yaml and globals.dart
     // after they drifted apart, which is the disagreement this test is for.
