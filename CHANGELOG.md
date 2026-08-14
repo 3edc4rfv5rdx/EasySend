@@ -2,6 +2,7 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+- I: 00-MakeAll.sh hands its arguments to the release step, so ./00-MakeAll.sh --minor works like the release script's own flag.
 - I: README says what moves the version line and what makes 1.0, and 10-MakeRelease.sh enforces it: a release with an N: entry waiting needs --minor, so the decision cannot be forgotten.
 - I: IDEAS.txt now carries the reconciler idea for the network state machine — why it looks the way it does, what the alternative is, and why we are not touching it.
 - N: Turning on background receiving now asks Android for the battery exemption it depends on, in one system dialog, and only when the app is not exempt already; the hint about it is left for a refusal.
