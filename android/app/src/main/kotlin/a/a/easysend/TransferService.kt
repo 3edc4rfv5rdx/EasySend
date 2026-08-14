@@ -12,6 +12,7 @@ import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
+import android.util.Log
 import androidx.core.app.NotificationCompat
 
 /**
@@ -28,6 +29,7 @@ class TransferService : Service() {
     private var wifiLock: WifiManager.WifiLock? = null
 
     companion object {
+        private const val TAG = "EasySend"
         const val CHANNEL_ID = "easysend_transfer"
         const val NOTIFICATION_ID = 1
 
@@ -83,10 +85,13 @@ class TransferService : Service() {
                 val stopLabel = intent?.getStringExtra(EXTRA_STOP_LABEL).orEmpty()
                 val exitLabel = intent?.getStringExtra(EXTRA_EXIT_LABEL).orEmpty()
                 val exitNeedsApp = intent?.getBooleanExtra(EXTRA_EXIT_NEEDS_APP, false) ?: false
-                startForegroundWith(title, text, progress, stopLabel, exitLabel, exitNeedsApp)
+                val started =
+                    startForegroundWith(title, text, progress, stopLabel, exitLabel, exitNeedsApp)
                 // progress >= 0 is an active transfer. ACTION_UPDATE must be
                 // sufficient after an idle listener start or service recreation.
-                if (progress in 0..100) {
+                // Nothing is held for a service that was refused: it is on its
+                // way out and its locks went with the refusal.
+                if (started && progress in 0..100) {
                     acquireOrRefreshTransferLocks()
                 } else {
                     releaseLocks()
@@ -98,6 +103,7 @@ class TransferService : Service() {
         return START_NOT_STICKY
     }
 
+    /** Whether the service is actually in the foreground afterwards. */
     private fun startForegroundWith(
         title: String,
         text: String,
@@ -105,7 +111,7 @@ class TransferService : Service() {
         stopLabel: String,
         exitLabel: String,
         exitNeedsApp: Boolean,
-    ) {
+    ): Boolean {
         createChannel()
 
         val pending = openAppIntent(REQUEST_CONTENT, exitOnOpen = false)
@@ -146,11 +152,40 @@ class TransferService : Service() {
             )
         }
 
-        val notification: Notification = builder.build()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            startForeground(NOTIFICATION_ID, notification, foregroundType(progress))
-        } else {
-            startForeground(NOTIFICATION_ID, notification)
+        return startForegroundOrGiveUp(builder.build(), foregroundType(progress))
+    }
+
+    /**
+     * Goes to the foreground, or gives the service up without taking the
+     * process with it.
+     *
+     * startForeground() is allowed to refuse: since Android 12 when the app may
+     * no longer hold a foreground service by the time the service asks, and
+     * since Android 15 when the day's dataSync budget is spent. The exception
+     * lands on the main thread inside onStartCommand, where nothing catches it,
+     * so an unguarded call ends the process — and with it the transfer, the
+     * receive server and discovery, which is exactly what SPEC 7 says must not
+     * happen. Refused, the service does what a timeout does: drops its locks and
+     * its notification, tells Dart so background readiness stops claiming
+     * otherwise, and stops.
+     */
+    private fun startForegroundOrGiveUp(notification: Notification, type: Int): Boolean {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                startForeground(NOTIFICATION_ID, notification, type)
+            } else {
+                startForeground(NOTIFICATION_ID, notification)
+            }
+            return true
+        } catch (e: Exception) {
+            // Logged rather than swallowed: a refusal and a mistake in building
+            // the notification must not look the same from here.
+            Log.w(TAG, "foreground service refused", e)
+            releaseLocks()
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            (application as EasySendApplication).reportServiceTimeout(type)
+            stopSelf()
+            return false
         }
     }
 
