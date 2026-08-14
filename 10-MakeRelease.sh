@@ -22,17 +22,62 @@ PUB_FILE="pubspec.yaml"
 GLOB_FILE="lib/globals.dart"
 APK_PATH="build/app/outputs/flutter-apk"
 
+# The line — major.minor — is the one part of a version decided by hand. It is
+# carried over verbatim unless the caller says otherwise; see --minor and the
+# rule below it.
 compute_next_version() {
     local current="$1"
     local date_part="$2"
+    local bump="${3:-}"
     if [[ ! "$current" =~ ^([0-9]+)\.([0-9]+)\.([0-9]{6})\+([0-9]+)$ ]]; then
         echo "Malformed version: $current" >&2
         return 1
     fi
-    local line="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}"
+    local major="${BASH_REMATCH[1]}"
+    local minor="${BASH_REMATCH[2]}"
+    [ "$bump" = "minor" ] && minor=$((minor + 1))
     local next_build=$((BASH_REMATCH[4] + 1))
-    echo "$line.$date_part+$next_build"
+    echo "$major.$minor.$date_part+$next_build"
 }
+
+# Whether anything waiting for release is a new feature. The changelog already
+# says so itself: N is a feature, everything else is a fix, a tweak or plumbing.
+# 20-MakeTag.sh empties Unreleased when it stamps a version, so this reads
+# exactly what has landed since the last tag.
+unreleased_has_feature() {
+    awk '
+        /^## Unreleased$/ { inside = 1; next }
+        /^## / { inside = 0 }
+        inside && /^- N:/ { found = 1 }
+        END { exit !found }
+    ' "${1:-CHANGELOG.md}"
+}
+
+# The line the last release went out on, so the rule fires once per feature and
+# not on every build after it.
+# Silence rather than failure when there is no tag yet, or none that parses: an
+# assignment from a function that returns non-zero ends the script under set -e,
+# and a project without releases is not an error.
+released_line() {
+    local tag
+    tag=$(git tag --sort=-v:refname 2>/dev/null | head -1) || true
+    if [[ "$tag" =~ ^v([0-9]+\.[0-9]+)\. ]]; then
+        echo "${BASH_REMATCH[1]}"
+    fi
+    return 0
+}
+
+# Taken out of the argument list first, so it may be given in any order.
+BUMP_LINE=false
+ARGS=()
+for arg in "$@"; do
+    if [ "$arg" = "--minor" ]; then
+        BUMP_LINE=true
+    else
+        ARGS+=("$arg")
+    fi
+done
+set -- ${ARGS[@]+"${ARGS[@]}"}
 
 if [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
     sed -n '2,10p' "$0"
@@ -40,7 +85,13 @@ if [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
 fi
 
 if [ "$1" = "--compute" ]; then
-    compute_next_version "$2" "$3"
+    compute_next_version "$2" "$3" "${4:-}"
+    exit
+fi
+
+# Asked on its own so the rule can be tested without building anything.
+if [ "$1" = "--has-feature" ]; then
+    unreleased_has_feature "${2:-CHANGELOG.md}"
     exit
 fi
 
@@ -48,19 +99,42 @@ fi
 CURRENT_FULL=$(sed -n 's/^version: //p' "$PUB_FILE")
 CURRENT_VERSION=${CURRENT_FULL%+*}
 CURRENT_BUILD=${CURRENT_FULL##*+}
+# major.minor on its own: the date is the rest of it.
+CURRENT_VERSION_LINE=${CURRENT_VERSION%.*}
 GLOBAL_VERSION=$(sed -n "s/^const String progVersion = '\([^']*\)';/\1/p" "$GLOB_FILE")
 GLOBAL_BUILD=$(sed -n 's/^const int buildNumber = \([0-9]*\);/\1/p' "$GLOB_FILE")
 if [ "$CURRENT_VERSION" != "$GLOBAL_VERSION" ] || [ "$CURRENT_BUILD" != "$GLOBAL_BUILD" ]; then
     echo "Version sources disagree: $CURRENT_FULL vs $GLOBAL_VERSION+$GLOBAL_BUILD" >&2
     exit 1
 fi
-FULL_VER=$(compute_next_version "$CURRENT_FULL" "$(date +%y%m%d)")
+if [ "$BUMP_LINE" = true ]; then
+    FULL_VER=$(compute_next_version "$CURRENT_FULL" "$(date +%y%m%d)" minor)
+else
+    FULL_VER=$(compute_next_version "$CURRENT_FULL" "$(date +%y%m%d)")
+fi
 VERSION=${FULL_VER%+*}
 BUILD=${FULL_VER##*+}
 
 if [ "$1" = "--dry-run" ]; then
     echo "$FULL_VER"
     exit
+fi
+
+# A feature has landed and the line has not moved since the last release, so
+# this build is the one that moves it. Refused rather than bumped on its own:
+# the line is the developer's decision, and this only makes it impossible to
+# forget. --dry-run above stays a plain question and answers whatever the flags
+# ask for.
+RELEASED_LINE=$(released_line)
+if [ "$BUMP_LINE" != true ] &&
+   [ -n "$RELEASED_LINE" ] &&
+   [ "$RELEASED_LINE" = "$CURRENT_VERSION_LINE" ] &&
+   unreleased_has_feature; then
+    echo "CHANGELOG has a new feature (N:) waiting under Unreleased, and the" >&2
+    echo "line is still $RELEASED_LINE. A release with a feature moves it:" >&2
+    echo "    $0 --minor" >&2
+    echo "See README, 'Versions'." >&2
+    exit 1
 fi
 
 VERSION_BACKUP=$(mktemp -d)

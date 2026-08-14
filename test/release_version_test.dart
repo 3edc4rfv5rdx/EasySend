@@ -24,6 +24,67 @@ void main() {
     expect((result.stdout as String).trim(), '3.7.260811+10');
   });
 
+  // The line is the one part of a version decided by hand, and the changelog
+  // decides it: a release carrying a feature moves the minor (README, Versions).
+  test('an asked-for line change moves the minor and nothing else', () async {
+    final result = await Process.run('bash', [
+      '10-MakeRelease.sh',
+      '--compute',
+      '0.2.260810+64',
+      '260811',
+      'minor',
+    ], workingDirectory: Directory.current.path);
+
+    expect(result.exitCode, 0);
+    expect((result.stdout as String).trim(), '0.3.260811+65');
+  });
+
+  group('the changelog says whether a feature is waiting', () {
+    Future<int> hasFeature(String changelog) async {
+      final Directory temp = await Directory.systemTemp.createTemp('easysend-cl-');
+      addTearDown(() => temp.delete(recursive: true));
+      final File file = File('${temp.path}/CHANGELOG.md');
+      await file.writeAsString(changelog);
+      final result = await Process.run('bash', [
+        '10-MakeRelease.sh',
+        '--has-feature',
+        file.path,
+      ], workingDirectory: Directory.current.path);
+      return result.exitCode;
+    }
+
+    test('a feature under Unreleased is found', () async {
+      expect(
+        await hasFeature('## Unreleased\n- E: a fix\n- N: something new\n'),
+        0,
+      );
+    });
+
+    test('fixes and tweaks alone are not one', () async {
+      expect(
+        await hasFeature('## Unreleased\n- E: a fix\n- F: a tweak\n'),
+        isNot(0),
+      );
+    });
+
+    // What was released long ago must not keep demanding a line of its own.
+    test('a feature in an older section does not count', () async {
+      expect(
+        await hasFeature(
+          '## Unreleased\n- E: a fix\n\n## v0.2.260813+95\n- N: an old one\n',
+        ),
+        isNot(0),
+      );
+    });
+
+    test('an empty Unreleased is quiet', () async {
+      expect(
+        await hasFeature('## Unreleased\n\n## v0.2.260813+95\n- N: an old one\n'),
+        isNot(0),
+      );
+    });
+  });
+
   test('rejects malformed input before mutation', () async {
     final result = await compute('not-a-version', '260811');
     expect(result.exitCode, isNot(0));

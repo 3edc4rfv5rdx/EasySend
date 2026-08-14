@@ -96,6 +96,22 @@ Flutter, one codebase for Android and desktop. The numbered scripts do the work:
 The Linux build needs `clang cmake ninja-build pkg-config libgtk-3-dev` and a linker
 beside clang (`lld`); `13-MakeLinux.sh` checks for both and says what is missing.
 
+### Versions
+
+`major.minor.YYMMDD+build`. The date and the build number are stamped by
+`10-MakeRelease.sh` and never go backwards: Android refuses an update whose
+build number is not larger than the installed one.
+
+The line — `major.minor` — is the only part decided by hand, and the changelog
+decides it. A release carrying an `N:` entry since the last tag moves the minor:
+`./10-MakeRelease.sh --minor`. The script refuses to build without that flag
+once it sees a new feature waiting under `Unreleased`, so the decision cannot be
+forgotten, only made. Everything else — fixes, tweaks, refactors, plumbing —
+keeps the line and just moves the date.
+
+`1.0` is not a mood either: it is the twelve readiness criteria in `SPEC.md`
+§13, all met, with the "not in v1" list of §12 still out.
+
 ### Signing
 
 The Android release is signed with a key kept outside the repository:
