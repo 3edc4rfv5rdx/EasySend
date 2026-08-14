@@ -2,6 +2,7 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure, T=tag
 
 ## Unreleased
+- E: Picking two documents with the same name from different cloud or card folders overwrote one copy with the other, dropped one of them as a duplicate and sent a file whose name and content came from different documents; every copy now gets a directory of its own and keeps its own name.
 - E: A foreground service Android refused to start took the whole process with it, transfer and sockets included; the refusal is now caught, the service gives itself up as it does on a timeout, and the app says background receiving is unavailable.
 - E: Stopping a receive on the receiving device left the sender retrying every remaining file into a session that no longer existed; a gone session now says so and the sender ends the transfer at once.
 - E: A lost answer to a verify cost the file it was about: the sender re-sent it, had the bytes refused, and offered a Retry that published a second copy. The answer is asked for again instead.

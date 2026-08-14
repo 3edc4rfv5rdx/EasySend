@@ -267,7 +267,7 @@ answer is not produced for a `finish` on a fully published session.
 
 ---
 
-### 4. P2 — Two documents picked under the same display name overwrite each other, and the survivor carries the wrong content
+### 4. P2 [FIXED f4b58f3] — Two documents picked under the same display name overwrite each other, and the survivor carries the wrong content
 
 **Affected components:**
 `android/app/src/main/kotlin/a/a/easysend/MainActivity.kt` `copyToCache` (lines
