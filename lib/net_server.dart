@@ -593,10 +593,9 @@ class ReceiveServer {
   Future<void> _upload(HttpRequest req) async {
     final _Incoming? session = _sessionOf(req);
     final String fileId = req.uri.queryParameters['file'] ?? '';
-    final FileItem? item = session?.byId[fileId];
-    if (session == null || item == null) {
-      return _status(req, HttpStatus.badRequest);
-    }
+    if (session == null) return _noSession(req);
+    final FileItem? item = session.byId[fileId];
+    if (item == null) return _status(req, HttpStatus.badRequest);
     // A session that is closing or closed answers nothing else: its outcome is
     // already decided and the two recoveries below would reopen it.
     final bool settled =
@@ -793,10 +792,9 @@ class ReceiveServer {
   Future<void> _verify(HttpRequest req) async {
     final _Incoming? session = _sessionOf(req);
     final String fileId = req.uri.queryParameters['file'] ?? '';
-    final FileItem? item = session?.byId[fileId];
-    if (session == null || item == null) {
-      return _status(req, HttpStatus.badRequest);
-    }
+    if (session == null) return _noSession(req);
+    final FileItem? item = session.byId[fileId];
+    if (item == null) return _status(req, HttpStatus.badRequest);
     // Asked again about a file that is already published: the sender lost the
     // answer, not the file. The same question gets the same answer, or a
     // dropped response costs a file that is safely on disk — and the retry that
@@ -925,7 +923,7 @@ class ReceiveServer {
 
   Future<void> _finish(HttpRequest req) async {
     final _Incoming? session = _sessionOf(req);
-    if (session == null) return _status(req, HttpStatus.badRequest);
+    if (session == null) return _noSession(req);
     if (session.phase != _ReceivePhase.ready) {
       return _json(req, {
         'reason': 'out-of-order',
@@ -975,7 +973,7 @@ class ReceiveServer {
 
   Future<void> _cancel(HttpRequest req) async {
     final _Incoming? session = _sessionOf(req);
-    if (session == null) return _status(req, HttpStatus.badRequest);
+    if (session == null) return _noSession(req);
     if (session.phase == _ReceivePhase.finishing) {
       return _json(req, {
         'reason': 'out-of-order',
@@ -1044,6 +1042,14 @@ class ReceiveServer {
   Future<void> _cleanupParts(_Incoming session) async {
     await discardIncompleteSession(session.recvDir, session.sessionId);
   }
+
+  // The session this request names is not here: stopped from this side, timed
+  // out, or already closed. Told apart from a malformed request, because a
+  // sender that reads this has to give the transfer up at once — otherwise it
+  // offers every remaining file of the manifest to a receiver that will refuse
+  // all of them, three times each.
+  Future<void> _noSession(HttpRequest req) =>
+      _json(req, {'reason': reasonNoSession}, status: HttpStatus.gone);
 
   _Incoming? _sessionOf(HttpRequest req) {
     final String id = req.uri.queryParameters['session'] ?? '';

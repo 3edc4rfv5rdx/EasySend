@@ -19,6 +19,14 @@ class _Cancelled implements Exception {
   const _Cancelled();
 }
 
+// The receiver no longer has the session this transfer is addressed to: it was
+// stopped from that side, or it timed out. Thrown rather than returned, because
+// it ends the whole transfer and not the file that happened to discover it —
+// every remaining file would be refused exactly the same way, three times each.
+class _SessionGone implements Exception {
+  const _SessionGone();
+}
+
 // How a file ended, and whether trying it again could change that. A checksum
 // that did not match is worth another go; a file that is no longer what the
 // manifest describes is not.
@@ -204,6 +212,12 @@ class SendService {
           }
         }
       }
+    } on _SessionGone {
+      // Stopped from the other side, or timed out there. Nothing is left to
+      // cancel over there and nothing to send: what has not arrived has nowhere
+      // to arrive at. Retry is still offered on the row, and it opens a session
+      // of its own.
+      if (!_cancelled) _fail(transfer, lw('The receiver stopped the transfer'));
     } on SocketException catch (e) {
       if (!_cancelled) {
         _fail(transfer, e.osError?.message ?? e.message);
@@ -259,6 +273,18 @@ class SendService {
       final String detail = response.body.isEmpty
           ? 'HTTP ${response.status}'
           : 'HTTP ${response.status}: ${response.body}';
+      // The session was stopped or timed out over there. There is nothing to
+      // close and nothing to cancel, and the row says which of the two ends
+      // ended it rather than showing a code.
+      if (_reasonOf(response.body) == reasonNoSession) {
+        transfer.error = lw('The receiver stopped the transfer');
+        transfer.log(
+          'The receiver stopped the transfer',
+          detail: detail,
+          failure: true,
+        );
+        return false;
+      }
       transfer.error = 'HTTP ${response.status}';
       transfer.log(
         'The receiver did not finish the transfer',
@@ -546,6 +572,7 @@ class SendService {
         totalTimeout: controlBodyTimeout,
       );
       if (resp.statusCode != HttpStatus.ok) {
+        if (_reasonOf(rejection) == reasonNoSession) throw const _SessionGone();
         if (_reasonOf(rejection) == reasonAlreadyVerified) {
           transfer.log(
             'The receiver already has this file',
@@ -570,6 +597,7 @@ class SendService {
       );
       item.crc32 = crc;
       if (verify.status == HttpStatus.ok) return delivered();
+      if (_reasonOf(verify.body) == reasonNoSession) throw const _SessionGone();
       // Each failed attempt writes its own line, so the number of them is what
       // says how many tries the file took.
       transfer.log(
@@ -581,6 +609,10 @@ class SendService {
     } on _Cancelled {
       transfer.log('Cancelled', file: item.relativePath);
       return _FileResult.hopeless;
+    } on _SessionGone {
+      // Nothing about this file: the transfer as a whole is over, and the queue
+      // must not walk on into a receiver that has nowhere to put any of it.
+      rethrow;
     } on SocketException {
       rethrow;
     } catch (e) {

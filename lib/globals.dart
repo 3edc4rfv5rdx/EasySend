@@ -77,6 +77,12 @@ const int maxResendAttempts = 2;
 // that reads this counts the file as delivered instead of failing it and
 // offering a retry that would publish a second copy of it.
 const String reasonAlreadyVerified = 'already-verified';
+// What the receiver answers to a request naming a session it does not have:
+// stopped from that side, timed out, or already closed. Its own reason rather
+// than a bare bad request, because the sender has to give the whole transfer up
+// at once instead of offering every remaining file to a receiver that has
+// nowhere to put any of them.
+const String reasonNoSession = 'no-session';
 // Speed and ETA are averaged over this window; the instant value is unreadable.
 const int speedWindowSec = 5;
 // Log lines one transfer keeps. A run of three thousand files writes one line

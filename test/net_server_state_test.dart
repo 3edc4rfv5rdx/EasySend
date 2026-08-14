@@ -159,9 +159,13 @@ void main() {
         200,
       );
       expect((await post('finish', query: {'session': session})).status, 200);
-      // The session is gone: nothing addressed to it means anything now.
-      expect((await post('finish', query: {'session': session})).status, 400);
-      expect(await sendFile([7]), 400);
+      // The session is gone: nothing addressed to it means anything now, and
+      // it says that rather than reading like a malformed request.
+      expect(
+        (await post('finish', query: {'session': session})).status,
+        HttpStatus.gone,
+      );
+      expect(await sendFile([7]), HttpStatus.gone);
     },
   );
 
