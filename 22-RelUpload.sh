@@ -85,6 +85,7 @@ echo "--------------------------------------------------"
 # ------------------------------------------------------------
 SRC_APK_MAIN="${PROJ_TITLE}-${VERSION}-${BUILD}-universal.apk"
 SRC_APK_ARM64="${PROJ_TITLE}-${VERSION}-${BUILD}-arm64-v8a.apk"
+SRC_APK_ARM32="${PROJ_TITLE}-${VERSION}-${BUILD}-armeabi-v7a.apk"
 
 # The Linux build of the same number, packed by 14-MakeAppImage.sh.
 SRC_APPIMAGE="${PROJ_TITLE}-${VERSION}-${BUILD}-x86_64.AppImage"
@@ -104,6 +105,8 @@ DST_SHA_MAIN="$SRC_SHA_MAIN"
 DST_APK_ARM64="$SRC_APK_ARM64"
 DST_SHA_ARM64="$SRC_SHA_ARM64"
 
+DST_APK_ARM32="$SRC_APK_ARM32"
+
 DST_APPIMAGE="${PROJ_TITLE}-${VERSION}-${BUILD}-x86_64.AppImage"
 
 # ------------------------------------------------------------
@@ -111,7 +114,7 @@ DST_APPIMAGE="${PROJ_TITLE}-${VERSION}-${BUILD}-x86_64.AppImage"
 # ------------------------------------------------------------
 echo "=== Checking APK files in $APK_DIR ==="
 
-for f in "$SRC_APK_MAIN" "$SRC_APK_ARM64"; do
+for f in "$SRC_APK_MAIN" "$SRC_APK_ARM64" "$SRC_APK_ARM32"; do
     if [[ ! -f "$APK_DIR/$f" ]]; then
         echo "ERROR: File not found: $APK_DIR/$f"
         exit 1
@@ -141,6 +144,7 @@ done
 FILES=(
     "$APK_DIR/$SRC_APK_MAIN#$DST_APK_MAIN"
     "$APK_DIR/$SRC_APK_ARM64#$DST_APK_ARM64"
+    "$APK_DIR/$SRC_APK_ARM32#$DST_APK_ARM32"
     "$APPIMAGE_DIR/$SRC_APPIMAGE#$DST_APPIMAGE"
 #    "$APK_DIR/$SRC_SHA_MAIN#$DST_SHA_MAIN"
 #    "$APK_DIR/$SRC_SHA_ARM64#$DST_SHA_ARM64"

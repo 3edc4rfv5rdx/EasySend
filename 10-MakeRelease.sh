@@ -159,9 +159,10 @@ echo ">>> Build: $BUILD <<<"
 flutter pub get
 dart run flutter_launcher_icons
 
-# 64-bit only, no armeabi-v7a.
-flutter build apk --release --target-platform android-arm64,android-x64
-flutter build apk --release --split-per-abi --target-platform android-arm64,android-x64
+# armeabi-v7a is here for the 32-bit Amlogic TV boxes; phones and the emulator
+# take the 64-bit splits.
+flutter build apk --release --target-platform android-arm64,android-arm,android-x64
+flutter build apk --release --split-per-abi --target-platform android-arm64,android-arm,android-x64
 
 # ---------- collect ----------
 # Flutter always writes app-<abi>-release.apk; rename to
@@ -170,7 +171,7 @@ flutter build apk --release --split-per-abi --target-platform android-arm64,andr
 # build directory. The fat APK carries both ABIs and so is named for that rather
 # than for one of them. Everything here is a release build, which is why the
 # word is not in the name.
-for abi in "" "-arm64-v8a" "-x86_64"; do
+for abi in "" "-arm64-v8a" "-armeabi-v7a" "-x86_64"; do
     SOURCE_ARTIFACTS+=("$APK_PATH/app${abi}-release.apk")
     FINAL_ARTIFACTS+=("$APK_PATH/$PROJ_TITLE-$VERSION-$BUILD${abi:--universal}.apk")
 done
@@ -213,15 +214,15 @@ RELEASE_COMMITTED=true
 rm -f "$APK_PATH/"*.sha1
 
 # ---------- prune ----------
-# Three builds back is enough to fall back on; each one is some 75 MB across
-# the three APKs. The app-* files from before the rename go with them.
+# Three builds back is enough to fall back on; each one is some 100 MB across
+# the four APKs. The app-* files from before the rename go with them.
 KEEP=3
 rm -f "$APK_PATH/"app-*.apk
 # Artifacts from the previous naming (<title>-<abi>-release-<version>-<build>)
 # match none of the patterns below, so they would never be pruned and would sit
 # here for good.
 rm -f "$APK_PATH/$PROJ_TITLE"*-release-*.apk
-for abi in "-universal" "-arm64-v8a" "-x86_64"; do
+for abi in "-universal" "-arm64-v8a" "-armeabi-v7a" "-x86_64"; do
     ls -t "$APK_PATH/$PROJ_TITLE-"*"$abi.apk" 2>/dev/null | tail -n +$((KEEP + 1)) | while read -r old; do
         echo "Removing older APK: $(basename "$old")"
         rm -f "$old"
