@@ -6,7 +6,7 @@
 # A build that fails stops the run. A device that is not plugged in does not:
 # an absent emulator should not cost you the AppImage.
 #
-# Finally 01-LinkOut.sh puts the AppImage and the arm64-v8a APK into OUT/ as
+# Finally 01-LinkOut.sh puts the AppImage and the two ARM APKs into OUT/ as
 # links under their own names, and sweeps whatever else was there.
 #
 cd "$(dirname "$0")"

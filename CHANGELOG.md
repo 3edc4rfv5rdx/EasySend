@@ -4,6 +4,7 @@
 > F is the same thing done better; E is behaviour that was wrong, whatever the size of the fix.
 
 ## Unreleased
+- I: OUT/ now holds hard links instead of symlinks, so a copy taken from there is a build and not a dangling path, and the armeabi-v7a APK lands there too.
 - I: The release build now also makes an armeabi-v7a APK, so 32-bit Android TV boxes can install it; the release upload carries it too.
 - I: The exit sequence moved out of the button handler into shutdownForExit(), so the order of the stops, the goodbye and the letting go of one-run state are all covered by tests instead of by hand.
 - E: Exiting on Android left the finished transfers on screen for the next launch, and the cache of copied documents unswept, because the process lives on after the exit; both are let go on the way out now.
