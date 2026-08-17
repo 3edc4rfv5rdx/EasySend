@@ -23,7 +23,11 @@ if [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
 fi
 
 MISSING=""
-LINKED=""
+# An array, not a string of names: the artifact name comes from the Android
+# label, and a label with a space in it — "Easy Send" — turned the membership
+# test below into a match on halves of two different names. The file just linked
+# then failed to recognise itself and the sweep deleted it.
+LINKED=()
 
 link_latest() { # link_latest <candidate files...>
     local newest
@@ -37,7 +41,7 @@ link_latest() { # link_latest <candidate files...>
     name=$(basename "$newest")
     mkdir -p OUT
     ln -f "$newest" "OUT/$name"
-    LINKED="$LINKED $name"
+    LINKED+=("$name")
     echo "OUT/$name"
 }
 
@@ -60,9 +64,12 @@ if [ -z "$MISSING" ] && [ -d OUT ]; then
     for entry in OUT/* ; do
         [ -d "$entry" ] && continue
         [ -e "$entry" ] || [ -L "$entry" ] || continue
-        case " $LINKED " in
-            *" $(basename "$entry") "*) continue ;;
-        esac
+        name=$(basename "$entry")
+        keep=""
+        for linked in ${LINKED+"${LINKED[@]}"}; do
+            [ "$name" = "$linked" ] && { keep=yes; break; }
+        done
+        [ -n "$keep" ] && continue
         rm -f "$entry"
     done
 fi

@@ -44,7 +44,11 @@ else
     git push $DRY -u "$REMOTE" HEAD
 fi
 
-if git ls-remote --tags "$REMOTE" "$LAST_TAG" | grep -q "$LAST_TAG"; then
+# Asked for the one ref by its full name, and answered by whether anything came
+# back. The old form grepped the output for the tag as a substring, so a tag that
+# happens to be a prefix of another — v0.4.2608 beside v0.4.260817+112 — read as
+# "already on the remote" and the real one was never pushed.
+if [ -n "$(git ls-remote --tags "$REMOTE" "refs/tags/$LAST_TAG")" ]; then
     echo "Tag $LAST_TAG already exists on $REMOTE."
 else
     echo "=== Pushing tag $LAST_TAG ($DRY) ==="
