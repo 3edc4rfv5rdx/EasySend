@@ -60,7 +60,19 @@ if [ -z "$APPIMAGETOOL" ]; then
     echo "  chmod +x ~/Downloads/appimagetool-x86_64.AppImage"
     exit 1
 fi
-chmod +x "$APPIMAGETOOL"
+# Only when it needs it, and only as far as we are allowed. A freshly downloaded
+# AppImage comes without the bit and has to be given it; one installed by a
+# package manager already has it and is not ours to chmod — that attempt failed
+# with EPERM and, under set -e, ended the build before it started, with a message
+# about permissions that said nothing about AppImages.
+if [ ! -x "$APPIMAGETOOL" ]; then
+    chmod +x "$APPIMAGETOOL" 2>/dev/null || true
+fi
+if [ ! -x "$APPIMAGETOOL" ]; then
+    echo "Cannot run $APPIMAGETOOL: no execute bit, and setting it was refused."
+    echo "  chmod +x $APPIMAGETOOL"
+    exit 1
+fi
 
 flutter config --enable-linux-desktop >/dev/null
 
