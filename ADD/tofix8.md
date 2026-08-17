@@ -226,7 +226,7 @@ not fire during a transfer in a way that removes the peer of a running session.
 `deviceDropSec` while `DiscoveryService` was never started is gone after whatever
 seam the fix introduces, and a `manual` one of the same age is still there.
 
-### 4. P3 — A stale consent notification survives a process death and answers nothing
+### 4. P3 [FIXED 94cf890] — A stale consent notification survives a process death and answers nothing
 
 **Affected components:** `lib/android_helpers.dart` — `initNotifications()` (line
 34), `askAcceptViaNotification()` (`_askNotificationId` at line 26, the `show` at

@@ -4,6 +4,7 @@
 > F is the same thing done better; E is behaviour that was wrong, whatever the size of the fix.
 
 ## Unreleased
+- E: A launch clears an incoming-files question left on the shade by a killed process, whose buttons answered nothing.
 - E: A device that went away is dropped from the list even while discovery is stopped, instead of sitting there until it restarts.
 - E: Pressing Send while an incoming request is waiting for an answer no longer starts a second transfer; the button says one is already running.
 - E: An address typed by hand is no longer moved by a discovery packet, and a send to a trusted device asks who answers there first.
