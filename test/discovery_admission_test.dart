@@ -159,6 +159,42 @@ void main() {
     expect(xvDevices, hasLength(1));
   });
 
+  // The row and the badge are two windows and they are related by arithmetic:
+  // dropping happens deviceDropSec after the last announce, and a goodbye
+  // backdates that stamp past both online windows. Written down as a test so the
+  // constants cannot drift apart unnoticed.
+  test('a row that said goodbye outlives the bye by the documented time', () async {
+    DateTime now = DateTime.utc(2026, 8, 17, 12);
+    xvNow = () => now;
+    addTearDown(() => xvNow = DateTime.now);
+    xvDevices = [];
+
+    final DiscoveryService service = DiscoveryService(
+      bindPort: 0,
+      interfaceProvider: () async => const [],
+      broadcastOverride: (_) {},
+      unicastOverride: (_, _) {},
+    );
+    addTearDown(service.stop);
+    expect(await service.start(), isTrue);
+
+    service.touchDeviceForTesting(id: 'leaving', address: '10.0.0.5');
+    final DateTime bye = now;
+    service.noteDepartureForTesting(id: 'leaving', address: '10.0.0.5');
+
+    // One second before the documented moment the row is still there, and it is
+    // still saying how the device went away.
+    now = bye.add(const Duration(seconds: departedNoticeSec - 1));
+    await service.tickNow();
+    expect(xvDevices.singleWhere((d) => d.id == 'leaving').departed, isTrue);
+
+    // And one second later it is gone: deviceDropSec after a stamp the goodbye
+    // had already pushed back.
+    now = bye.add(const Duration(seconds: departedNoticeSec));
+    await service.tickNow();
+    expect(xvDevices.any((d) => d.id == 'leaving'), isFalse);
+  });
+
   test('how a device left is news, and stops being news after a minute', () {
     // Otherwise a manual or trusted device — the kind that is never dropped from
     // the list — would wear the badge until it came back, which on a phone that

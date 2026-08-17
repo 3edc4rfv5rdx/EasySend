@@ -562,8 +562,7 @@ class DiscoveryService {
     xvDevices.removeWhere((d) {
       if (d.manual || d.trusted) return false;
       final DateTime? seen = d.lastSeen;
-      return seen == null ||
-          now.difference(seen).inSeconds > deviceTimeoutSec + 60;
+      return seen == null || now.difference(seen).inSeconds > deviceDropSec;
     });
     if (xvDevices.length != before) devicesChanged();
   }

@@ -41,8 +41,17 @@ const String apiPrefix = '/api/v1';
 const int announceIntervalSec = 5;
 const int deviceTimeoutSec = 20;
 // How long a row keeps saying that this device left rather than went quiet.
-// The same minute a discovered device is kept in the list after falling silent.
 const int departedNoticeSec = 60;
+// How long a discovered device stays in the list after it stops announcing: the
+// online window it has already failed, plus the minute its row is still worth
+// reading. Derived rather than written out again, so the two cannot drift.
+//
+// A device that said goodbye is backdated past both windows (lastSeenAfterBye),
+// so its row lives that much less: 59 s after the bye rather than 80 s after its
+// last announce. The badge is news for the full minute, which is one second
+// longer than the row it is drawn on — invisible for a discovered device, and
+// exactly right for a manual or trusted one, whose row is never dropped at all.
+const int deviceDropSec = deviceTimeoutSec + departedNoticeSec;
 // Manual devices send no announces, so they are polled over HTTP instead.
 const int manualPollSec = 10;
 const int manualPollTimeoutSec = 2;
