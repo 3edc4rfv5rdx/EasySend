@@ -92,9 +92,9 @@ Flutter, one codebase for Android and desktop. The numbered scripts do the work:
 
 `20-MakeTag.sh`, `21-PushTag.sh` and `22-RelUpload.sh` tag a release and upload it.
 `tools/make_icon.py` draws the app icon as geometry and writes the masters into `assets/`.
-`bash 02-MakeIcons.sh` runs it together with `flutter_launcher_icons` and says what it
-rewrote; it carries no execute bit, because the icons change a few times in a project's
-life. A release build never touches those files — the generated resources are committed
+`bash 02-MakeIcons.sh` carries those masters into `android/.../res/` with
+`flutter_launcher_icons`, and only when the resources are older than them; it says what it
+rewrote. A release build never touches those files — the generated resources are committed
 on their own.
 
 The Linux build needs `clang cmake ninja-build pkg-config libgtk-3-dev` and a linker
