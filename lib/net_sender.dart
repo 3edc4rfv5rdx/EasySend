@@ -144,7 +144,14 @@ class SendService {
     transfersChanged();
 
     try {
-      if (peer.manual) {
+      // Asked of a device the user has a relationship with, before a single byte
+      // goes out. A manual one may have had its address handed to somebody else
+      // by DHCP; a trusted one may have had it rewritten by an announce, which
+      // discovery accepts for a discovered record because that is the only way a
+      // new address ever arrives (SPEC 5.2). Confirming who answers there is what
+      // this check is for, and for a transient discovered peer there is no
+      // relationship to abuse — the row appeared moments ago and carries nothing.
+      if (peer.manual || peer.trusted) {
         // Two ways to fail this, and the user can act on only one of them: a
         // device that has become somebody else needs its address checked, one
         // that did not answer needs turning on.

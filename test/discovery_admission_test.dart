@@ -62,6 +62,72 @@ void main() {
     },
   );
 
+  // An id is public — every announce carries it in clear text — so a packet is
+  // not evidence about where a device lives. For a record the user typed by hand
+  // it used to be exactly that, and rewriting its address is enough to send the
+  // next transfer to whoever sent the packet.
+  test('an announce never moves an address the user typed', () {
+    final DateTime now = DateTime.utc(2026, 8, 17, 12);
+    xvNow = () => now;
+    addTearDown(() => xvNow = DateTime.now);
+    final Device typed = Device(
+      id: 'phone',
+      name: 'A36',
+      address: '192.168.204.250',
+      port: 15353,
+      manual: true,
+      trusted: true,
+    );
+    xvDevices = [typed];
+    final DiscoveryService service = DiscoveryService();
+    addTearDown(service.stop);
+
+    service.touchDeviceForTesting(
+      id: 'phone',
+      name: 'Impostor',
+      address: '192.168.204.99',
+      port: 15353,
+    );
+
+    // Nothing of the record moved, and the packet did not even mark it alive.
+    expect(typed.address, '192.168.204.250');
+    expect(typed.name, 'A36');
+    expect(typed.lastSeen, isNull);
+
+    // From the address it is listed at, the same announce is ordinary news.
+    service.touchDeviceForTesting(
+      id: 'phone',
+      name: 'A36 renamed',
+      address: '192.168.204.250',
+      port: 15353,
+    );
+    expect(typed.name, 'A36 renamed');
+    expect(typed.lastSeen, now);
+  });
+
+  // A discovered device has no other way of telling us its new address, so it
+  // still follows announces; what protects a send to it is the identity check in
+  // the sender (see ADD/tofix8.md finding 1).
+  test('a discovered device still follows its announces', () {
+    final DateTime now = DateTime.utc(2026, 8, 17, 12);
+    xvNow = () => now;
+    addTearDown(() => xvNow = DateTime.now);
+    final Device found = Device(
+      id: 'laptop',
+      name: 'Laptop',
+      address: '10.0.0.5',
+      trusted: true,
+    );
+    xvDevices = [found];
+    final DiscoveryService service = DiscoveryService();
+    addTearDown(service.stop);
+
+    service.touchDeviceForTesting(id: 'laptop', address: '10.0.0.9');
+
+    expect(found.address, '10.0.0.9');
+    expect(found.lastSeen, now);
+  });
+
   test('only announce, query and bye are discovery protocol messages', () {
     expect(isSupportedDiscoveryMessage({'t': 'announce'}), isTrue);
     expect(isSupportedDiscoveryMessage({'t': 'query'}), isTrue);

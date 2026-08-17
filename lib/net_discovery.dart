@@ -473,6 +473,23 @@ class DiscoveryService {
       );
     } else {
       final Device device = xvDevices[index];
+      // A record the user typed themselves is believed only from the address it
+      // is listed at — the same rule a bye is held to two functions down.
+      //
+      // An id travels in clear text in every announce, five seconds apart, so
+      // anybody on the subnet can put a listed id in a packet of their own. For a
+      // manual device that packet used to rewrite the address the user entered by
+      // hand (SPEC 5.4 says only they change it) and mark the row alive on the
+      // strength of it, which is enough to send the next transfer somewhere else
+      // entirely. The HTTP poll keeps such a row honest anyway, so nothing is
+      // lost by ignoring the packet outright.
+      if (device.manual && device.address != address) {
+        myPrint(
+          'announce for ${device.name} from $address, '
+          'listed by hand at ${device.address}',
+        );
+        return;
+      }
       device.name = name;
       device.platform = platform;
       device.address = address;

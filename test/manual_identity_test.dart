@@ -123,6 +123,38 @@ void main() {
       expect(xvTransfers.single.error, 'Device identity changed');
     });
 
+    // A trusted device found by discovery gets the same check: its address comes
+    // from announces, which anybody on the subnet can forge, so who answers there
+    // is confirmed before a byte goes out (ADD/tofix8.md finding 1).
+    test('a trusted device found by discovery is checked too', () async {
+      device.manual = false;
+      device.trusted = true;
+      response = '{"id":"somebody-else","name":"Other"}';
+
+      expect(
+        await sender.send(peer: device, files: batch),
+        TransferStatus.failed,
+      );
+      expect(xvTransfers.single.error, 'Device identity changed');
+    });
+
+    // Nothing to abuse on a row that appeared moments ago and carries no trust,
+    // so it is not held up by a round trip before every send.
+    test('a transient discovered device is not held up by the check', () async {
+      device.manual = false;
+      device.trusted = false;
+      response = '{"id":"somebody-else","name":"Other"}';
+
+      // It fails later, on prepare, rather than on an identity check that never
+      // ran: the fake server answers /info and nothing else.
+      final TransferStatus status = await sender.send(
+        peer: device,
+        files: batch,
+      );
+      expect(status, TransferStatus.failed);
+      expect(xvTransfers.single.error, isNot('Device identity changed'));
+    });
+
     test('a device that is switched off is not called an impostor', () async {
       final ServerSocket probe = await ServerSocket.bind(
         InternetAddress.loopbackIPv4,
