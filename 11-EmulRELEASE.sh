@@ -24,6 +24,14 @@ if [ -z "$apk" ]; then
     exit 1
 fi
 
+# Nothing to install on is not a failure: 00-MakeAll.sh reads 3 as "no emulator
+# was running" and finishes green, while an install that was attempted and went
+# wrong keeps its own non-zero code.
+if ! adb devices | grep -q '^emulator-5554[[:space:]]*device$'; then
+    echo "No emulator at emulator-5554. Start one, or install by hand."
+    exit 3
+fi
+
 echo ">>> Installing: $(basename "$apk")"
 adb -s emulator-5554 install -r "$apk"
 

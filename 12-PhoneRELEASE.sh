@@ -36,7 +36,10 @@ else
     COUNT=$(printf '%s\n' "$DEVICES" | sed '/^[[:space:]]*$/d' | wc -l | tr -d ' ')
     if [ "$COUNT" -eq 0 ]; then
         echo "No physical device connected. Connect one or pass a serial: $0 <serial>"
-        exit 1
+        # 3, not 1: nothing was attempted. 00-MakeAll.sh takes that as "there was
+        # nothing to install on" and finishes green, while a real install failure
+        # keeps its own non-zero code and makes the whole run non-zero.
+        exit 3
     fi
     TEL=$(printf '%s\n' "$DEVICES" | head -1)
     if [ "$COUNT" -gt 1 ]; then

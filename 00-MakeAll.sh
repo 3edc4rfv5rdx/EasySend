@@ -4,7 +4,10 @@
 # on the phone, then build the Linux release and pack it into an AppImage.
 #
 # A build that fails stops the run. A device that is not plugged in does not:
-# an absent emulator should not cost you the AppImage.
+# an absent emulator should not cost you the AppImage. The difference is in the
+# exit code of the step — 3 means there was nothing to run it on, anything else
+# non-zero means it tried and failed — and this run ends non-zero when something
+# actually failed, so it is not only the log that says so.
 #
 # Finally 19-LinkOut.sh puts the AppImage and the two ARM APKs into OUT/ as
 # links under their own names, and sweeps whatever else was there.
@@ -16,7 +19,10 @@ if [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
     exit 0
 fi
 
+# Two different endings, kept apart: a step that was not there or had nothing to
+# work on, and a step that ran and did not finish.
 SKIPPED=""
+FAILED=""
 
 run() { # run <script> <fatal|optional>
     echo
@@ -27,12 +33,17 @@ run() { # run <script> <fatal|optional>
         SKIPPED="$SKIPPED $1"
         return 0
     fi
-    if ./"$1"; then
+    ./"$1"
+    local rc=$?
+    [ "$rc" = 0 ] && return 0
+    if [ "$rc" = 3 ]; then
+        echo ">>> $1 had nothing to work on"
+        SKIPPED="$SKIPPED $1"
         return 0
     fi
     echo ">>> $1 failed"
     [ "$2" = "fatal" ] && exit 1
-    SKIPPED="$SKIPPED $1"
+    FAILED="$FAILED $1"
 }
 
 # The icons come first, and only redraw themselves when they are older than the
@@ -52,8 +63,12 @@ run 14-MakeAppImage.sh fatal
 run 19-LinkOut.sh optional
 
 echo
-if [ -n "$SKIPPED" ]; then
+if [ -n "$FAILED" ]; then
+    echo "Finished, but these failed:$FAILED"
+elif [ -n "$SKIPPED" ]; then
     echo "Done, without:$SKIPPED"
 else
     echo "Done: APK installed on both, AppImage built"
 fi
+# Only a step that tried and failed makes the run itself a failure.
+[ -z "$FAILED" ] || exit 1
