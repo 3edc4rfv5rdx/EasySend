@@ -4,6 +4,7 @@
 > F is the same thing done better; E is behaviour that was wrong, whatever the size of the fix.
 
 ## Unreleased
+- I: Device freshness — online and the departure badge — is now judged by one clock, so tests can move time instead of waiting for it.
 - E: An exit now says goodbye even when discovery was already stopped, instead of leaving peers to wait out the silence.
 - E: A full exit on Android left the outgoing transfer sending with no screen, no notification and no way to stop it; it is cancelled now, the receiver is told, and the exit question says so.
 - E: Exiting on Android left yesterday's picked files on screen with Send live, pointing at cache copies the next launch had already swept; the exit lets the selection go now.

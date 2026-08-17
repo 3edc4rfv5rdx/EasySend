@@ -167,7 +167,7 @@ on ignoring it.
 service that was never started with `announceLeaving: true` and assert the
 unicast override still saw a `bye` for every listed address.
 
-### 4. P3 — The departure badge is written by an injectable clock and read by the wall clock
+### 4. P3 [FIXED 6a8e420] — The departure badge is written by an injectable clock and read by the wall clock
 
 **Affected components:** `lib/models.dart` `Device.departed` /
 `Device.departedAt`; `lib/net_discovery.dart` `_noteDeparture()` (writes
