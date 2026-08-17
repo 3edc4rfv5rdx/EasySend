@@ -35,6 +35,14 @@ MARK_OVERLAP = 0.62
 DOC_FOLD = 0.34  # the folded corner, as a fraction of the sheet's width
 DOC_GAP = 0.28  # how far the flap is pulled off the cut, as a fraction of it
 
+# The one mark that says the outline is a phone and not a window: the front
+# camera, drawn as a ring in the strip the page leaves free above it. Fractions
+# of the canvas, like everything else here. A ring rather than a dot on purpose;
+# the bottom button and the screen's own edge were both tried and dropped —
+# at launcher size they thickened the body instead of describing it.
+CAM_R = 0.018
+CAM_RING = 0.009
+
 # The round launcher mask leaves a 61% circle. The mark is wider on the left than
 # on the right, so the foreground is centred on its own bounding box first; this
 # is the scale at which its far corner then sits inside the circle.
@@ -95,6 +103,18 @@ def drawing(background, scale=1.0, ink=CREAM, center=False):
         [fx + stroke, fy + stroke, fx + fw - stroke, fy + fh - stroke],
         radius=r - stroke / 2,
         fill=background,
+    )
+    # The camera, centred on the frame's own width and midway between the top
+    # wall and the page. Drawn before the wall is cut open, like the page itself.
+    cam_r = s * CAM_R * scale
+    cam_cx = fx + fw / 2
+    cam_cy = (fy + stroke + sy) / 2
+    d.ellipse(
+        [cam_cx - cam_r, cam_cy - cam_r, cam_cx + cam_r, cam_cy + cam_r],
+        outline=ink,
+        # Never thinner than a pixel of the supersampled canvas, whatever the
+        # scale: a ring that rounds to zero simply would not be drawn.
+        width=max(1, round(s * CAM_RING * scale)),
     )
     # The way out: without a gap in the wall the page only lies against it.
     d.rectangle(
