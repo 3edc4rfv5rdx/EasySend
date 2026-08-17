@@ -318,7 +318,7 @@ noticed first.
 **Cross-reference:** finding 4 touches the other notification lifetime in this
 codebase; nothing else here shares code with this item.
 
-### 7. P3 — Every announce builds and tears down one socket per interface address
+### 7. P3 [MEASURED 2026-08-17 — ACCEPTED] — Every announce builds and tears down one socket per interface address
 
 **Affected components:** `lib/net_discovery.dart` `_sendMulticast()`,
 `_broadcast()`, `_tick()`; SPEC 5.2.
@@ -344,10 +344,31 @@ documented way around Dart's deprecated `multicastInterface`.
 against the alternative of holding one socket per interface for as long as
 discovery runs.
 
-**Required outcome:** if measurement shows it matters, the sockets outlive a single
-announce and are reconciled together with the memberships in
-`_reconcileInterfaces()`; if it does not, this finding is closed as measured and
-the note stays.
+**Measured, 2026-08-17 — nothing to change.** The empirical assumption above was
+tested rather than reasoned about:
+
+- A probe on this desktop ran the exact sequence `_sendMulticast` performs — bind
+  an ephemeral socket to the interface address, set `multicastHops`, send one
+  datagram to the group, close — 200 times: **30 us per cycle, no failures**. At
+  one announce every 5 s that is ~22 ms of CPU per hour with one interface, ~65 ms
+  with three.
+- On the phone (SM-A366B, build 112, one `wlan0`, no VPN) the app burned **300 ms
+  of CPU over a 120 s window** with the screen on — 24 announces in it. That is
+  the UI: discovery ticks repaint the device list. The socket work inside the same
+  window is ~0.7 ms, an order of magnitude below the 10 ms resolution of
+  `/proc/<pid>/stat`, so the phone can only bound the total, not isolate this.
+- The wakeup worry does not survive reading: a radio wakeup is caused by the
+  datagram leaving, not by where the socket came from. Holding sockets open for
+  the life of discovery would save those 30 us per announce and change nothing
+  about Doze.
+
+**Still unmeasured:** a `bind` that fails on Android is invisible in a release
+build — `myPrint` is compiled out — so "an interface silently loses its announce
+for the cycle" would need a debug build on hardware. And the multi-interface case
+was not reproducible: the phone had a single `wlan0` with no VPN up.
+
+**If it is ever revisited:** the sockets would outlive a single announce and be
+reconciled together with the memberships in `_reconcileInterfaces()`.
 
 **Constraints:** whatever holds sockets must release them on `stop()` and must not
 keep an interface's socket after that interface disappears; a bind that fails must
