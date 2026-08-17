@@ -131,12 +131,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       validator: (String value) {
         return switch (validateDeviceName(value)) {
           DeviceNameProblem.empty => lw('Cannot be empty'),
-          DeviceNameProblem.tooLong => lw(
-            'Too long, 256 bytes at most',
-          ),
-          DeviceNameProblem.controlCharacter => lw(
-            'No control characters',
-          ),
+          DeviceNameProblem.tooLong => lw('Too long, 256 bytes at most'),
+          DeviceNameProblem.controlCharacter => lw('No control characters'),
           null => null,
         };
       },
@@ -229,7 +225,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final List<Device> trusted = xvDevices.where((d) => d.trusted).toList();
     return Scaffold(
       backgroundColor: clFon,
       appBar: AppBar(
@@ -242,193 +237,196 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         ],
       ),
-      body: ListView(
-        children: [
-          // Four groups under the same rule-heading the home screen uses: the
-          // flat list gave a port and a colour theme the same weight.
-          sectionTitle(lw('Device')),
-          _tile(
-            icon: Icons.badge_outlined,
-            title: lw('Device name'),
-            value: xdef['Device name'],
-            onTap: _editDeviceName,
-          ),
-          // The folder is a place on this disk, not an address: it belongs with
-          // the device rather than with the port it is reached on.
-          _tile(
-            icon: Icons.folder_outlined,
-            title: lw('Receive folder'),
-            value: shortPath(xdef['Receive folder']),
-            keepTail: true,
-            onTap: _editRecvFolder,
-          ),
-          sectionTitle(lw('Network')),
-          _tile(
-            icon: Icons.lan_outlined,
-            title: lw('Transfer port'),
-            value: xdef['Port'],
-            onTap: _editPort,
-          ),
-          _tile(
-            icon: Icons.wifi_tethering,
-            title: lw('My IP'),
-            value: _addresses.isEmpty
-                ? lw('No network connection')
-                : '${_addresses.first}:$currentPort',
-            onTap: _showMyAddresses,
-          ),
-          _tile(
-            icon: Icons.security_outlined,
-            title: lw('Network safety'),
-            value: lw('Unencrypted local transfer'),
-            onTap: () => showNetworkSafetyWarning(context: context),
-          ),
-          if (Platform.isAndroid)
-            SwitchListTile(
-              dense: true,
-              visualDensity: const VisualDensity(vertical: -2),
-              secondary: Icon(
-                Icons.notifications_active_outlined,
-                color: clText,
-              ),
-              activeThumbColor: clAccent,
-              value: xdef['Receive in background'] == 'true',
-              title: Text(lw('Receive in background'), style: tsNormal),
-              subtitle: Text(
-                lw('Receives with the screen off'),
-                style: tsSmall,
-              ),
-              onChanged: (v) async {
-                if (v && !await ensureNotificationPermission()) {
-                  okInfoBarRed(
-                    lw(
-                      'Background receiving needs notifications',
-                    ),
-                  );
-                  return;
-                }
-                await _apply(() => xdef['Receive in background'] = '$v');
-                await androidService.sync();
-                // Doze cuts connections on a long idle unless the app is
-                // exempt, so it is asked for here rather than described: the
-                // system dialog is one tap, and an app that is already exempt
-                // is not asked at all. Only a refusal leaves anything to say.
-                if (v && !await ensureBatteryExemption()) {
-                  okInfoBarBlue(
-                    lw('Also exclude it from battery optimisation'),
-                  );
-                }
-              },
-            ),
-          sectionTitle(lw('Application')),
-          _tile(
-            icon: Icons.language,
-            title: lw('Language'),
-            value:
-                langNames[xdef['Program language']] ?? xdef['Program language'],
-            onTap: () => _pickFromList(
-              title: lw('Language'),
-              options: appLANGUAGES,
-              current: xdef['Program language'],
-              // Names come from locales.json and are never translated.
-              labelOf: (code) => langNames[code] ?? code,
-              onPick: (v) async {
-                xdef['Program language'] = v;
-                await saveSettings();
-                await initTranslations();
-                rebuildApp();
-                if (mounted) setState(() {});
-              },
-            ),
-          ),
-          _tile(
-            icon: Icons.brightness_6_outlined,
-            title: lw('Theme'),
-            value: lw(xdef['Color theme']),
-            onTap: () => _pickFromList(
-              title: lw('Theme'),
-              options: appTHEMES,
-              current: xdef['Color theme'],
-              onPick: (v) async {
-                xdef['Color theme'] = v;
-                await saveSettings();
-                rebuildApp();
-                if (mounted) setState(() {});
-              },
-            ),
-          ),
-          SwitchListTile(
-            dense: true,
-            visualDensity: const VisualDensity(vertical: -2),
-            secondary: Icon(Icons.exit_to_app, color: clText),
-            activeThumbColor: clAccent,
-            value: xdef['Ask before exit'] == 'true',
-            title: Text(lw('Ask before exit'), style: tsNormal),
-            subtitle: Text(
-              lw('A transfer is always asked about'),
-              style: tsSmall,
-            ),
-            onChanged: (v) => _apply(() => xdef['Ask before exit'] = '$v'),
-          ),
-          sectionTitle('${lw('Trusted devices')} (${trusted.length})'),
-          // The policy sits above the list it fills: the switch is what puts
-          // most of these rows here.
-          SwitchListTile(
-            dense: true,
-            visualDensity: const VisualDensity(vertical: -2),
-            secondary: Icon(Icons.verified_user_outlined, color: clText),
-            activeThumbColor: clAccent,
-            value: xdef['Trust after sending'] == 'true',
-            title: Text(lw('Trust after sending'), style: tsNormal),
-            subtitle: Text(
-              lw('A device that accepted becomes trusted'),
-              style: tsSmall,
-            ),
-            onChanged: (v) => _apply(() => xdef['Trust after sending'] = '$v'),
-          ),
-          // Nobody trusted yet is a state worth spelling out: the heading alone
-          // looks like a list that failed to appear.
-          if (trusted.isEmpty)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-              child: Text(lw('No trusted devices'), style: tsSmall),
-            ),
-          ...trusted.map(
-            (d) => ListTile(
-              dense: true,
-              leading: Icon(
-                d.platform == 'android' ? Icons.smartphone : Icons.computer,
-                color: clText,
-              ),
-              title: Text(d.name, style: tsNormal),
-              // Trust is bound to the id, not to the address, so a device can
-              // be trusted with nowhere to reach it — say that instead of
-              // leaving the line blank. The port is only worth the room when
-              // it is not the one every device is assumed to listen on.
-              subtitle: Text(
-                d.address.isEmpty
-                    ? lw('Address unknown')
-                    : d.port == defaultPort
-                    ? d.address
-                    : '${d.address}:${d.port}',
-                style: tsSmall,
-              ),
-              trailing: IconButton(
-                icon: Icon(Icons.close, color: clTextMuted, size: 20),
-                tooltip: lw('Revoke trust'),
-                onPressed: () async {
-                  final bool yes = await okConfirm(
-                    title: lw('Revoke trust'),
-                    message:
-                        '${lw('Ask again next time')}?\n${d.name}',
-                  );
-                  if (yes) await _apply(() => d.trusted = false);
-                },
-              ),
-            ),
-          ),
-        ],
+      // The trusted list is global state that changes while this screen is on
+      // top of the other one: an incoming transfer accepted with "always trust",
+      // and the switch below marking a peer trusted after a successful prepare.
+      // Without this the screen showed the list it was opened with, heading count
+      // and "No trusted devices" line included.
+      //
+      // The addresses are not re-read here: they are State, filled once in
+      // initState and again only when the user asks for them.
+      body: ListenableBuilder(
+        listenable: devicesTick,
+        builder: (BuildContext context, Widget? _) => _body(),
       ),
+    );
+  }
+
+  Widget _body() {
+    final List<Device> trusted = xvDevices.where((d) => d.trusted).toList();
+    return ListView(
+      children: [
+        // Four groups under the same rule-heading the home screen uses: the
+        // flat list gave a port and a colour theme the same weight.
+        sectionTitle(lw('Device')),
+        _tile(
+          icon: Icons.badge_outlined,
+          title: lw('Device name'),
+          value: xdef['Device name'],
+          onTap: _editDeviceName,
+        ),
+        // The folder is a place on this disk, not an address: it belongs with
+        // the device rather than with the port it is reached on.
+        _tile(
+          icon: Icons.folder_outlined,
+          title: lw('Receive folder'),
+          value: shortPath(xdef['Receive folder']),
+          keepTail: true,
+          onTap: _editRecvFolder,
+        ),
+        sectionTitle(lw('Network')),
+        _tile(
+          icon: Icons.lan_outlined,
+          title: lw('Transfer port'),
+          value: xdef['Port'],
+          onTap: _editPort,
+        ),
+        _tile(
+          icon: Icons.wifi_tethering,
+          title: lw('My IP'),
+          value: _addresses.isEmpty
+              ? lw('No network connection')
+              : '${_addresses.first}:$currentPort',
+          onTap: _showMyAddresses,
+        ),
+        _tile(
+          icon: Icons.security_outlined,
+          title: lw('Network safety'),
+          value: lw('Unencrypted local transfer'),
+          onTap: () => showNetworkSafetyWarning(context: context),
+        ),
+        if (Platform.isAndroid)
+          SwitchListTile(
+            dense: true,
+            visualDensity: const VisualDensity(vertical: -2),
+            secondary: Icon(Icons.notifications_active_outlined, color: clText),
+            activeThumbColor: clAccent,
+            value: xdef['Receive in background'] == 'true',
+            title: Text(lw('Receive in background'), style: tsNormal),
+            subtitle: Text(lw('Receives with the screen off'), style: tsSmall),
+            onChanged: (v) async {
+              if (v && !await ensureNotificationPermission()) {
+                okInfoBarRed(lw('Background receiving needs notifications'));
+                return;
+              }
+              await _apply(() => xdef['Receive in background'] = '$v');
+              await androidService.sync();
+              // Doze cuts connections on a long idle unless the app is
+              // exempt, so it is asked for here rather than described: the
+              // system dialog is one tap, and an app that is already exempt
+              // is not asked at all. Only a refusal leaves anything to say.
+              if (v && !await ensureBatteryExemption()) {
+                okInfoBarBlue(lw('Also exclude it from battery optimisation'));
+              }
+            },
+          ),
+        sectionTitle(lw('Application')),
+        _tile(
+          icon: Icons.language,
+          title: lw('Language'),
+          value:
+              langNames[xdef['Program language']] ?? xdef['Program language'],
+          onTap: () => _pickFromList(
+            title: lw('Language'),
+            options: appLANGUAGES,
+            current: xdef['Program language'],
+            // Names come from locales.json and are never translated.
+            labelOf: (code) => langNames[code] ?? code,
+            onPick: (v) async {
+              xdef['Program language'] = v;
+              await saveSettings();
+              await initTranslations();
+              rebuildApp();
+              if (mounted) setState(() {});
+            },
+          ),
+        ),
+        _tile(
+          icon: Icons.brightness_6_outlined,
+          title: lw('Theme'),
+          value: lw(xdef['Color theme']),
+          onTap: () => _pickFromList(
+            title: lw('Theme'),
+            options: appTHEMES,
+            current: xdef['Color theme'],
+            onPick: (v) async {
+              xdef['Color theme'] = v;
+              await saveSettings();
+              rebuildApp();
+              if (mounted) setState(() {});
+            },
+          ),
+        ),
+        SwitchListTile(
+          dense: true,
+          visualDensity: const VisualDensity(vertical: -2),
+          secondary: Icon(Icons.exit_to_app, color: clText),
+          activeThumbColor: clAccent,
+          value: xdef['Ask before exit'] == 'true',
+          title: Text(lw('Ask before exit'), style: tsNormal),
+          subtitle: Text(
+            lw('A transfer is always asked about'),
+            style: tsSmall,
+          ),
+          onChanged: (v) => _apply(() => xdef['Ask before exit'] = '$v'),
+        ),
+        sectionTitle('${lw('Trusted devices')} (${trusted.length})'),
+        // The policy sits above the list it fills: the switch is what puts
+        // most of these rows here.
+        SwitchListTile(
+          dense: true,
+          visualDensity: const VisualDensity(vertical: -2),
+          secondary: Icon(Icons.verified_user_outlined, color: clText),
+          activeThumbColor: clAccent,
+          value: xdef['Trust after sending'] == 'true',
+          title: Text(lw('Trust after sending'), style: tsNormal),
+          subtitle: Text(
+            lw('A device that accepted becomes trusted'),
+            style: tsSmall,
+          ),
+          onChanged: (v) => _apply(() => xdef['Trust after sending'] = '$v'),
+        ),
+        // Nobody trusted yet is a state worth spelling out: the heading alone
+        // looks like a list that failed to appear.
+        if (trusted.isEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+            child: Text(lw('No trusted devices'), style: tsSmall),
+          ),
+        ...trusted.map(
+          (d) => ListTile(
+            dense: true,
+            leading: Icon(
+              d.platform == 'android' ? Icons.smartphone : Icons.computer,
+              color: clText,
+            ),
+            title: Text(d.name, style: tsNormal),
+            // Trust is bound to the id, not to the address, so a device can
+            // be trusted with nowhere to reach it — say that instead of
+            // leaving the line blank. The port is only worth the room when
+            // it is not the one every device is assumed to listen on.
+            subtitle: Text(
+              d.address.isEmpty
+                  ? lw('Address unknown')
+                  : d.port == defaultPort
+                  ? d.address
+                  : '${d.address}:${d.port}',
+              style: tsSmall,
+            ),
+            trailing: IconButton(
+              icon: Icon(Icons.close, color: clTextMuted, size: 20),
+              tooltip: lw('Revoke trust'),
+              onPressed: () async {
+                final bool yes = await okConfirm(
+                  title: lw('Revoke trust'),
+                  message: '${lw('Ask again next time')}?\n${d.name}',
+                );
+                if (yes) await _apply(() => d.trusted = false);
+              },
+            ),
+          ),
+        ),
+      ],
     );
   }
 
