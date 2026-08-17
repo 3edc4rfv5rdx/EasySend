@@ -1,3 +1,11 @@
+// Every handler here answers with `return _json(...)` or `return _status(...)`
+// as the last thing it does inside a try. That is deliberate: writing the
+// answer must stay outside the reach of the catch above it. Awaiting it would
+// hand a broken connection to those catch blocks — in _upload the wide
+// `catch (error)` would then delete a .part file that arrived whole and log a
+// write failure that never happened.
+// ignore_for_file: unawaited_return_in_try_block
+
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
