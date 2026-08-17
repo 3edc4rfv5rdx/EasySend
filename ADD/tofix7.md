@@ -126,7 +126,7 @@ cancel was called before the receiver stop; a test that the keep-receiving
 branch does not cancel. If the other answer is chosen, a test that the service
 is not stopped while `sender.busy`.
 
-### 3. P3 — A goodbye is silently skipped when discovery is already down
+### 3. P3 [FIXED 3936678] — A goodbye is silently skipped when discovery is already down
 
 **Affected components:** `lib/net_discovery.dart` — `stop()`, `_broadcast()`,
 `_farewellUnicast()`, `_sendTo()`.
