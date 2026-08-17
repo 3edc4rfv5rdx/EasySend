@@ -23,22 +23,45 @@ final FlutterLocalNotificationsPlugin _notifications =
 
 const String _askChannelId = 'easysend_ask';
 const String _doneChannelId = 'easysend_done';
-const int _askNotificationId = 100;
-const int _doneNotificationId = 101;
+// Public because a launch has to be able to say which of the two it clears, and
+// a test has to be able to check that it cleared that one.
+const int askNotificationId = 100;
+const int doneNotificationId = 101;
 const String _acceptAction = 'accept';
 const String _declineAction = 'decline';
 
 // Answer to the accept prompt currently shown as a notification.
 Completer<bool>? _askCompleter;
 
-Future<void> initNotifications() async {
-  if (!Platform.isAndroid) return;
-  await _notifications.initialize(
-    const InitializationSettings(
-      android: AndroidInitializationSettings('@mipmap/ic_launcher'),
-    ),
-    onDidReceiveNotificationResponse: _onNotificationResponse,
-  );
+Future<void> initNotifications({
+  bool? android,
+  Future<void> Function()? initialize,
+  Future<void> Function(int id)? cancel,
+}) async {
+  if (!(android ?? Platform.isAndroid)) return;
+  await (initialize?.call() ??
+      _notifications.initialize(
+        const InitializationSettings(
+          android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+        ),
+        onDidReceiveNotificationResponse: _onNotificationResponse,
+      ));
+  // A consent question is answered by a completer that lives in this process, so
+  // one left on the shade by a process Android killed mid-question answers
+  // nothing at all: its buttons reach _onNotificationResponse, find no completer
+  // and return, while the notification goes on saying files are waiting. It is
+  // posted `ongoing`, so nothing sweeps it away either. Cleared here, before the
+  // first screen can be drawn over it.
+  //
+  // Only that one. The finished-transfer notification is a record of something
+  // that did happen, and the foreground service's own notification belongs to
+  // the Kotlin side.
+  try {
+    await (cancel?.call(askNotificationId) ??
+        _notifications.cancel(askNotificationId));
+  } catch (e) {
+    myPrint('cannot clear a leftover consent notification: $e');
+  }
 }
 
 void _onNotificationResponse(NotificationResponse response) {
@@ -144,7 +167,7 @@ Future<bool> askAcceptViaNotification({
       await showNotification();
     } else {
       await _notifications.show(
-        _askNotificationId,
+        askNotificationId,
         lw('Incoming files'),
         '$senderName — $fileCount, ${formatBytes(totalBytes)}',
         NotificationDetails(
@@ -188,7 +211,7 @@ Future<bool> askAcceptViaNotification({
   );
   _askCompleter = null;
   try {
-    await _notifications.cancel(_askNotificationId);
+    await _notifications.cancel(askNotificationId);
   } catch (e) {
     myPrint('notification consent cleanup failed: $e');
   }
@@ -198,7 +221,7 @@ Future<bool> askAcceptViaNotification({
 Future<void> notifyTransferFinished(String text) async {
   if (!Platform.isAndroid || appInForeground) return;
   await _notifications.show(
-    _doneNotificationId,
+    doneNotificationId,
     'EasySend',
     text,
     const NotificationDetails(

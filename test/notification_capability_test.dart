@@ -141,4 +141,47 @@ void main() {
 
     expect(accepted, isFalse);
   });
+
+  // The question is answered by a completer that dies with the process, so a
+  // notification a killed process left behind has nothing to answer: its buttons
+  // do nothing at all while it goes on saying files are waiting.
+  group('a launch clears a consent question nobody is waiting on', () {
+    test('the ask notification goes, the finished one stays', () async {
+      final List<String> steps = [];
+      final List<int> cancelled = [];
+
+      await initNotifications(
+        android: true,
+        initialize: () async => steps.add('init'),
+        cancel: (int id) async {
+          steps.add('cancel');
+          cancelled.add(id);
+        },
+      );
+
+      // Cleared after the plugin is up, or there would be nothing to clear it
+      // with.
+      expect(steps, ['init', 'cancel']);
+      expect(cancelled, [askNotificationId]);
+      expect(cancelled, isNot(contains(doneNotificationId)));
+    });
+
+    test('a clearing that fails does not fail the launch', () async {
+      await initNotifications(
+        android: true,
+        initialize: () async {},
+        cancel: (int id) async => throw PlatformException(code: 'no-plugin'),
+      );
+    });
+
+    test('off Android there is nothing to clear', () async {
+      final List<int> cancelled = [];
+      await initNotifications(
+        android: false,
+        initialize: () async => throw StateError('must not initialize'),
+        cancel: (int id) async => cancelled.add(id),
+      );
+      expect(cancelled, isEmpty);
+    });
+  });
 }
