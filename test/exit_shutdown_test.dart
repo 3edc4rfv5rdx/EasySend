@@ -34,9 +34,13 @@ void main() {
       },
       stopPolling: () => steps.add('poller'),
       stopBackgroundService: () async => steps.add('service'),
+      clearSelection: () => steps.add('selection'),
     );
 
-    expect(steps, ['receiver', 'discovery', 'poller', 'service']);
+    // The selection is released last, with the rest of the one-run state: on
+    // Android the next launch would otherwise open on files the cache sweep has
+    // already deleted.
+    expect(steps, ['receiver', 'discovery', 'poller', 'service', 'selection']);
     // The exit is the one stop that is a real departure.
     expect(announced, isTrue);
     // Nothing of this run is carried into the next one: the badges saying who
@@ -57,8 +61,9 @@ void main() {
           steps.add('discovery'),
       stopPolling: () => steps.add('poller'),
       stopBackgroundService: () async => steps.add('service'),
+      clearSelection: () => steps.add('selection'),
     );
 
-    expect(steps, ['receiver', 'discovery', 'poller']);
+    expect(steps, ['receiver', 'discovery', 'poller', 'selection']);
   });
 }

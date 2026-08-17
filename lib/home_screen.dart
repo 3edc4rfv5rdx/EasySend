@@ -125,13 +125,15 @@ Future<bool> updateReceiverAdvertisement({
 // stays alive and the next launch would inherit it.
 //
 // The stops are passed in so this can be run without a network: every one of
-// them binds sockets in production.
+// them binds sockets in production. The selection is passed in for the same
+// reason in reverse: it lives in a State object, and this function has none.
 Future<void> shutdownForExit({
   required bool android,
   required Future<void> Function() stopReceiver,
   required Future<void> Function({bool announceLeaving}) stopAdvertisement,
   required void Function() stopPolling,
   required Future<void> Function() stopBackgroundService,
+  required void Function() clearSelection,
 }) async {
   await stopReceiver();
   await stopAdvertisement(announceLeaving: true);
@@ -140,6 +142,12 @@ Future<void> shutdownForExit({
   for (final Device device in xvDevices) {
     device.departedAt = null;
   }
+  // The picked list goes with the rest of the one-run state, and for a sharper
+  // reason than tidiness: the next launch sweeps the cache of copied documents,
+  // so a selection inherited across an exit points at files that sweep has just
+  // deleted — a row that is there, a Send that is live, and a per-file failure
+  // saying the original is gone.
+  clearSelection();
   clearSessionState();
 }
 
@@ -747,6 +755,18 @@ class _HomeScreenState extends State<HomeScreen>
 
   void _remove(FileItem item) => setState(() => _selected.remove(item));
 
+  // What an exit lets go of on this screen: the picked list and the batch the
+  // Restore button would bring back. Both hold source paths, some of them copies
+  // the picker made in the cache, and the next launch sweeps that cache.
+  //
+  // The target is deliberately left alone: it is a device, not a file, and
+  // _dropOfflineTarget drops it on the first tick that cannot find it.
+  void _releaseSelection() {
+    _selected.clear();
+    _lastSent = [];
+    if (mounted) setState(() {});
+  }
+
   Future<void> _addManualDevice() async {
     final String? input = await showInputDialog(
       title: lw('Add device'),
@@ -826,6 +846,7 @@ class _HomeScreenState extends State<HomeScreen>
       stopAdvertisement: discovery.stop,
       stopPolling: manualPoller.stop,
       stopBackgroundService: androidService.stopService,
+      clearSelection: _releaseSelection,
     );
     // A move or resize in the last 400 ms is still sitting in the debounce, and
     // exit(0) below would take it with it: the window would come back where it

@@ -166,6 +166,10 @@ void main() {
     // The call, not the word: the comment above it names the function to say
     // why it is deliberately not used here.
     expect(keeping, isNot(contains('await finishActivityAndTask')));
+    // Nor is anything of this run let go: the user is putting the screen away,
+    // not leaving, and the picked files have to be there on the way back.
+    expect(keeping, isNot(contains('_releaseSelection')));
+    expect(keeping, isNot(contains('shutdownForExit')));
   });
 
   // The channel call and the Intent are two hops, and the service reads the
