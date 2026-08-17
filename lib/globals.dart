@@ -48,6 +48,11 @@ const int manualPollSec = 10;
 const int manualPollTimeoutSec = 2;
 // Seconds the receiver waits for the user to accept an unknown sender.
 const int acceptTimeoutSec = 30;
+// How long an exit waits while the outgoing transfer tells the receiver it is
+// cancelled. Shorter than the sum of that request's own deadlines on purpose: an
+// exit is an immediate answer to a button, and a peer that has gone away must not
+// hold the screen open for it.
+const int exitCancelTimeoutSec = 3;
 // Valid protocol progress refreshes this receiver-side inactivity deadline.
 const int receiveSessionTimeoutSec = 60;
 // A camera folder holds thousands of files, and a folder is picked whole.

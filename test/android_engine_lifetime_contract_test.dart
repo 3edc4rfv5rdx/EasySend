@@ -170,6 +170,8 @@ void main() {
     // not leaving, and the picked files have to be there on the way back.
     expect(keeping, isNot(contains('_releaseSelection')));
     expect(keeping, isNot(contains('shutdownForExit')));
+    // And the transfer carries on: cancelling it is what the full exit does.
+    expect(keeping, isNot(contains('sender.cancel')));
   });
 
   // The channel call and the Intent are two hops, and the service reads the

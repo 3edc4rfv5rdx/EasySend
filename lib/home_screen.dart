@@ -117,24 +117,46 @@ Future<bool> updateReceiverAdvertisement({
 
 // Everything an exit does once the user has agreed to it, in the order it has
 // to happen in. Out here rather than inside the button handler because it is
-// the part that can be wrong: the receiver goes first so the goodbye is not
-// advertising a listener that is still up; discovery is the one stop that
-// announces itself; the foreground service goes before the screen, since its
-// notification claims a receiver that has just stopped; and whatever is only
-// meant to last one run is let go at the end, because on Android the process
-// stays alive and the next launch would inherit it.
+// the part that can be wrong: an outgoing send is cancelled first, while the
+// network it has to say so over is still up; the receiver goes next so the
+// goodbye is not advertising a listener that is still up; discovery is the one
+// stop that announces itself; the foreground service goes before the screen,
+// since its notification claims a receiver that has just stopped; and whatever
+// is only meant to last one run is let go at the end, because on Android the
+// process stays alive and the next launch would inherit it.
+//
+// The send is cancelled rather than left running because on Android nothing
+// carries it once the screen is gone: the service that kept the process alive is
+// stopped two lines below, there is no notification left to show progress, and
+// no way to stop it short of killing the app from the system settings. The
+// desktop has always ended it this way — exit(0) takes the process with it.
 //
 // The stops are passed in so this can be run without a network: every one of
 // them binds sockets in production. The selection is passed in for the same
 // reason in reverse: it lives in a State object, and this function has none.
 Future<void> shutdownForExit({
   required bool android,
+  required Future<void> Function() cancelSend,
   required Future<void> Function() stopReceiver,
   required Future<void> Function({bool announceLeaving}) stopAdvertisement,
   required void Function() stopPolling,
   required Future<void> Function() stopBackgroundService,
   required void Function() clearSelection,
 }) async {
+  // Through the sender's own cancel, so the far end is told with a /cancel
+  // instead of being left holding a session that only times out. Files already
+  // verified over there stay where they are.
+  //
+  // Bounded, because telling the far end means dialling it: a peer that has gone
+  // away takes the connect, header and body deadlines one after another, and an
+  // exit would sit on screen for the better part of half a minute. The transfer
+  // is already marked cancelled and its client force-closed before cancel()
+  // awaits anything, so giving up on the notification costs nothing here.
+  try {
+    await cancelSend().timeout(const Duration(seconds: exitCancelTimeoutSec));
+  } catch (e) {
+    myPrint('exit stopped waiting for the outgoing transfer: $e');
+  }
   await stopReceiver();
   await stopAdvertisement(announceLeaving: true);
   stopPolling();
@@ -821,8 +843,10 @@ class _HomeScreenState extends State<HomeScreen>
     )) {
       final bool yes = await okConfirm(
         title: lw('Exit'),
+        // Said outright, because leaving now ends the transfer: "Exit?" over a
+        // running one used to read as a question about the screen.
         message: running
-            ? '${lw('A transfer is running')}. ${lw('Exit the application')}?'
+            ? '${lw('The transfer will be stopped')}. ${lw('Exit the application')}?'
             : '${lw('Exit the application')}?',
       );
       if (!yes) return;
@@ -842,6 +866,7 @@ class _HomeScreenState extends State<HomeScreen>
     _networkEpoch++;
     await shutdownForExit(
       android: Platform.isAndroid,
+      cancelSend: sender.cancel,
       stopReceiver: receiveServer.stop,
       stopAdvertisement: discovery.stop,
       stopPolling: manualPoller.stop,
