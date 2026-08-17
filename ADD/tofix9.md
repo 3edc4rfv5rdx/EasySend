@@ -82,7 +82,7 @@ The picked document's display name is the one piece of outside text, and
 
 ## Findings
 
-### 1. P2 — A release build rewrites tracked launcher resources, so a release can carry icons no commit records
+### 1. P2 [FIXED f59a88d] — A release build rewrites tracked launcher resources, so a release can carry icons no commit records
 
 **Affected components:** `10-MakeRelease.sh` (the build section, `dart run
 flutter_launcher_icons` at line 160); `android/app/src/main/res/mipmap-*/`,
