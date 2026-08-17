@@ -446,6 +446,17 @@ class ReceiveServer {
         }, status: HttpStatus.serviceUnavailable);
       }
 
+      // Asked again, because the question above took as long as somebody needed
+      // to answer it: this device may have started sending in the meantime, and
+      // one transfer at a time in either direction (SPEC 5.7) is a rule about the
+      // moment a session is installed, not about the moment a request arrived.
+      // The sender is told the same 'busy' a second peer gets, which it already
+      // knows how to show.
+      if (outgoingTransferRunning()) {
+        myPrint('an outgoing transfer started while the consent was pending');
+        return _json(req, {'reason': 'busy'}, status: HttpStatus.conflict);
+      }
+
       final TransferSession transfer = TransferSession(
         id: const Uuid().v4(),
         incoming: true,

@@ -2,6 +2,41 @@ import 'package:easysend/home_screen.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  // The other half of "one transfer at a time, in either direction": the receiver
+  // refuses a second peer, and this is what refuses the user. The receive slot is
+  // its own reason and comes first — while a consent question stands on screen
+  // there is no row in the transfer list to explain why Send does nothing.
+  group('what stops Send from starting', () {
+    test('the receive slot outranks the missing pieces', () {
+      expect(
+        sendBlockedBy(receiveSlotHeld: true, hasFiles: true, hasTarget: true),
+        SendBlock.receiving,
+      );
+      expect(
+        sendBlockedBy(receiveSlotHeld: true, hasFiles: false, hasTarget: false),
+        SendBlock.receiving,
+      );
+    });
+
+    test('then the files, then the device', () {
+      expect(
+        sendBlockedBy(receiveSlotHeld: false, hasFiles: false, hasTarget: true),
+        SendBlock.noFiles,
+      );
+      expect(
+        sendBlockedBy(receiveSlotHeld: false, hasFiles: true, hasTarget: false),
+        SendBlock.noTarget,
+      );
+    });
+
+    test('nothing in the way', () {
+      expect(
+        sendBlockedBy(receiveSlotHeld: false, hasFiles: true, hasTarget: true),
+        isNull,
+      );
+    });
+  });
+
   test('a running transfer is the one thing that offers Stop', () {
     expect(
       sendButtonMode(transferRunning: true, senderBusy: true),

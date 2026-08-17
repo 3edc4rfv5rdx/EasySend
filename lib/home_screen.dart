@@ -180,6 +180,30 @@ Future<void> shutdownForExit({
 bool retryEnabled({required bool senderBusy, required bool anyTransferRunning}) =>
     !senderBusy && !anyTransferRunning;
 
+// Why Send cannot start right now, or null when nothing is in the way.
+enum SendBlock {
+  // A receive holds the one transfer slot. Not the same as a row in the transfer
+  // list: the slot is taken from the moment a prepare arrives, and the consent
+  // question can stand on screen for half a minute before any row exists. That
+  // window was the one place where this device could be made to send and receive
+  // at once, against SPEC 5.7 — the receiver refuses a second peer, and nothing
+  // used to refuse the user.
+  receiving,
+  noFiles,
+  noTarget,
+}
+
+SendBlock? sendBlockedBy({
+  required bool receiveSlotHeld,
+  required bool hasFiles,
+  required bool hasTarget,
+}) {
+  if (receiveSlotHeld) return SendBlock.receiving;
+  if (!hasFiles) return SendBlock.noFiles;
+  if (!hasTarget) return SendBlock.noTarget;
+  return null;
+}
+
 enum SendButtonMode { send, stop, stopping }
 
 // What the one button at the bottom is at this moment. Cancelling marks the
@@ -635,7 +659,14 @@ class _HomeScreenState extends State<HomeScreen>
 
   int get _totalBytes => _selected.fold(0, (sum, f) => sum + f.size);
 
-  bool get _canSend => _selected.isNotEmpty && _target != null && !sender.busy;
+  bool get _canSend =>
+      !sender.busy &&
+      sendBlockedBy(
+            receiveSlotHeld: receiveServer.receiveSlotHeld,
+            hasFiles: _selected.isNotEmpty,
+            hasTarget: _target != null,
+          ) ==
+          null;
 
   Future<void> _pickFiles() async {
     // Android goes through the Activity rather than through file_picker: the
@@ -965,25 +996,39 @@ class _HomeScreenState extends State<HomeScreen>
   // becomes the target and the transfer starts; with several, ask. An empty
   // selection is asked about first, being the earlier of the two steps.
   Future<void> _sendOrPickTarget() async {
-    if (_selected.isEmpty) {
-      // With neither piece in place, naming only the files would leave the
-      // second step to be discovered on the next press.
-      okInfoBarOrange(
-        lw(
-          _target == null
-              ? 'Add files and pick a device'
-              : 'Add files to send',
-        ),
-      );
-      return;
-    }
-    if (_target == null) {
-      final List<Device> reachable = xvDevices.where((d) => d.online).toList();
-      if (reachable.length != 1) {
-        okInfoBarOrange(lw('Select a target device'));
+    switch (sendBlockedBy(
+      receiveSlotHeld: receiveServer.receiveSlotHeld,
+      hasFiles: _selected.isNotEmpty,
+      hasTarget: _target != null,
+    )) {
+      // Said rather than silently ignored: with a consent question on screen
+      // there is nothing in the transfer list to explain why Send does nothing,
+      // and declining it makes Send work again at once.
+      case SendBlock.receiving:
+        okInfoBarOrange(lw('A transfer is already running'));
         return;
-      }
-      setState(() => _target = reachable.first);
+      case SendBlock.noFiles:
+        // With neither piece in place, naming only the files would leave the
+        // second step to be discovered on the next press.
+        okInfoBarOrange(
+          lw(
+            _target == null
+                ? 'Add files and pick a device'
+                : 'Add files to send',
+          ),
+        );
+        return;
+      case SendBlock.noTarget:
+        // One reachable device is no choice at all: it becomes the target and the
+        // transfer starts. With several, ask.
+        final List<Device> reachable = xvDevices.where((d) => d.online).toList();
+        if (reachable.length != 1) {
+          okInfoBarOrange(lw('Select a target device'));
+          return;
+        }
+        setState(() => _target = reachable.first);
+      case null:
+        break;
     }
     await _send();
   }

@@ -142,4 +142,43 @@ void main() {
     expect(xvTransfers, hasLength(1));
     expect(xvTransfers.single.status, TransferStatus.active);
   });
+
+  // One transfer at a time, in either direction (SPEC 5.7). The busy check at the
+  // top of prepare happens before the question, and the question can stand there
+  // for half a minute — long enough for the user to start sending. Installing the
+  // session then leaves two transfers running and one Stop button for both.
+  test('a consent answered after this device started sending is refused', () async {
+    final Completer<void> asked = Completer<void>();
+    final Completer<bool> answer = Completer<bool>();
+    server.askUser =
+        ({
+          required String senderName,
+          required int fileCount,
+          required int totalBytes,
+        }) async {
+          if (!asked.isCompleted) asked.complete();
+          return (await answer.future, false);
+        };
+
+    final Future<Reply> parked = post('prepare', body: manifest('late.bin'));
+    await asked.future;
+
+    // What pressing Send does while the question is on screen.
+    xvTransfers.add(
+      TransferSession(
+        id: 'outgoing',
+        incoming: false,
+        peerName: 'Laptop',
+        files: const [],
+      )..status = TransferStatus.active,
+    );
+    answer.complete(true);
+
+    final Reply reply = await parked;
+    expect(reply.status, 409);
+    expect(reply.body['reason'], 'busy');
+    // Nothing was installed, and the slot is free for the next attempt.
+    expect(xvTransfers.where((t) => t.incoming), isEmpty);
+    expect(server.receiveSlotHeld, isFalse);
+  });
 }
