@@ -152,7 +152,7 @@ run refuses before touching the version files, or its output names the rewritten
 resource and the version bump is still left uncommitted. The existing "dirty git
 state leaves a completed version bump unamended" case is the one to model it on.
 
-### 2. P2 — A partial `01-LinkOut.sh` run deletes the previous good AppImage before reporting the failure
+### 2. P2 [FIXED a90b05e] — A partial `01-LinkOut.sh` run deletes the previous good AppImage before reporting the failure
 
 **Affected components:** `01-LinkOut.sh` — `link_latest()` (lines 28-42), the
 sweep (lines 52-61), the exit at line 63; `00-MakeAll.sh` (runs it as optional).
