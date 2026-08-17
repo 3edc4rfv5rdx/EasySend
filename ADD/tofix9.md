@@ -245,7 +245,7 @@ as the newest file and `version: 0.4.260817+112` in a fake pubspec; the script
 either refuses or produces `EasySend-111.apkx`, and in no case produces
 `EasySend-112.apkx` pointing at the 111 file.
 
-### 4. P3 — The key properties file is written world-readable and tightened afterwards
+### 4. P3 [FIXED c4ea6a9] — The key properties file is written world-readable and tightened afterwards
 
 **Affected components:** `77-MakeMyKey.sh` lines 61-77.
 
