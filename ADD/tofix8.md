@@ -266,7 +266,7 @@ Kotlin side.
 through the same kind of injectable seam `askAcceptViaNotification` already takes
 for `showNotification`, so no plugin is needed in the test.
 
-### 5. P3 — The settings screen keeps showing the trust list it was opened with
+### 5. P3 [FIXED 081690a] — The settings screen keeps showing the trust list it was opened with
 
 **Affected components:** `lib/settings_screen.dart` — `build()` (line 232,
 `xvDevices.where((d) => d.trusted)`), the whole screen has no listener;
