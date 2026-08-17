@@ -404,7 +404,7 @@ readings.
 linked file still present after the sweep. For `21`, a probe with two tags where one
 is a prefix of the other.
 
-### 8. P3 — `00-MakeAll.sh` exits 0 after a step failed, not only after one was absent
+### 8. P3 [FIXED 0cba4c5] — `00-MakeAll.sh` exits 0 after a step failed, not only after one was absent
 
 **Affected components:** `00-MakeAll.sh` `run()` (lines 21-36) and the closing
 report (lines 47-52).
