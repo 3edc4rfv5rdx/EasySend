@@ -150,12 +150,15 @@ void main() {
     // The one exit that never keeps the receiver running: ✕ may close only the
     // screen, this button is what ends the app afterwards.
     expect(home, contains('_exitApp(mayKeepReceiving: false)'));
-    expect(home, contains('exitKeepsReceiving('));
+    // The handler decides nothing itself: it asks when exitAsksFirst() says so
+    // and switches over exitPlan(), both of which a test can reach.
+    expect(home, contains('exitAsksFirst('));
+    expect(home, contains('switch (exitPlan('));
 
     // Closing the screen over a running receiver must leave the Recents card:
     // the app is still there, and the card is how the user gets back to it.
     final String? keeping = RegExp(
-      r'if \(exitKeepsReceiving\((.*?)\n      return;',
+      r'case ExitPlan\.keepReceiving:(.*?)\n        return;',
       dotAll: true,
     ).firstMatch(home)?.group(1);
     expect(keeping, isNotNull, reason: 'the keep-receiving exit changed shape');
@@ -170,8 +173,24 @@ void main() {
     // not leaving, and the picked files have to be there on the way back.
     expect(keeping, isNot(contains('_releaseSelection')));
     expect(keeping, isNot(contains('shutdownForExit')));
+    expect(keeping, isNot(contains('_shutDownAndLeave')));
     // And the transfer carries on: cancelling it is what the full exit does.
     expect(keeping, isNot(contains('sender.cancel')));
+    // The order the full exit depends on: the flag before anything that awaits,
+    // and the debounced window position flushed before the process can end.
+    final String? leaving = RegExp(
+      r'Future<void> _shutDownAndLeave\(\) async \{(.*?)\n  \}',
+      dotAll: true,
+    ).firstMatch(home)?.group(1);
+    expect(leaving, isNotNull, reason: 'the full exit changed shape');
+    expect(
+      leaving!.indexOf('_exiting = true'),
+      lessThan(leaving.indexOf('await ')),
+    );
+    expect(
+      leaving.indexOf('_saveWindowBounds'),
+      lessThan(leaving.indexOf('finishActivityAndTask')),
+    );
   });
 
   // The channel call and the Intent are two hops, and the service reads the

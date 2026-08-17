@@ -813,35 +813,22 @@ class _HomeScreenState extends State<HomeScreen>
   // passes false and always ends the app — it is what that ongoing notification
   // is there to offer.
   Future<void> _exitApp({bool mayKeepReceiving = true}) async {
-    if (exitKeepsReceiving(
-      android: Platform.isAndroid,
-      mayKeepReceiving: mayKeepReceiving,
-      receiveInBackground: xdef['Receive in background'] == 'true',
-      backgroundReady: androidService.backgroundReady,
-    )) {
-      // Nothing is asked and nothing is stopped: a running transfer carries on
-      // in the background, which is the whole point of the switch.
-      //
-      // The notification is posted again first. This is the last moment the app
-      // is in the foreground, and if Android has quietly taken the service —
-      // which it does when a task is removed — this is the only place allowed
-      // to bring it back. Leaving the screen without it would leave a receiver
-      // running with nothing on screen to say so.
-      await androidService.reassert();
-      if (_windowSaveTimer?.isActive ?? false) await _saveWindowBounds();
-      // Deliberately not finishActivityAndTask(): the screen closes but the
-      // Recents card stays, because the app is still running and that card is
-      // the ordinary way back to it. Only a full exit takes the card away.
-      await SystemNavigator.pop();
-      return;
-    }
-
+    final bool android = Platform.isAndroid;
+    final bool receiveInBackground = xdef['Receive in background'] == 'true';
+    final bool askBeforeExit = xdef['Ask before exit'] == 'true';
+    final bool backgroundReady = androidService.backgroundReady;
     final bool running = xvTransfers.any((t) => t.isRunning);
-    if (exitNeedsConfirmation(
+
+    bool confirmed = true;
+    if (exitAsksFirst(
+      android: android,
+      mayKeepReceiving: mayKeepReceiving,
+      receiveInBackground: receiveInBackground,
+      backgroundReady: backgroundReady,
       transferRunning: running,
-      askBeforeExit: xdef['Ask before exit'] == 'true',
+      askBeforeExit: askBeforeExit,
     )) {
-      final bool yes = await okConfirm(
+      confirmed = await okConfirm(
         title: lw('Exit'),
         // Said outright, because leaving now ends the transfer: "Exit?" over a
         // running one used to read as a question about the screen.
@@ -849,9 +836,46 @@ class _HomeScreenState extends State<HomeScreen>
             ? '${lw('The transfer will be stopped')}. ${lw('Exit the application')}?'
             : '${lw('Exit the application')}?',
       );
-      if (!yes) return;
     }
 
+    switch (exitPlan(
+      android: android,
+      mayKeepReceiving: mayKeepReceiving,
+      receiveInBackground: receiveInBackground,
+      backgroundReady: backgroundReady,
+      transferRunning: running,
+      askBeforeExit: askBeforeExit,
+      confirmed: confirmed,
+    )) {
+      // The answer was no. Nothing has been touched yet, and nothing is.
+      case ExitPlan.stay:
+        return;
+
+      case ExitPlan.keepReceiving:
+        // Nothing is asked and nothing is stopped: a running transfer carries on
+        // in the background, which is the whole point of the switch.
+        //
+        // The notification is posted again first. This is the last moment the
+        // app is in the foreground, and if Android has quietly taken the service
+        // — which it does when a task is removed — this is the only place
+        // allowed to bring it back. Leaving the screen without it would leave a
+        // receiver running with nothing on screen to say so.
+        await androidService.reassert();
+        if (_windowSaveTimer?.isActive ?? false) await _saveWindowBounds();
+        // Deliberately not finishActivityAndTask(): the screen closes but the
+        // Recents card stays, because the app is still running and that card is
+        // the ordinary way back to it. Only a full exit takes the card away.
+        await SystemNavigator.pop();
+        return;
+
+      case ExitPlan.shutDown:
+        await _shutDownAndLeave();
+        return;
+    }
+  }
+
+  // The full exit, in the order it has to happen in.
+  Future<void> _shutDownAndLeave() async {
     // Before the first await, not after: the stops below can be overtaken by
     // the lifecycle events of the app going away, and with background receiving
     // on those ask for the network to come straight back up.

@@ -159,6 +159,69 @@ bool exitKeepsReceiving({
 }) =>
     android && mayKeepReceiving && receiveInBackground && backgroundReady;
 
+// What pressing ✕ — or Exit on the notification — comes to in the end.
+enum ExitPlan {
+  // Close the screen, keep receiving. The switch is on and the service is up.
+  keepReceiving,
+  // End the app: stop everything, let go of one-run state, take the card away.
+  shutDown,
+  // Nothing happens: the question was asked and answered no.
+  stay,
+}
+
+// The whole decision in one place, out of the button handler so a test can reach
+// it. `confirmed` is the user's answer, and true when there was nothing to ask:
+// the caller works that out from exitNeedsConfirmation() below and asks only
+// then, because an exit that keeps receiving never asks at all.
+ExitPlan exitPlan({
+  required bool android,
+  required bool mayKeepReceiving,
+  required bool receiveInBackground,
+  required bool backgroundReady,
+  required bool transferRunning,
+  required bool askBeforeExit,
+  required bool confirmed,
+}) {
+  if (exitKeepsReceiving(
+    android: android,
+    mayKeepReceiving: mayKeepReceiving,
+    receiveInBackground: receiveInBackground,
+    backgroundReady: backgroundReady,
+  )) {
+    return ExitPlan.keepReceiving;
+  }
+  if (!confirmed &&
+      exitNeedsConfirmation(
+        transferRunning: transferRunning,
+        askBeforeExit: askBeforeExit,
+      )) {
+    return ExitPlan.stay;
+  }
+  return ExitPlan.shutDown;
+}
+
+// Whether the exit has a question to ask before it does anything, given the plan
+// it would otherwise follow. Only the full exit asks: closing the screen over a
+// working receiver takes nothing away, so there is nothing to confirm.
+bool exitAsksFirst({
+  required bool android,
+  required bool mayKeepReceiving,
+  required bool receiveInBackground,
+  required bool backgroundReady,
+  required bool transferRunning,
+  required bool askBeforeExit,
+}) =>
+    !exitKeepsReceiving(
+      android: android,
+      mayKeepReceiving: mayKeepReceiving,
+      receiveInBackground: receiveInBackground,
+      backgroundReady: backgroundReady,
+    ) &&
+    exitNeedsConfirmation(
+      transferRunning: transferRunning,
+      askBeforeExit: askBeforeExit,
+    );
+
 // Subdirectory created inside the system downloads folder.
 const String recvDirName = 'EasySend';
 

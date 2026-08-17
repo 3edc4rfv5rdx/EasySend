@@ -355,6 +355,117 @@ void main() {
         isFalse,
       );
     });
+
+    // The whole decision, over every combination that changes it: whether the
+    // receiver may go on, whether there is anything to confirm, and what the
+    // user answered. The handler is a switch over this and nothing else.
+    test('what an exit comes to, from the pieces it depends on', () {
+      const List<
+        ({
+          bool keeps,
+          bool running,
+          bool ask,
+          bool confirmed,
+          ExitPlan want,
+          String why,
+        })
+      >
+      cases = [
+        (
+          keeps: true,
+          running: false,
+          ask: true,
+          confirmed: false,
+          want: ExitPlan.keepReceiving,
+          why: 'a working receiver is never asked about',
+        ),
+        (
+          keeps: true,
+          running: true,
+          ask: true,
+          confirmed: false,
+          want: ExitPlan.keepReceiving,
+          why: 'the transfer carries on in the background',
+        ),
+        (
+          keeps: false,
+          running: false,
+          ask: false,
+          confirmed: true,
+          want: ExitPlan.shutDown,
+          why: 'nothing to confirm, nothing to keep',
+        ),
+        (
+          keeps: false,
+          running: false,
+          ask: true,
+          confirmed: true,
+          want: ExitPlan.shutDown,
+          why: 'asked because the user wants to be asked, and answered yes',
+        ),
+        (
+          keeps: false,
+          running: false,
+          ask: true,
+          confirmed: false,
+          want: ExitPlan.stay,
+          why: 'answered no',
+        ),
+        (
+          keeps: false,
+          running: true,
+          ask: false,
+          confirmed: false,
+          want: ExitPlan.stay,
+          why: 'a running transfer is always asked about, and answered no',
+        ),
+        (
+          keeps: false,
+          running: true,
+          ask: false,
+          confirmed: true,
+          want: ExitPlan.shutDown,
+          why: 'the transfer is given up on purpose',
+        ),
+        (
+          keeps: false,
+          running: true,
+          ask: true,
+          confirmed: true,
+          want: ExitPlan.shutDown,
+          why: 'both reasons to ask, answered yes',
+        ),
+      ];
+
+      for (final row in cases) {
+        expect(
+          exitPlan(
+            android: true,
+            mayKeepReceiving: row.keeps,
+            receiveInBackground: row.keeps,
+            backgroundReady: row.keeps,
+            transferRunning: row.running,
+            askBeforeExit: row.ask,
+            confirmed: row.confirmed,
+          ),
+          row.want,
+          reason: row.why,
+        );
+        // And the question is asked exactly when an answer can change the plan.
+        expect(
+          exitAsksFirst(
+            android: true,
+            mayKeepReceiving: row.keeps,
+            receiveInBackground: row.keeps,
+            backgroundReady: row.keeps,
+            transferRunning: row.running,
+            askBeforeExit: row.ask,
+          ),
+          !row.keeps && (row.running || row.ask),
+          reason: row.why,
+        );
+      }
+    });
   });
 
   test('receiver advertisement follows readiness exactly', () async {
