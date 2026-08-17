@@ -163,6 +163,7 @@ class SendService {
       }
       final String? sessionId = await _prepare(peer, files);
       if (sessionId == null) return transfer.status;
+      await _trustAfterConsent(peer);
       if (_cancelled) return transfer.status;
       _sessionId = sessionId;
       transfer.id = sessionId;
@@ -320,6 +321,34 @@ class SendService {
     }
     await _cancelRemoteBestEffort(peer);
     return false;
+  }
+
+  // A prepare that came back with a session is a peer that let us in: either
+  // somebody there answered the question, or it trusts us already. On a home
+  // network that is the same judgement in both directions, so the peer is
+  // written down as trusted here too and the first file it ever sends back is
+  // taken without a question. Switched off in settings for anyone who wants
+  // each direction decided on its own.
+  Future<void> _trustAfterConsent(Device peer) async {
+    if (xdef['Trust after sending'] != 'true') return;
+    // Our own id means a second copy of the app on this machine. It is a fine
+    // peer to send to and no device to remember (SPEC 5.3).
+    if (peer.id == xvDeviceId) return;
+    // Resolved by id rather than trusted through `peer`: discovery forgets
+    // silent devices and adds them again while a transfer runs, so the entry
+    // the list holds now can be a different object than the one send() was
+    // handed.
+    //
+    // A peer no longer in the list is left alone instead of being put back.
+    // It is gone from there for one reason only — the user removed it by hand,
+    // and that removal says getting it back means typing the address again.
+    // Trust nobody asked for must not undo it, and trust that appears in no
+    // list is trust with nowhere to be seen or revoked.
+    final int now = xvDevices.indexWhere((d) => d.id == peer.id);
+    if (now < 0 || xvDevices[now].trusted) return;
+    xvDevices[now].trusted = true;
+    await saveSettings();
+    devicesChanged();
   }
 
   // Ask permission first: nothing is streamed until the peer said yes.

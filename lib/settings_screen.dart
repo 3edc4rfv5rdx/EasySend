@@ -371,6 +371,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
             onChanged: (v) => _apply(() => xdef['Ask before exit'] = '$v'),
           ),
           sectionTitle('${lw('Trusted devices')} (${trusted.length})'),
+          // The policy sits above the list it fills: the switch is what puts
+          // most of these rows here.
+          SwitchListTile(
+            dense: true,
+            visualDensity: const VisualDensity(vertical: -2),
+            secondary: Icon(Icons.verified_user_outlined, color: clText),
+            activeThumbColor: clAccent,
+            value: xdef['Trust after sending'] == 'true',
+            title: Text(lw('Trust after sending'), style: tsNormal),
+            subtitle: Text(
+              lw('A device that accepted becomes trusted'),
+              style: tsSmall,
+            ),
+            onChanged: (v) => _apply(() => xdef['Trust after sending'] = '$v'),
+          ),
           // Nobody trusted yet is a state worth spelling out: the heading alone
           // looks like a list that failed to appear.
           if (trusted.isEmpty)

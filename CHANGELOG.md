@@ -4,6 +4,7 @@
 > F is the same thing done better; E is behaviour that was wrong, whatever the size of the fix.
 
 ## Unreleased
+- N: A device that accepted a transfer from us is marked trusted here too, so the first thing it sends back arrives without a question; the switch above the trusted list turns it off.
 - I: OUT/ now holds hard links instead of symlinks, so a copy taken from there is a build and not a dangling path, and the armeabi-v7a APK lands there too.
 - I: The release build now also makes an armeabi-v7a APK, so 32-bit Android TV boxes can install it; the release upload carries it too.
 - I: The exit sequence moved out of the button handler into shutdownForExit(), so the order of the stops, the goodbye and the letting go of one-run state are all covered by tests instead of by hand.

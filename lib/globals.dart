@@ -20,8 +20,8 @@ final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey =
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 const String prgName = 'easysend';
-const String progVersion = '0.4.260816';
-const int buildNumber = 109;
+const String progVersion = '0.4.260817';
+const int buildNumber = 110;
 const String progAuthor = 'Eugen';
 
 const String langFile = 'assets/locales.json';
@@ -262,6 +262,7 @@ Map<String, dynamic> defaultSettings() => {
   'Receive folder': '',
   'Port': '$defaultPort',
   'Receive in background': 'false',
+  'Trust after sending': 'true',
   'Ask before exit': 'true',
   '.Device id': '',
   '.First start': 'true',

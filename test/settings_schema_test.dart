@@ -29,6 +29,7 @@ void main() {
           'Port': '99999',
           'Program language': 'ua',
           'Ask before exit': 'false',
+          'Trust after sending': 'false',
         },
       }),
     );
@@ -37,6 +38,10 @@ void main() {
     expect(xdef['Port'], '$defaultPort');
     expect(xdef['Program language'], 'ua');
     expect(xdef['Ask before exit'], 'false');
+    // A switch that decides who may send here silently has to survive a
+    // restart: a key the loader does not know is quietly replaced by its
+    // default, which for this one means trust granted again.
+    expect(xdef['Trust after sending'], 'false');
   });
 
   test(

@@ -79,6 +79,7 @@ String? _validSetting(String key, dynamic value) {
       final int? port = int.tryParse(value);
       return port != null && port >= 1024 && port <= 65535 ? '$port' : null;
     case 'Receive in background':
+    case 'Trust after sending':
     case 'Ask before exit':
     case '.First start':
     case '.External id fallback':
