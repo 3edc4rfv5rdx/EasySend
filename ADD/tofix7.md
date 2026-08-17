@@ -200,7 +200,7 @@ online only if it answers now.
 **Tests to add:** the bye tests in `test/discovery_admission_test.dart` return
 to a stubbed clock and assert the badge expires exactly at `departedNoticeSec`.
 
-### 5. P3 — Part of `_exitApp` before the shutdown is untested — but less of it than it looks
+### 5. P3 [FIXED 2e0ac0e] — Part of `_exitApp` before the shutdown is untested — but less of it than it looks
 
 **Affected components:** `lib/home_screen.dart` `_exitApp` (the confirmation,
 `_exiting`, `_networkDesired`, `_networkEpoch`, the window-bounds save, the
