@@ -360,7 +360,7 @@ after the reset `xvNow`, `xdef`, `xvDevices` and `xvTransfers` hold their defaul
 A grep-style meta-test that every file mutating a global also installs the reset
 would pin it for files added later.
 
-### 7. P3 — Two membership tests are substring matches where they mean equality
+### 7. P3 [FIXED 0728d48] — Two membership tests are substring matches where they mean equality
 
 **Affected components:** `19-LinkOut.sh` lines 56-58; `21-PushTag.sh` line 47.
 
@@ -382,6 +382,16 @@ that is a prefix of another (`v0.4.2608` beside `v0.4.260817+112`) reads as "alr
 pushed on the remote", and the tag is never pushed. Neither condition holds in this
 repository today — the label is one word, the tags are all full versions — and both
 are one line away from the exact test they mean.
+
+**Corrected when fixed, 2026-08-17.** The first half is exactly as described — a
+probe with `android:label="Easy Send"` had the sweep delete the file it had just
+linked. The second is weaker than this finding claimed: `git ls-remote --tags
+<remote> <tag>` already filters by ref, and a probe against a local bare repo
+holding both `v0.4.2608` and `v0.4.260817+113` showed the short tag never comes
+back for the long one's query. What was genuinely wrong there is that the tag was
+handed to `grep` as a pattern, so its `.` and `+` were regex, not text. The fix —
+asking for `refs/tags/<tag>` and testing whether anything came back — closes both
+readings.
 
 **Root cause:** no invariant; the wrong comparison for the question.
 
