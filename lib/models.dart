@@ -34,7 +34,7 @@ class Device {
   bool get departed {
     final DateTime? left = departedAt;
     if (left == null) return false;
-    return DateTime.now().difference(left).inSeconds <= departedNoticeSec;
+    return xvNow().difference(left).inSeconds <= departedNoticeSec;
   }
 
   // Discovered devices go silent when gone; manual ones are polled over HTTP
@@ -43,7 +43,7 @@ class Device {
     final DateTime? seen = lastSeen;
     if (seen == null) return false;
     final int limit = manual ? manualPollSec * 2 : deviceTimeoutSec;
-    return DateTime.now().difference(seen).inSeconds <= limit;
+    return xvNow().difference(seen).inSeconds <= limit;
   }
 
   Map<String, dynamic> toJson() => {

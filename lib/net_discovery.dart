@@ -64,7 +64,6 @@ class DiscoveryService {
   final int maxNewPeersPerSource;
   final Duration admissionWindow;
   final Duration uiUpdateInterval;
-  final DateTime Function() _now;
   RawDatagramSocket? _socket;
   Timer? _announceTimer;
   int _port = 0;
@@ -89,13 +88,11 @@ class DiscoveryService {
     this.maxNewPeersPerSource = maxNewDiscoveryPeersPerSource,
     this.admissionWindow = discoveryAdmissionWindow,
     this.uiUpdateInterval = discoveryUiUpdateInterval,
-    DateTime Function()? now,
   }) : _interfaceProvider = interfaceProvider ?? _activeIpv4Interfaces,
        _joinOverride = joinOverride,
        _leaveOverride = leaveOverride,
        _broadcastOverride = broadcastOverride,
-       _unicastOverride = unicastOverride,
-       _now = now ?? DateTime.now;
+       _unicastOverride = unicastOverride;
 
   bool get running => _socket != null;
 
@@ -452,7 +449,7 @@ class DiscoveryService {
     final int index = xvDevices.indexWhere((d) => d.id == id);
     if (index < 0) {
       if (maxTransientDevices <= 0) return;
-      final DateTime now = _now();
+      final DateTime now = xvNow();
       if (!_admitNewPeer(address, now)) return;
       final List<Device> transient = xvDevices
           .where((device) => !device.manual && !device.trusted)
@@ -480,7 +477,7 @@ class DiscoveryService {
       device.platform = platform;
       device.address = address;
       device.port = port;
-      device.lastSeen = _now();
+      device.lastSeen = xvNow();
       // It is back, whatever it said last time.
       device.departedAt = null;
     }
@@ -508,8 +505,8 @@ class DiscoveryService {
       );
       return;
     }
-    device.lastSeen = lastSeenAfterBye(_now());
-    device.departedAt = _now();
+    device.lastSeen = lastSeenAfterBye(xvNow());
+    device.departedAt = xvNow();
     _scheduleDevicesChanged();
   }
 
@@ -560,7 +557,7 @@ class DiscoveryService {
   // Devices worth remembering stay in the list while offline; the rest are
   // dropped a minute after going quiet.
   void _forgetStaleDevices() {
-    final DateTime now = DateTime.now();
+    final DateTime now = xvNow();
     final int before = xvDevices.length;
     xvDevices.removeWhere((d) {
       if (d.manual || d.trusted) return false;
@@ -646,7 +643,7 @@ class ManualPoller {
     }
     if (peer.name.isNotEmpty) device.name = peer.name;
     if (peer.platform.isNotEmpty) device.platform = peer.platform;
-    device.lastSeen = DateTime.now();
+    device.lastSeen = xvNow();
     // It answers, so whatever it said on the way out is history.
     device.departedAt = null;
     devicesChanged();
@@ -674,7 +671,7 @@ class ManualPoller {
       devicesChanged();
       return peer == null ? IdentityCheck.unreachable : IdentityCheck.changed;
     }
-    device.lastSeen = DateTime.now();
+    device.lastSeen = xvNow();
     device.departedAt = null;
     return IdentityCheck.confirmed;
   }
@@ -705,7 +702,7 @@ class ManualPoller {
       device.address = host;
       device.port = port;
       device.manual = true;
-      device.lastSeen = DateTime.now();
+      device.lastSeen = xvNow();
       device.departedAt = null;
     } else {
       xvDevices.add(
@@ -716,7 +713,7 @@ class ManualPoller {
           address: host,
           port: port,
           manual: true,
-          lastSeen: DateTime.now(),
+          lastSeen: xvNow(),
         ),
       );
     }

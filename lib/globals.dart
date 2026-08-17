@@ -292,6 +292,19 @@ String xvPlatform = '';
 
 bool xvDarkNow = false;
 
+// The clock every judgement about a device's freshness is made by: whoever
+// stamps `lastSeen` or `departedAt`, and whoever reads `online` or `departed`.
+//
+// One seam, because two of them disagree. The write side used to honour a clock a
+// test could inject and the read side always asked the wall clock, so `departed`
+// answered false immediately after a departure and the tests worked around it by
+// using real time — a test bending to a defect. Only tests replace this, and they
+// put it back.
+//
+// Transfer timestamps are deliberately not here: a transfer writes and reads its
+// own times with the wall clock throughout, and nothing compares the two.
+DateTime Function() xvNow = DateTime.now;
+
 // Bumped whenever the whole app must rebuild: language or theme change.
 final ValueNotifier<int> appRebuild = ValueNotifier<int>(0);
 void rebuildApp() => appRebuild.value++;

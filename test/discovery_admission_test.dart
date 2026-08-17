@@ -12,13 +12,14 @@ void main() {
         Device(id: 'trusted', name: 'Trusted', trusted: true),
       ];
       final int notificationsBefore = devicesTick.value;
+      xvNow = () => now;
+      addTearDown(() => xvNow = DateTime.now);
       final DiscoveryService service = DiscoveryService(
         maxTransientDevices: 3,
         maxNewPeersPerWindow: 4,
         maxNewPeersPerSource: 2,
         admissionWindow: const Duration(seconds: 5),
         uiUpdateInterval: const Duration(milliseconds: 20),
-        now: () => now,
       );
       addTearDown(service.stop);
 
@@ -71,9 +72,11 @@ void main() {
   });
 
   test('bye marks the sender offline without dropping the row', () {
-    // Real time, not a stub: how long ago a device left is read off the wall
-    // clock, the same way being online is.
-    final DateTime now = DateTime.now();
+    // A stub, and the model reads the very same one: how long ago a device left
+    // is judged by xvNow() on both sides of the record.
+    DateTime now = DateTime.utc(2026, 8, 17, 12);
+    xvNow = () => now;
+    addTearDown(() => xvNow = DateTime.now);
     xvDevices = [
       Device(id: 'leaving', name: 'Leaving', address: '10.0.0.5'),
       Device(id: 'manual', name: 'Manual', address: '10.0.0.6', manual: true),
@@ -81,9 +84,10 @@ void main() {
     for (final Device device in xvDevices) {
       device.lastSeen = now;
     }
-    final DiscoveryService service = DiscoveryService(now: () => now);
+    final DiscoveryService service = DiscoveryService();
     addTearDown(service.stop);
 
+    final DateTime left = now;
     service.noteDepartureForTesting(id: 'leaving', address: '10.0.0.5');
     final Device leaving = xvDevices.singleWhere((d) => d.id == 'leaving');
     expect(leaving.lastSeen, lastSeenAfterBye(now));
@@ -95,6 +99,12 @@ void main() {
     expect(xvDevices.any((d) => d.id == 'leaving'), isTrue);
     // Which of the two silences this is, for the row to say so.
     expect(leaving.departed, isTrue);
+    // News for exactly the minute it is defined to last, and not a second more.
+    now = left.add(const Duration(seconds: departedNoticeSec));
+    expect(leaving.departed, isTrue);
+    now = left.add(const Duration(seconds: departedNoticeSec + 1));
+    expect(leaving.departed, isFalse);
+    now = left;
 
     // An announce right after brings it straight back.
     service.touchDeviceForTesting(id: 'leaving', address: '10.0.0.5');
@@ -103,11 +113,13 @@ void main() {
   });
 
   test('bye is ignored from a stranger and for a stranger', () {
-    final DateTime now = DateTime.now();
+    final DateTime now = DateTime.utc(2026, 8, 17, 12);
+    xvNow = () => now;
+    addTearDown(() => xvNow = DateTime.now);
     xvDevices = [
       Device(id: 'listed', name: 'Listed', address: '10.0.0.5', lastSeen: now),
     ];
-    final DiscoveryService service = DiscoveryService(now: () => now);
+    final DiscoveryService service = DiscoveryService();
     addTearDown(service.stop);
 
     // Somebody else's id from somebody else's address.
@@ -124,7 +136,9 @@ void main() {
     // The case the feature exists for here: a phone on another subnet, added by
     // hand, which multicast never reaches. It is judged by the polling interval
     // rather than the announce one, so the record has to age past that.
-    final DateTime now = DateTime.now();
+    final DateTime now = DateTime.utc(2026, 8, 17, 12);
+    xvNow = () => now;
+    addTearDown(() => xvNow = DateTime.now);
     final Device phone = Device(
       id: 'phone',
       name: 'A36',
@@ -134,7 +148,7 @@ void main() {
       lastSeen: now,
     );
     xvDevices = [phone];
-    final DiscoveryService service = DiscoveryService(now: () => now);
+    final DiscoveryService service = DiscoveryService();
     addTearDown(service.stop);
 
     service.noteDepartureForTesting(id: 'phone', address: '192.168.204.250');
@@ -149,7 +163,9 @@ void main() {
     // Otherwise a manual or trusted device — the kind that is never dropped from
     // the list — would wear the badge until it came back, which on a phone that
     // is switched off for the night means until morning.
-    final DateTime now = DateTime.now();
+    final DateTime now = DateTime.utc(2026, 8, 17, 12);
+    xvNow = () => now;
+    addTearDown(() => xvNow = DateTime.now);
     final Device device = Device(id: 'phone', name: 'A36', manual: true);
 
     device.departedAt = now.subtract(

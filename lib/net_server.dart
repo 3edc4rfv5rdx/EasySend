@@ -92,7 +92,7 @@ void learnSenderAddress(
     // only a poll will keep it in the list once the transfer is over.
     if (!wasOnline) device.manual = true;
   }
-  device.lastSeen = DateTime.now();
+  device.lastSeen = xvNow();
   // Whatever it announced on its way out last time, it is back and talking.
   device.departedAt = null;
 }
@@ -585,7 +585,7 @@ class ReceiveServer {
             // in the list — which is what manual means here.
             manual: reachable,
             trusted: true,
-            lastSeen: DateTime.now(),
+            lastSeen: xvNow(),
           ),
         );
         await saveSettings();
