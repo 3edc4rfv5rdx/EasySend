@@ -2,21 +2,20 @@
 set -e
 cd "$(dirname "$0")"
 
-# Expose the newest arm64 release APK under an .apkx name in the project root, so
-# it can be sent over Viber and the like without the messenger mangling an .apk
+# Expose the arm64 release APK under an .apkx name in the project root, so it can
+# be sent over Viber and the like without the messenger mangling an .apk
 # attachment.
 #
-# The name is the APK's own, with the extension changed — nothing is composed out
-# of pubspec.yaml. It used to be, and the two could disagree: the build number
-# came from the version file while the file came from the directory listing, so a
-# stale APK went out under the current build's name.
+# Taken straight out of OUT/, where 19-LinkOut.sh has already put the newest
+# build under its own name — so there is nothing here to pick or compose. The
+# link keeps that name and changes only the extension.
 
-APK_DIR="build/app/outputs/flutter-apk"
+OUT_DIR="OUT"
 
-apk=$(ls -t "$APK_DIR"/*arm64-v8a*.apk 2>/dev/null | head -1)
+apk=$(ls -t "$OUT_DIR"/*arm64-v8a*.apk 2>/dev/null | head -1)
 
 if [[ -z "$apk" || ! -f "$apk" ]]; then
-    echo "ERROR: Release arm64 APK not found. Build first: ./10-MakeRelease.sh"
+    echo "ERROR: No arm64 APK in $OUT_DIR. Run ./19-LinkOut.sh first."
     exit 1
 fi
 
