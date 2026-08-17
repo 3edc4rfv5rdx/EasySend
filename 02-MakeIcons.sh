@@ -11,14 +11,20 @@
 # bump silently stopped folding into the previous commit because the tree was
 # dirty for a reason nobody had asked for.
 #
-# Run it after changing anything in tools/make_icon.py, then commit what it
-# rewrote — the generated files belong in a commit of their own.
+# Run it by hand after changing anything in tools/make_icon.py, then commit what
+# it rewrote — the generated files belong in a commit of their own:
+#
+#   bash 02-MakeIcons.sh
+#
+# It has no execute bit on purpose, the way 77-MakeMyKey.sh has none: the icons
+# change a few times in a project's life, and nothing that runs every day should
+# be able to pick this up as a step.
 #
 set -e
 cd "$(dirname "$0")"
 
 if [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
-    sed -n '2,16p' "$0"
+    sed -n '2,22p' "$0"
     exit 0
 fi
 

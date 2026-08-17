@@ -83,7 +83,6 @@ Flutter, one codebase for Android and desktop. The numbered scripts do the work:
 ./06-Test.sh           # flutter test
 ./00-MakeAll.sh        # everything: APK, both installs, AppImage
 ./01-LinkOut.sh        # link the newest build into OUT/ under its own names
-./02-MakeIcons.sh      # draw the icon and generate the launcher resources
 ./10-MakeRelease.sh    # release APKs, one build number up
 ./11-EmulRELEASE.sh    # install the freshest APK on the emulator
 ./12-PhoneRELEASE.sh   # install it on the phone
@@ -92,9 +91,11 @@ Flutter, one codebase for Android and desktop. The numbered scripts do the work:
 ```
 
 `20-MakeTag.sh`, `21-PushTag.sh` and `22-RelUpload.sh` tag a release and upload it.
-`tools/make_icon.py` draws the app icon as geometry and writes the masters into `assets/`;
-`02-MakeIcons.sh` runs it together with `flutter_launcher_icons` and says what it rewrote.
-A release build never touches those files — the generated resources are committed on their own.
+`tools/make_icon.py` draws the app icon as geometry and writes the masters into `assets/`.
+`bash 02-MakeIcons.sh` runs it together with `flutter_launcher_icons` and says what it
+rewrote; it carries no execute bit, because the icons change a few times in a project's
+life. A release build never touches those files — the generated resources are committed
+on their own.
 
 The Linux build needs `clang cmake ninja-build pkg-config libgtk-3-dev` and a linker
 beside clang (`lld`); `13-MakeLinux.sh` checks for both and says what is missing.
