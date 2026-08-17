@@ -77,7 +77,7 @@ path must stay indifferent: there the process dies and any release is a no-op.
 `shutdownForExit()` the selection is empty; and a case asserting that the branch
 which keeps receiving never calls it.
 
-### 2. P2 — An exit does not cancel an outgoing send, so on Android it keeps sending after the screen is gone
+### 2. P2 [FIXED b0b3d27] — An exit does not cancel an outgoing send, so on Android it keeps sending after the screen is gone
 
 **Affected components:** `lib/home_screen.dart` `_exitApp` and
 `shutdownForExit()`; `lib/net_sender.dart` `SendService.cancel()`;
