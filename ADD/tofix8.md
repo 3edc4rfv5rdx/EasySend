@@ -185,7 +185,7 @@ in `ReceiveServer` and `xvTransfers` holding a running outgoing session; and a
 pure-function test for whatever rule the Send path grows, in the shape of
 `sendButtonMode()`, covering "receive slot held" as its own reason.
 
-### 3. P3 — With discovery down, stale rows are never forgotten
+### 3. P3 [FIXED 611c1d8] — With discovery down, stale rows are never forgotten
 
 **Affected components:** `lib/net_discovery.dart` `_tick()` (the early return at
 line 167, `_forgetStaleDevices()` at line 170), `stop()`; `lib/home_screen.dart`
