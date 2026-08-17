@@ -157,7 +157,12 @@ echo ">>> Build: $BUILD <<<"
 
 # ---------- build ----------
 flutter pub get
-dart run flutter_launcher_icons
+# The launcher icons are not generated here. Doing it inside the build rewrote
+# tracked files under android/app/src/main/res, so after an icon change the APK
+# carried resources no commit recorded, and the version-bump amend below stopped
+# firing because the tree was dirty for a reason the user had not caused.
+# 02-MakeIcons.sh draws them and says what it rewrote; the result is committed on
+# its own before a release.
 
 # armeabi-v7a is here for the 32-bit Amlogic TV boxes; phones and the emulator
 # take the 64-bit splits.

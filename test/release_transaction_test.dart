@@ -46,7 +46,13 @@ if [ "$1" = "build" ]; then
   done
 fi
 ''',
-      'dart': '#!/usr/bin/env bash\nexit 0\n',
+      // Records every call, so a test can assert the release does not reach for
+      // it: generating the launcher icons here rewrote tracked resources, and it
+      // moved out to 02-MakeIcons.sh.
+      'dart': r'''#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$RELEASE_FAKE_DART_LOG"
+exit 0
+''',
       'git': r'''#!/usr/bin/env bash
 case "$1" in
   rev-parse) [ -n "$RELEASE_FAKE_GIT_MODE" ] ;;
@@ -113,6 +119,7 @@ fi
       if (listingFails) 'RELEASE_FAKE_LIST_FAIL': 'true',
       'RELEASE_FAKE_GIT_MODE': ?gitMode,
       'RELEASE_FAKE_GIT_LOG': p.join(root.path, 'git.log'),
+      'RELEASE_FAKE_DART_LOG': p.join(root.path, 'dart.log'),
     },
   );
 
@@ -177,6 +184,19 @@ fi
       }
     },
   );
+
+  // Generating the launcher icons inside the build rewrote tracked files under
+  // android/app/src/main/res: after an icon change the APK carried resources no
+  // commit recorded, and the version-bump amend stopped firing because the tree
+  // was dirty for a reason the user had not caused. It lives in 02-MakeIcons.sh.
+  test('the release does not generate anything with dart', () async {
+    final Directory root = await fixture();
+    addTearDown(() => root.delete(recursive: true));
+
+    final ProcessResult result = await run(root);
+    expect(result.exitCode, 0, reason: '${result.stderr}');
+    expect(await File(p.join(root.path, 'dart.log')).exists(), isFalse);
+  });
 
   test('a listing failure is still before the commit point', () async {
     final Directory root = await fixture();
