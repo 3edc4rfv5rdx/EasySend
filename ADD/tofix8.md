@@ -120,7 +120,7 @@ at one address receives an announce with the same id from another address, and t
 record's `address` is unchanged; the same for a `manual` record; and a transient
 discovered record still follows the move if that is the chosen behaviour.
 
-### 2. P2 — The one-transfer rule is enforced against peers but not against the user, in the consent window
+### 2. P2 [FIXED 4de0a13] — The one-transfer rule is enforced against peers but not against the user, in the consent window
 
 **Affected components:** `lib/home_screen.dart` `_canSend` (line 638),
 `_sendOrPickTarget()`, `_send()`, `_running` (line 1693); `lib/net_server.dart`
