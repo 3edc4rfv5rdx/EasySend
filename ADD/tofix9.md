@@ -43,7 +43,7 @@ files between them.
   lock. It reports its own death (`serviceGone`) and its own refusal
   (`reportServiceTimeout`) to Dart, because Dart cannot observe either.
 - The scripts own the artifacts. `10-MakeRelease.sh` owns the build counter and the
-  two version files; `14-MakeAppImage.sh` owns the AppImage; `01-LinkOut.sh` owns
+  two version files; `14-MakeAppImage.sh` owns the AppImage; `19-LinkOut.sh` owns
   the contents of `OUT/`; `20`/`21` own the tag and the changelog stamp; `22` owns
   the GitHub release; `77` owns the signing keystore, the only asset here that
   cannot be regenerated.
@@ -152,9 +152,9 @@ run refuses before touching the version files, or its output names the rewritten
 resource and the version bump is still left uncommitted. The existing "dirty git
 state leaves a completed version bump unamended" case is the one to model it on.
 
-### 2. P2 [FIXED a90b05e] — A partial `01-LinkOut.sh` run deletes the previous good AppImage before reporting the failure
+### 2. P2 [FIXED a90b05e] — A partial `19-LinkOut.sh` run deletes the previous good AppImage before reporting the failure
 
-**Affected components:** `01-LinkOut.sh` — `link_latest()` (lines 28-42), the
+**Affected components:** `19-LinkOut.sh` — `link_latest()` (lines 28-42), the
 sweep (lines 52-61), the exit at line 63; `00-MakeAll.sh` (runs it as optional).
 
 **Current behavior and reproduction:** each artifact is linked by its own call, and
@@ -164,7 +164,7 @@ a missing one only sets a flag:
 if [ -z "$newest" ] || [ ! -f "$newest" ]; then
     echo ">>> nothing to link into OUT"
     MISSING="yes"
-    return 0            # 01-LinkOut.sh:34
+    return 0            # 19-LinkOut.sh:34
 fi
 ```
 
@@ -362,12 +362,12 @@ would pin it for files added later.
 
 ### 7. P3 — Two membership tests are substring matches where they mean equality
 
-**Affected components:** `01-LinkOut.sh` lines 56-58; `21-PushTag.sh` line 47.
+**Affected components:** `19-LinkOut.sh` lines 56-58; `21-PushTag.sh` line 47.
 
 **Current behavior:** both ask "is this name in that list?" by pattern:
 
 ```sh
-case " $LINKED " in                                  # 01-LinkOut.sh
+case " $LINKED " in                                  # 19-LinkOut.sh
     *" $(basename "$entry") "*) continue ;;
 esac
 

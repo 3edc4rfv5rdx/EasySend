@@ -23,7 +23,7 @@ void main() {
 
   setUp(() async {
     root = await Directory.systemTemp.createTemp('easysend-link-out-');
-    await File('01-LinkOut.sh').copy(p.join(root.path, '01-LinkOut.sh'));
+    await File('19-LinkOut.sh').copy(p.join(root.path, '19-LinkOut.sh'));
     // Last build, already in OUT: two APKs and the image.
     await write(out('EasySend-0.4.260816-111-arm64-v8a.apk'), 'old arm64');
     await write(out('EasySend-0.4.260816-111-armeabi-v7a.apk'), 'old v7a');
@@ -36,7 +36,7 @@ void main() {
   tearDown(() => root.delete(recursive: true));
 
   Future<ProcessResult> run() => Process.run('bash', [
-    '01-LinkOut.sh',
+    '19-LinkOut.sh',
   ], workingDirectory: root.path);
 
   List<String> listOut() =>

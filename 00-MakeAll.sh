@@ -6,7 +6,7 @@
 # A build that fails stops the run. A device that is not plugged in does not:
 # an absent emulator should not cost you the AppImage.
 #
-# Finally 01-LinkOut.sh puts the AppImage and the two ARM APKs into OUT/ as
+# Finally 19-LinkOut.sh puts the AppImage and the two ARM APKs into OUT/ as
 # links under their own names, and sweeps whatever else was there.
 #
 cd "$(dirname "$0")"
@@ -49,7 +49,7 @@ run 12-PhoneRELEASE.sh optional
 run 14-MakeAppImage.sh fatal
 # The two files of this build, linked into OUT/ under their own names. Its own
 # script, so the same step also works on a build that already exists.
-run 01-LinkOut.sh optional
+run 19-LinkOut.sh optional
 
 echo
 if [ -n "$SKIPPED" ]; then
