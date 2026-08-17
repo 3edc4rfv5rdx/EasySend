@@ -49,7 +49,14 @@ link_latest build/app/outputs/flutter-apk/*armeabi-v7a*.apk
 # Everything else goes: the previous build's names, an ABI no longer built, a
 # copy left behind. Only files and links — a directory somebody made here is
 # not ours to remove.
-if [ -d OUT ]; then
+#
+# And only when every artifact was linked. A run that could not find one of them
+# — no Linux build yet, or one made for an older build — used to sweep anyway,
+# which deleted the previous good AppImage and reported the failure afterwards:
+# OUT/ then held two thirds of a release, and the artifact that takes longest to
+# produce was the one that went. Nothing is removed until there is a full set to
+# replace it with.
+if [ -z "$MISSING" ] && [ -d OUT ]; then
     for entry in OUT/* ; do
         [ -d "$entry" ] && continue
         [ -e "$entry" ] || [ -L "$entry" ] || continue
@@ -60,5 +67,8 @@ if [ -d OUT ]; then
     done
 fi
 
-[ -n "$MISSING" ] && exit 1
+if [ -n "$MISSING" ]; then
+    echo ">>> incomplete set: OUT left as it was"
+    exit 1
+fi
 exit 0
