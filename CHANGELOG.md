@@ -4,6 +4,7 @@
 > F is the same thing done better; E is behaviour that was wrong, whatever the size of the fix.
 
 ## Unreleased
+- E: Exiting on Android left yesterday's picked files on screen with Send live, pointing at cache copies the next launch had already swept; the exit lets the selection go now.
 - F: The app icon now carries a front-camera ring, so the outline reads as a phone and not a window; the unused assets/icon-tb.png is gone.
 - I: The release transaction test now builds the armeabi-v7a APK in its fixture, so the three tests that failed on a script already demanding it pass, and a missing 32-bit APK is checked like every other.
 - N: A device that accepted a transfer from us is marked trusted here too, so the first thing it sends back arrives without a question; the switch above the trusted list turns it off.

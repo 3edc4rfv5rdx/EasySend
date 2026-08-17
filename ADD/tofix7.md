@@ -35,7 +35,7 @@ badges; the items below are what it does not cover.
 
 ## Findings
 
-### 1. P2 — The picked file list survives an exit on Android, so a launch can open on a selection the user made yesterday
+### 1. P2 [FIXED e38b324] — The picked file list survives an exit on Android, so a launch can open on a selection the user made yesterday
 
 **Affected components:** `lib/home_screen.dart` — `_selected` (the `State`
 field behind the "Nothing selected" section and the Send button),
