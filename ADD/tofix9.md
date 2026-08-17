@@ -286,7 +286,7 @@ run it against a temporary `HOME`, and check the mode of `key.properties` betwee
 creation and the end (`umask 077` at the top makes that unobservable, which is the
 point), then `ps` the `keytool` invocation for the password.
 
-### 5. P3 — A system-installed `appimagetool` aborts the AppImage build
+### 5. P3 [FIXED 09b9cff] — A system-installed `appimagetool` aborts the AppImage build
 
 **Affected components:** `14-MakeAppImage.sh` lines 54-63.
 

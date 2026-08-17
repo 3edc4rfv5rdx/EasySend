@@ -4,6 +4,7 @@
 > F is the same thing done better; E is behaviour that was wrong, whatever the size of the fix.
 
 ## Unreleased
+- I: The AppImage build no longer chmods an appimagetool that is already executable, which ended the build when the tool came from a package.
 - I: 77-MakeMyKey.sh creates the keystore and its properties file private from the start and feeds keytool the password on stdin instead of the command line.
 - E: The .apkx link is made from the APK in OUT/ and keeps its name, instead of composing one from the version file and possibly naming a build it does not contain.
 - I: 01-LinkOut.sh is now 19-LinkOut.sh, so its number says it runs after the builds it links.
