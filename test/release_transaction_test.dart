@@ -35,7 +35,7 @@ set -e
 if [ "$1" = "build" ]; then
   out="build/app/outputs/flutter-apk"
   mkdir -p "$out"
-  for name in app-release.apk app-arm64-v8a-release.apk app-x86_64-release.apk; do
+  for name in app-release.apk app-arm64-v8a-release.apk app-armeabi-v7a-release.apk app-x86_64-release.apk; do
     if [ "$RELEASE_FAKE_MISSING" != "$name" ]; then
       if [ "$RELEASE_FAKE_EMPTY" = "$name" ]; then
         : > "$out/$name"
@@ -140,11 +140,16 @@ fi
     expect(finals, isEmpty);
   }
 
-  for (final String missing in [
+  // Every ABI the release builds, in the order the script lists them. The
+  // 32-bit one is as obligatory as the rest: the TV box installs nothing else.
+  const List<String> sourceArtifacts = [
     'app-release.apk',
     'app-arm64-v8a-release.apk',
+    'app-armeabi-v7a-release.apk',
     'app-x86_64-release.apk',
-  ]) {
+  ];
+
+  for (final String missing in sourceArtifacts) {
     test('missing $missing rolls the release transaction back', () async {
       final Directory root = await fixture();
       addTearDown(() => root.delete(recursive: true));
@@ -162,11 +167,7 @@ fi
       final ProcessResult result = await run(root, renameFails: true);
       expect(result.exitCode, isNot(0));
       await expectRollback(root);
-      for (final String source in [
-        'app-release.apk',
-        'app-arm64-v8a-release.apk',
-        'app-x86_64-release.apk',
-      ]) {
+      for (final String source in sourceArtifacts) {
         expect(
           await File(
             p.join(root.path, 'build', 'app', 'outputs', 'flutter-apk', source),
@@ -271,7 +272,8 @@ fi
           final String name = p.basename(entry.path);
           return name.startsWith('TestApp') && name.endsWith('.apk');
         }).toList();
-    expect(finals, hasLength(3));
+    // One renamed APK per source artifact, the 32-bit one included.
+    expect(finals, hasLength(sourceArtifacts.length));
     expect(
       await File(
         p.join(root.path, 'build', 'app', 'outputs', 'flutter-apk', 'old.apk'),
