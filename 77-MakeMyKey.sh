@@ -10,6 +10,11 @@
 #
 set -e
 
+# Before anything is created, not after: the keystore and the properties file
+# both hold the signing password, and a chmod that follows the write leaves a
+# window where they are readable by everybody on the machine.
+umask 077
+
 SAFE_DIR="$HOME/.my-safe"
 STORE="$SAFE_DIR/my-release-key.jks"
 PROPS="$SAFE_DIR/key.properties"
@@ -58,14 +63,17 @@ fi
 
 # One password for the store and the key: two of them buy nothing here and are
 # one more thing to lose.
-keytool -genkeypair -v \
+# The password goes in on stdin, not in the argument list: /proc/<pid>/cmdline is
+# readable by every process on the machine for as long as keytool runs. Asked
+# twice because that is what keytool wants for a new keystore, and -keypass is
+# left out on purpose — a PKCS12 keystore, which is the default, keeps one
+# password for the store and the key, which is what this script wants anyway.
+printf '%s\n%s\n' "$STORE_PASS" "$STORE_PASS" | keytool -genkeypair -v \
     -keystore "$STORE" \
     -alias "$ALIAS" \
     -keyalg RSA -keysize 2048 \
     -validity "$VALIDITY_DAYS" \
-    -dname "$DNAME" \
-    -storepass "$STORE_PASS" \
-    -keypass "$STORE_PASS"
+    -dname "$DNAME"
 
 cat > "$PROPS" <<PROPERTIES
 storeFile=$STORE
