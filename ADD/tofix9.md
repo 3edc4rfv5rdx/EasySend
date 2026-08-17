@@ -321,7 +321,7 @@ download with no execute bit. The missing-tool message with its `wget` line stay
 **Tests to add:** a probe with a read-only fake `appimagetool` on `PATH`: the
 script gets past the toolchain checks instead of dying on `chmod`.
 
-### 6. P3 — Global test state is restored by convention, and the conventions differ per file
+### 6. P3 [FIXED cd0d981] — Global test state is restored by convention, and the conventions differ per file
 
 **Affected components:** all 41 files in `test/`; `lib/globals.dart` (`xdef`,
 `xvNow`, `xvTransfers`), `lib/settings_helpers.dart` (`xvDevices`, `xvConfigDir`,
