@@ -54,8 +54,8 @@ no internet: the two devices talk to each other and nothing else.
 ## Where files land
 
 A subfolder `EasySend` inside the system downloads folder — `Download/EasySend` on
-Android, the XDG downloads folder on Linux, the known Downloads folder on Windows. It is
-created on the first transfer and can be changed in the settings.
+Android, the XDG downloads folder on Linux. It is created on the first transfer and can be
+changed in the settings.
 
 ## Network
 
@@ -76,7 +76,10 @@ it on public or guest Wi-Fi.
 
 ## Build
 
-Flutter, one codebase for Android and desktop. The numbered scripts do the work:
+Flutter, one codebase for Android and Linux. A Windows build may happen one day, but
+nothing is promised — it is not built, not tested and not shipped.
+
+The numbered scripts do the work:
 
 ```
 ./05-Lint.sh           # flutter analyze

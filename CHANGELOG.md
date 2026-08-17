@@ -4,6 +4,7 @@
 > F is the same thing done better; E is behaviour that was wrong, whatever the size of the fix.
 
 ## Unreleased
+- I: Docs list Android and Linux as the built platforms; a Windows build is named as possible one day, not promised.
 
 ## v0.4.260817+114
 - I: A full run ends non-zero when an install actually failed, while a device that is simply not connected still finishes the build green.
