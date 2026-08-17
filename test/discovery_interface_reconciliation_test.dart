@@ -113,4 +113,53 @@ void main() {
     expect(unicasts, ['bye 192.168.204.250', 'bye 192.168.54.250']);
     expect(service.running, isFalse);
   });
+
+  // The goodbye matters most exactly when discovery is already down: the network
+  // moved, the receive folder went away and the advertisement was stopped, a port
+  // change is pending. Sending it through the live socket alone meant those exits
+  // said nothing at all and every peer waited out the twenty-second silence.
+  test('an exit says goodbye even with discovery already down', () async {
+    final List<String> broadcasts = [];
+    final List<String> unicasts = [];
+    xvDevices = [
+      Device(id: 'phone', name: 'A36', address: '192.168.204.250', manual: true),
+      Device(id: 'nowhere', name: 'Never seen', address: ''),
+    ];
+
+    final DiscoveryService service = DiscoveryService(
+      bindPort: 0,
+      interfaceProvider: () async => const [],
+      broadcastOverride: broadcasts.add,
+      unicastOverride: (String type, String address) =>
+          unicasts.add('$type $address'),
+    );
+
+    // Never started, so there is no socket to send through.
+    expect(service.running, isFalse);
+    await service.stop(announceLeaving: true);
+
+    expect(unicasts, ['bye 192.168.204.250']);
+    expect(broadcasts, ['bye']);
+  });
+
+  test('a stop that is not an exit still says nothing with no socket', () async {
+    final List<String> broadcasts = [];
+    final List<String> unicasts = [];
+    xvDevices = [
+      Device(id: 'phone', name: 'A36', address: '192.168.204.250', manual: true),
+    ];
+
+    final DiscoveryService service = DiscoveryService(
+      bindPort: 0,
+      interfaceProvider: () async => const [],
+      broadcastOverride: broadcasts.add,
+      unicastOverride: (String type, String address) =>
+          unicasts.add('$type $address'),
+    );
+
+    await service.stop();
+
+    expect(unicasts, isEmpty);
+    expect(broadcasts, isEmpty);
+  });
 }

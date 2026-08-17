@@ -144,10 +144,7 @@ class DiscoveryService {
     _announceTimer = null;
     // The last packets before the socket goes, so peers switch the row to
     // offline now instead of waiting out the silence.
-    if (announceLeaving) {
-      _farewellUnicast();
-      await _broadcast('bye');
-    }
+    if (announceLeaving) await _sayGoodbye();
     _socket?.close();
     _socket = null;
     _interfaces = const {};
@@ -223,18 +220,89 @@ class DiscoveryService {
     }
   }
 
-  // Goodbye straight to everyone on the list, at the discovery port they all
-  // listen on rather than their transfer port. Multicast never leaves the
-  // subnet, so a device added by hand — behind a router, on another subnet,
-  // over a VPN — would otherwise never hear it. A peer that is already gone
-  // costs one datagram nobody reads.
+  // Everyone on the list who has an address at all. A peer that is already gone
+  // costs one datagram nobody reads; a record without an address has nothing to
+  // send to.
+  Iterable<InternetAddress> _listedPeerAddresses() {
+    return List.of(xvDevices)
+        .map((Device device) => InternetAddress.tryParse(device.address))
+        .nonNulls;
+  }
+
+  // Where a farewell is addressed: the discovery port every build listens on,
+  // never a transfer port. The live socket's own port while there is one — the
+  // two differ whenever the bind port was left to the system — and the port that
+  // was asked for when discovery is already down.
+  int get _farewellPort =>
+      _port != 0 ? _port : (bindPort != 0 ? bindPort : discoveryPort);
+
+  // Goodbye straight to everyone on the list. Multicast never leaves the subnet,
+  // so a device added by hand — behind a router, on another subnet, over a VPN —
+  // would otherwise never hear it.
   void _farewellUnicast() {
-    for (final Device device in List.of(xvDevices)) {
-      final InternetAddress? address = InternetAddress.tryParse(device.address);
-      if (address == null) continue;
-      // The port this socket is actually on, not the one that was asked for:
-      // the two differ whenever the bind port was left to the system.
-      _sendTo('bye', address, _port);
+    for (final InternetAddress address in _listedPeerAddresses()) {
+      _sendTo('bye', address, _farewellPort);
+    }
+  }
+
+  // The farewell, whether or not discovery is still up.
+  //
+  // It is down in exactly the cases the goodbye matters most: the network went
+  // away and came back on another interface, the receive folder became
+  // unwritable and the advertisement was taken down, a port change is pending.
+  // With no socket the packets used to be dropped in silence — myPrint is
+  // compiled out of a release build — and every peer waited out the full
+  // timeout, which is the wait this feature exists to remove.
+  Future<void> _sayGoodbye() async {
+    if (_socket != null) {
+      _farewellUnicast();
+      await _broadcast('bye');
+      return;
+    }
+    // A test drives the sends through overrides; there is no socket to borrow
+    // and none is needed.
+    final void Function(String type)? broadcast = _broadcastOverride;
+    if (_unicastOverride != null || broadcast != null) {
+      _farewellUnicast();
+      broadcast?.call('bye');
+      return;
+    }
+    // An exit must not hang on a socket the OS will not give, and the silence
+    // timeout on the other side remains the mechanism actually relied on. Only
+    // the waiting is bounded: the attempt itself swallows its own failures, so a
+    // bind that lands after the deadline cannot surface as an unhandled error in
+    // a future nobody is holding any more.
+    try {
+      await _farewellFromBorrowedSocket().timeout(
+        const Duration(seconds: farewellTimeoutSec),
+      );
+    } on TimeoutException {
+      myPrint('goodbye without discovery took too long, leaving anyway');
+    }
+  }
+
+  // One socket for one round of packets, then closed. Per-interface multicast is
+  // not attempted: `_interfaces` was cleared when discovery stopped, so this
+  // sends the group packet on the default route and the limited broadcast beside
+  // it. The unicasts are the part that carries — they are what reaches the
+  // devices no broadcast could have reached anyway.
+  Future<void> _farewellFromBorrowedSocket() async {
+    RawDatagramSocket? socket;
+    try {
+      socket = await RawDatagramSocket.bind(InternetAddress.anyIPv4, 0);
+      socket.broadcastEnabled = true;
+      socket.multicastHops = 1;
+      final List<int> data = utf8.encode(json.encode(_payload('bye')));
+      final int port = _farewellPort;
+      for (final InternetAddress address in _listedPeerAddresses()) {
+        socket.send(data, address, port);
+      }
+      socket.send(data, InternetAddress('255.255.255.255'), port);
+      socket.send(data, _group, port);
+    } catch (e) {
+      myPrint('cannot say goodbye with discovery down: $e');
+    } finally {
+      socket?.close();
     }
   }
 

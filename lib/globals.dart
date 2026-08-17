@@ -53,6 +53,10 @@ const int acceptTimeoutSec = 30;
 // exit is an immediate answer to a button, and a peer that has gone away must not
 // hold the screen open for it.
 const int exitCancelTimeoutSec = 3;
+// And how long it waits for the goodbye when discovery is already down and a
+// socket has to be borrowed for it. Shorter still: this is one round of
+// datagrams, and the silence timeout on the other side is the fallback.
+const int farewellTimeoutSec = 2;
 // Valid protocol progress refreshes this receiver-side inactivity deadline.
 const int receiveSessionTimeoutSec = 60;
 // A camera folder holds thousands of files, and a folder is picked whole.
