@@ -55,7 +55,7 @@ is authenticated, which SPEC 9 accepts for the incoming direction.
 
 ## Findings
 
-### 1. P2 — A forged announce repoints a trusted device, and the next Send goes to the forger
+### 1. P2 [FIXED e33a1ee] — A forged announce repoints a trusted device, and the next Send goes to the forger
 
 **Affected components:** `lib/net_discovery.dart` — `_touchDevice()` (the
 `else` branch, lines 475-482), `_onEvent()`; `_noteDeparture()` for the contrast;
