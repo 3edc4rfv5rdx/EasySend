@@ -236,7 +236,7 @@ window save flushed before the process ends.
 **Tests to add:** a table test over the new enum covering the eight
 combinations, including a running transfer answered with "no".
 
-### 6. P3 — SPEC says the badge lasts exactly as long as the row, and it is a second longer
+### 6. P3 [FIXED c01629b] — SPEC says the badge lasts exactly as long as the row, and it is a second longer
 
 **Affected components:** `lib/globals.dart` `departedNoticeSec` (60);
 `lib/net_discovery.dart` `lastSeenAfterBye()` (backdates by

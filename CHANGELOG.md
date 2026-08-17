@@ -4,6 +4,7 @@
 > F is the same thing done better; E is behaviour that was wrong, whatever the size of the fix.
 
 ## Unreleased
+- I: The window a silent device is dropped after is now derived from the departure notice instead of repeating the number, and SPEC says how the two relate.
 - I: What an exit does is decided by one pure function now, so a table test covers every combination instead of the button handler holding the rule.
 - I: Device freshness — online and the departure badge — is now judged by one clock, so tests can move time instead of waiting for it.
 - E: An exit now says goodbye even when discovery was already stopped, instead of leaving peers to wait out the silence.
