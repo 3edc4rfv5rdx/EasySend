@@ -128,6 +128,47 @@ void main() {
     expect(found.lastSeen, now);
   });
 
+  // Forgetting used to live in the announce tick, which only runs while
+  // discovery does — and discovery is down in exactly the cases a row goes stale
+  // and stays: the folder became unwritable, the port is busy, a port change is
+  // pending. The poller runs whenever the list is on screen, so it prunes too.
+  test('stale rows are let go of even with discovery down', () async {
+    DateTime now = DateTime.utc(2026, 8, 17, 12);
+    xvNow = () => now;
+    addTearDown(() => xvNow = DateTime.now);
+    final Device found = Device(id: 'found', name: 'Found', lastSeen: now);
+    final Device typed = Device(
+      id: 'typed',
+      name: 'Typed',
+      address: '10.0.0.6',
+      manual: true,
+      lastSeen: now,
+    );
+    final Device sending = Device(id: 'peer', name: 'Peer', lastSeen: now);
+    xvDevices = [found, typed, sending];
+    // The row a transfer in flight is addressed to, which nothing refreshes
+    // while discovery is down.
+    xvTransfers = [
+      TransferSession(
+        id: 'out',
+        incoming: false,
+        peerName: 'Peer',
+        peerId: 'peer',
+        files: const [],
+      )..status = TransferStatus.active,
+    ];
+    addTearDown(() => xvTransfers = []);
+
+    now = now.add(const Duration(seconds: deviceDropSec + 1));
+    final ManualPoller poller = ManualPoller();
+    addTearDown(poller.stop);
+    await poller.pollNow();
+
+    expect(xvDevices.any((d) => d.id == 'found'), isFalse);
+    expect(xvDevices.any((d) => d.id == 'typed'), isTrue);
+    expect(xvDevices.any((d) => d.id == 'peer'), isTrue);
+  });
+
   test('only announce, query and bye are discovery protocol messages', () {
     expect(isSupportedDiscoveryMessage({'t': 'announce'}), isTrue);
     expect(isSupportedDiscoveryMessage({'t': 'query'}), isTrue);

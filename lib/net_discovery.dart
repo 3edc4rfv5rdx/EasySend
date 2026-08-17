@@ -50,6 +50,36 @@ DateTime lastSeenAfterBye(DateTime now) => now.subtract(
   ),
 );
 
+// Devices worth remembering stay in the list while offline; the rest are dropped
+// a minute after going quiet (SPEC 5.2).
+//
+// Out of DiscoveryService on purpose. It used to live in the announce tick, which
+// exists only while discovery is running — and discovery is stopped in exactly the
+// cases where a row goes stale and stays: the receive folder became unwritable or
+// the port is busy, so the advertisement was taken down; a port change is pending;
+// a transition failed. The list would then keep rows nothing was keeping honest.
+// So the rule belongs to the list, and every loop that runs while the list is on
+// screen calls it.
+//
+// The peer of a running transfer is left alone whatever its clock says: with
+// discovery down nothing refreshes its stamp, and dropping the row out from under
+// a transfer in flight would take the target off the screen mid-send.
+void forgetStaleDevices() {
+  final DateTime now = xvNow();
+  final int before = xvDevices.length;
+  xvDevices.removeWhere((Device d) {
+    if (d.manual || d.trusted) return false;
+    if (xvTransfers.any(
+      (TransferSession t) => t.isRunning && t.peerId == d.id,
+    )) {
+      return false;
+    }
+    final DateTime? seen = d.lastSeen;
+    return seen == null || now.difference(seen).inSeconds > deviceDropSec;
+  });
+  if (xvDevices.length != before) devicesChanged();
+}
+
 // UDP presence on the local subnet. Broadcast never crosses a router, so
 // devices behind one are added by hand instead (SPEC 5.2, 5.4).
 class DiscoveryService {
@@ -167,7 +197,7 @@ class DiscoveryService {
       if (socket == null || _socket != socket) return;
       if (changed) unawaited(_broadcast('query'));
       unawaited(_broadcast('announce'));
-      _forgetStaleDevices();
+      forgetStaleDevices();
       // Going offline is a silent event: nothing arrives to signal it. Without
       // a nudge here the list would keep showing a dead device as reachable.
       devicesChanged();
@@ -571,18 +601,6 @@ class DiscoveryService {
   void noteDepartureForTesting({required String id, required String address}) =>
       _noteDeparture(id: id, address: address);
 
-  // Devices worth remembering stay in the list while offline; the rest are
-  // dropped a minute after going quiet.
-  void _forgetStaleDevices() {
-    final DateTime now = xvNow();
-    final int before = xvDevices.length;
-    xvDevices.removeWhere((d) {
-      if (d.manual || d.trusted) return false;
-      final DateTime? seen = d.lastSeen;
-      return seen == null || now.difference(seen).inSeconds > deviceDropSec;
-    });
-    if (xvDevices.length != before) devicesChanged();
-  }
 }
 
 final DiscoveryService discovery = DiscoveryService();
@@ -633,6 +651,9 @@ class ManualPoller {
     if (_polling) return;
     _polling = true;
     try {
+      // This pass runs whenever the list is on screen, discovery up or down, so
+      // it is also where a row nothing keeps honest is let go of.
+      forgetStaleDevices();
       // All of them at once. Asked one after another, a pass costs one timeout
       // per silent device — and a device that is switched off is silent, not
       // refusing — so a handful of them stretches the pass past the window
