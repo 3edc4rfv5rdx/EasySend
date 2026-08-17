@@ -203,7 +203,7 @@ remove. Nothing here may build anything.
 AppImage and APKs, a `build/` tree with the two APKs but no AppImage, then run the
 script and assert the old AppImage is still there and the exit code is non-zero.
 
-### 3. P3 — `99-CopyToAPKX.sh` names the link from one source and fills it from another
+### 3. P3 [FIXED f178ebe] — `99-CopyToAPKX.sh` names the link from one source and fills it from another
 
 **Affected components:** `99-CopyToAPKX.sh` lines 19-40.
 
