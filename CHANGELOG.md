@@ -4,6 +4,8 @@
 > F is the same thing done better; E is behaviour that was wrong, whatever the size of the fix.
 
 ## Unreleased
+
+## v0.4.260818+118
 - I: The Android settings file records why AGP stays on 8: both routes to 9 are blocked, and by which plugin.
 - I: file_picker moves to 12 and device_info_plus to 13; the desktop file picker uses the new static API.
 - I: The Android build moves to Gradle 9.3.1 and Kotlin 2.4, with the app on the new Kotlin compilerOptions DSL, and plugins that pin an older compileSdk are raised to the app's.
