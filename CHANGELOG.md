@@ -4,6 +4,7 @@
 > F is the same thing done better; E is behaviour that was wrong, whatever the size of the fix.
 
 ## Unreleased
+- I: IDEAS.txt drops the empty-folder pruning, already shipped, and gains the worked-out plan for XOR obfuscation with the proto and enc fields.
 - I: Built on Flutter 3.47 / Dart 3.13; its new unawaited_return_in_try_block lint is off in net_server.dart, where the answer is written outside the catch on purpose.
 - I: Docs list Android and Linux as the built platforms; a Windows build is named as possible one day, not promised.
 
