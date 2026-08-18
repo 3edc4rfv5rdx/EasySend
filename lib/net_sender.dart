@@ -686,8 +686,10 @@ class SendService {
     }
   }
 
-  Future<_ProtocolResponse> _post(Uri uri) async {
-    final HttpClientRequest req = await _client!
+  // `client` is for the one caller that cannot use the transfer's client: the
+  // cancel below runs after that one has been force-closed.
+  Future<_ProtocolResponse> _post(Uri uri, {HttpClient? client}) async {
+    final HttpClientRequest req = await (client ?? _client!)
         .postUrl(uri)
         .timeout(connectTimeout);
     req.contentLength = 0;
@@ -774,26 +776,11 @@ class SendService {
   Future<void> _cancelRemoteBestEffort(Device peer) async {
     final String? sessionId = _sessionId;
     if (sessionId == null) return;
+    // A client of its own: cancel() force-closes the transfer's one before
+    // asking for this, and a cancelled receiver must still be told.
     final HttpClient client = HttpClient()..connectionTimeout = connectTimeout;
     try {
-      final HttpClientRequest req = await client
-          .postUrl(_url(peer, 'cancel', {'session': sessionId}))
-          .timeout(connectTimeout);
-      req.contentLength = 0;
-      final HttpClientResponse response = await req.close().timeout(
-        headerTimeout,
-      );
-      await readBoundedControlBytes(
-        response,
-        limit: maxInfoBodyBytes,
-        inactivityTimeout: headerTimeout,
-        totalTimeout: controlBodyTimeout,
-        tooLarge: () => const FormatException('response body too large'),
-        inactivityExpired: () =>
-            TimeoutException('control body stopped', headerTimeout),
-        totalExpired: () =>
-            TimeoutException('control body deadline', controlBodyTimeout),
-      );
+      await _post(_url(peer, 'cancel', {'session': sessionId}), client: client);
     } catch (e) {
       _current?.log('The receiver was not told', detail: '$e', failure: true);
     } finally {

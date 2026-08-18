@@ -4,6 +4,7 @@
 > F is the same thing done better; E is behaviour that was wrong, whatever the size of the fix.
 
 ## Unreleased
+- I: The best-effort cancel sends its request through the same control POST helper as the rest of the sender, instead of repeating it with its own body reader.
 - I: The manual poller reads the /info body through the shared bounded reader instead of its own loop, so an endless body now hits a deadline of its own.
 - I: SPEC no longer claims a single network client factory; it says where HttpClient is actually created and that TLS would need it consolidated first.
 - I: IDEAS.txt drops the empty-folder pruning, already shipped, and gains the worked-out plan for XOR obfuscation with the proto and enc fields.
