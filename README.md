@@ -23,14 +23,18 @@ no internet: the two devices talk to each other and nothing else.
 - **Devices find each other** — a UDP announce every five seconds on the local subnet.
   Anything behind a router does not hear a broadcast, so it is added by hand as `IP` (or
   `IP:port`) and polled over HTTP instead; a device that has sent to you once is
-  remembered with the address it came from.
+  remembered with the address it came from. Leaving is said out loud: a device that
+  exits announces it, and its row is marked *exited* instead of going quietly stale.
 - **Ask once, then trust** — an unknown sender has to be confirmed on the receiving
   device. "Always trust" binds that answer to the sender's id, and trusted devices are
-  listed in the settings, revocable one by one.
+  listed in the settings, revocable one by one. A device that let your files in is
+  trusted back on your side: on a home network that is the same judgement either way.
 - **Transfers you can watch** — a progress bar in bytes for the whole transfer, current
   file, speed and time left. Either side can stop a running transfer. Files arrive under a
   private incomplete-session directory and get their real names only after their CRC32
-  matches; a mismatch is re-sent automatically twice before it is called a failure.
+  matches; a mismatch is re-sent automatically twice before it is called a failure. One
+  transfer at a time in either direction — a second sender is told *busy* rather than
+  quietly queued.
 - **Every transfer explains itself** — tap one to open its log: what happened to each file,
   response codes, refusal reasons, a line per failed attempt. One button copies the whole
   thing, build number included, so a bug report does not have to be typed off a phone
@@ -44,7 +48,8 @@ no internet: the two devices talk to each other and nothing else.
   clears itself afterwards so the next send has to ask for it again.
 - **Receiving with the screen off** (Android) — an optional foreground service keeps the
   port open and puts an incoming request in a notification you can accept from the
-  lock screen.
+  lock screen. The ongoing notification carries Stop and Exit, so a transfer can be
+  stopped and the app closed without opening it.
 - **Themes and languages** — five palettes (Light, Dark, Sand, Slate, Olive) plus System,
   and English, Russian and Ukrainian. Both are data, not code: add a palette to
   `assets/colors.json` or a locale to `assets/locales.json` and it shows up in the

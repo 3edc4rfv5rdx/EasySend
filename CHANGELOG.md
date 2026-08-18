@@ -4,6 +4,8 @@
 > F is the same thing done better; E is behaviour that was wrong, whatever the size of the fix.
 
 ## Unreleased
+- I: README lists the goodbye on exit, the trust that comes back from a receiver, one transfer at a time and the notification's Stop and Exit.
+- I: IDEAS.txt notes that localising network errors should start from SocketException.errorCode, not from matching the OS text.
 - I: IDEAS.txt records the decision not to add XOR obfuscation, with the reason and the condition for revisiting it; the plan itself is kept.
 - I: The best-effort cancel sends its request through the same control POST helper as the rest of the sender, instead of repeating it with its own body reader.
 - I: The manual poller reads the /info body through the shared bounded reader instead of its own loop, so an endless body now hits a deadline of its own.
