@@ -22,7 +22,11 @@ pluginManagement {
 // plugin as soon as AGP reports a major of 9 and hand the job to AGP's built-in
 // Kotlin, which this project has off (android.builtInKotlin=false, as in
 // Flutter's own template). Their classes then never get compiled and the app
-// fails to link them. Revisit when those plugins no longer need it.
+// fails to link them. Turning the built-in Kotlin on instead is not a way out
+// either: desktop_drop 0.7.1, the newest there is, applies the Kotlin plugin by
+// hand, which AGP 9 refuses outright. The rest are ready for the move —
+// android_id needs 0.5.2, receive_sharing_intent 1.9.0 — so revisit this once
+// desktop_drop follows.
 plugins {
     id("dev.flutter.flutter-plugin-loader") version "1.0.0"
     id("com.android.application") version "8.11.1" apply false
