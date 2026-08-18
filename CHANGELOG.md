@@ -4,6 +4,7 @@
 > F is the same thing done better; E is behaviour that was wrong, whatever the size of the fix.
 
 ## Unreleased
+- I: The Android build moves to Gradle 9.3.1 and Kotlin 2.4, with the app on the new Kotlin compilerOptions DSL, and plugins that pin an older compileSdk are raised to the app's.
 - I: README lists the goodbye on exit, the trust that comes back from a receiver, one transfer at a time and the notification's Stop and Exit.
 - I: IDEAS.txt notes that localising network errors should start from SocketException.errorCode, not from matching the OS text.
 - I: IDEAS.txt records the decision not to add XOR obfuscation, with the reason and the condition for revisiting it; the plan itself is kept.
