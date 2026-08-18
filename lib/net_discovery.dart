@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart' show visibleForTesting;
 
 import 'android_helpers.dart';
+import 'control_body.dart';
 import 'globals.dart';
 
 Map<String, dynamic> buildDiscoveryPayload({
@@ -778,11 +779,15 @@ class ManualPoller {
         await _discard(resp);
         return null;
       }
-      final List<int> bytes = [];
-      await for (final List<int> chunk in resp.timeout(timeout)) {
-        if (bytes.length + chunk.length > maxInfoBodyBytes) return null;
-        bytes.addAll(chunk);
-      }
+      final List<int> bytes = await readBoundedControlBytes(
+        resp,
+        limit: maxInfoBodyBytes,
+        inactivityTimeout: timeout,
+        totalTimeout: timeout,
+        tooLarge: () => const FormatException('info body too large'),
+        inactivityExpired: () => TimeoutException('info body stopped', timeout),
+        totalExpired: () => TimeoutException('info body deadline', timeout),
+      );
       final dynamic decoded = json.decode(
         utf8.decode(bytes, allowMalformed: false),
       );

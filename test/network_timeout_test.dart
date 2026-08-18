@@ -176,6 +176,34 @@ void main() {
     await server.close(force: true);
   });
 
+  test('an oversized info body is dropped, not taken as an answer', () async {
+    final HttpServer server = await HttpServer.bind(
+      InternetAddress.loopbackIPv4,
+      0,
+    );
+    server.listen((HttpRequest request) async {
+      // Valid JSON, so size is the only reason to turn it down.
+      final String padding = 'x' * maxInfoBodyBytes;
+      request.response.headers.contentType = ContentType.json;
+      request.response.write('{"id":"peer","name":"$padding"}');
+      await request.response.close();
+    });
+    final Device device = Device(
+      id: 'peer',
+      name: 'Peer',
+      address: '127.0.0.1',
+      port: server.port,
+      manual: true,
+    );
+    xvDevices = [device];
+    final ManualPoller poller = ManualPoller(
+      timeout: const Duration(milliseconds: 200),
+    );
+    await poller.pollNow().timeout(const Duration(seconds: 5));
+    expect(device.lastSeen, isNull);
+    await server.close(force: true);
+  });
+
   test('an error body that never ends does not wedge the poller', () async {
     final Completer<void> release = Completer<void>();
     final HttpServer stuck = await HttpServer.bind(
