@@ -713,7 +713,7 @@ void okInfoBarPurple(String message) => okInfoBar(
 // list of directories is both simpler and less intrusive.
 Future<String?> pickFolder({String? initialPath}) async {
   if (!Platform.isAndroid) {
-    return FilePicker.platform.getDirectoryPath();
+    return FilePicker.getDirectoryPath();
   }
 
   // Grab the context before any await, so it cannot go stale meanwhile.

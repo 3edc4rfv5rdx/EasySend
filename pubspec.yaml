@@ -4,7 +4,7 @@ publish_to: 'none'
 
 # The build number lives in two places that must stay in sync: `version:` here
 # and progVersion / buildNumber in lib/globals.dart.
-version: 0.4.260817+114
+version: 0.4.260818+117
 
 environment:
   sdk: ^3.11.5
@@ -17,7 +17,7 @@ dependencies:
   path: ^1.9.0
   path_provider: ^2.1.5
   # Device model / host name for the default device name
-  device_info_plus: ^11.5.0
+  device_info_plus: ^13.2.0
   # Stable device id derived per platform
   uuid: ^4.5.1
   # ANDROID_ID: survives reinstall, unlike the app's private storage
@@ -25,7 +25,7 @@ dependencies:
   # Desktop window sizing (portrait layout everywhere)
   window_manager: ^0.4.3
   # Picking files and folders to send
-  file_picker: ^8.3.7
+  file_picker: ^12.0.0
   # Used for its incremental CRC32 only
   archive: ^4.0.7
   # Strong streamed source fingerprint before destructive Move cleanup

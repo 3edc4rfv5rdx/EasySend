@@ -685,9 +685,9 @@ class _HomeScreenState extends State<HomeScreen>
       return;
     }
 
-    final FilePickerResult? result;
+    final List<PlatformFile> files;
     try {
-      result = await FilePicker.platform.pickFiles(allowMultiple: true);
+      files = await FilePicker.pickFiles();
     } catch (e) {
       // Whatever the picker throws, the user is owed a sentence: the file
       // manager closing with nothing to show for it reads as the button being
@@ -696,9 +696,9 @@ class _HomeScreenState extends State<HomeScreen>
       okInfoBarRed(lw('Could not open the file manager'));
       return;
     }
-    // null is the user backing out, which needs no comment.
-    if (result == null) return;
-    final List<String> paths = result.files
+    // An empty list is the user backing out, which needs no comment.
+    if (files.isEmpty) return;
+    final List<String> paths = files
         .map((f) => f.path)
         .whereType<String>()
         .toList();
@@ -706,9 +706,7 @@ class _HomeScreenState extends State<HomeScreen>
     // where dart:io can reach it. Silently dropping it is what made picking
     // look like it did nothing at all.
     if (paths.isEmpty) {
-      if (result.files.isNotEmpty) {
-        okInfoBarRed(lw('The file manager gave no path'));
-      }
+      okInfoBarRed(lw('The file manager gave no path'));
       return;
     }
     await _addPaths(paths);
