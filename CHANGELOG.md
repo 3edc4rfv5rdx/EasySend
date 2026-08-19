@@ -4,6 +4,7 @@
 > F is the same thing done better; E is behaviour that was wrong, whatever the size of the fix.
 
 ## Unreleased
+- N: Every transfer row shows its percent over the right end of the bar, rounded down so 100% only ever means everything arrived.
 - E: A Wi-Fi change no longer leaves the app invisible: discovery binds a new socket when the network it worked through goes away, and a receive listener closed by the system is started again instead of being reported as running.
 
 ## v0.4.260818+118

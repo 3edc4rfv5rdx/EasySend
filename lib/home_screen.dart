@@ -1556,36 +1556,55 @@ class _HomeScreenState extends State<HomeScreen>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // The name, the percent and the bar are one block: the number
+            // belongs over the end of the bar, not over the buttons to the
+            // right of it, where it would sit on top of the remove cross.
+            // The block's own six points under the bar are what puts those
+            // buttons level with it once the row is aligned at the bottom.
             Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Icon(
-                  t.incoming ? Icons.download : Icons.upload,
-                  size: 18,
-                  color: clText,
-                ),
-                const SizedBox(width: 6),
                 Expanded(
-                  child: Text(
-                    t.peerName,
-                    style: tsNormal,
-                    overflow: TextOverflow.ellipsis,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            t.incoming ? Icons.download : Icons.upload,
+                            size: 18,
+                            color: clText,
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              t.peerName,
+                              style: tsNormal,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(formatPercent(t.progress), style: tsNormal),
+                        ],
+                      ),
+                      // One bar for the whole transfer, counted in bytes (SPEC
+                      // 3.3). Thick and bright on purpose: readable across the
+                      // room.
+                      LinearProgressIndicator(
+                        value: t.progress,
+                        minHeight: 12,
+                        borderRadius: BorderRadius.circular(6),
+                        backgroundColor: clFrame.withValues(alpha: 0.3),
+                        color: _progressColor(t),
+                      ),
+                      const SizedBox(height: 6),
+                    ],
                   ),
                 ),
-              ],
-            ),
-            Row(
-              children: [
-                // One bar for the whole transfer, counted in bytes (SPEC 3.3).
-                // Thick and bright on purpose: readable across the room.
-                Expanded(
-                  child: LinearProgressIndicator(
-                    value: t.progress,
-                    minHeight: 12,
-                    borderRadius: BorderRadius.circular(6),
-                    backgroundColor: clFrame.withValues(alpha: 0.3),
-                    color: _progressColor(t),
-                  ),
-                ),
+                // Air between the end of the bar and the cross, so the two do
+                // not read as one control. The percent moves left with the bar
+                // and stays over its end.
+                const SizedBox(width: 8),
                 // The slot is always there, empty while the transfer runs, so the
                 // bar keeps its width and nothing jumps when it finishes.
                 SizedBox(
@@ -1620,7 +1639,6 @@ class _HomeScreenState extends State<HomeScreen>
                   ),
               ],
             ),
-            const SizedBox(height: 4),
             // The bar already says red; the line under it says the same, so the
             // reason is not read as an ordinary status.
             Text(

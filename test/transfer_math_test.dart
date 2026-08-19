@@ -1,4 +1,4 @@
-import 'package:easysend/models.dart';
+import 'package:easysend/globals.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -63,6 +63,19 @@ void main() {
       expect(transfer.etaSeconds, 0);
     },
   );
+
+  // The number over the bar is read as the answer to "is it there yet", so it
+  // may only say 100% when everything actually arrived.
+  test('the percent over the bar rounds down and stays in range', () {
+    expect(formatPercent(0), '0%');
+    expect(formatPercent(0.456), '45%');
+    // One byte short of five gigabytes.
+    expect(formatPercent(5368709119 / 5368709120), '99%');
+    expect(formatPercent(1), '100%');
+    expect(formatPercent(1.4), '100%');
+    expect(formatPercent(-0.2), '0%');
+    expect(formatPercent(double.nan), '0%');
+  });
 
   test('a terminal zero-byte transfer has complete progress', () {
     final TransferSession transfer = TransferSession(

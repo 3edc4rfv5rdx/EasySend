@@ -20,8 +20,8 @@ final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey =
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 const String prgName = 'easysend';
-const String progVersion = '0.4.260819';
-const int buildNumber = 119;
+const String progVersion = '0.5.260819';
+const int buildNumber = 122;
 const String progAuthor = 'Eugen';
 
 const String langFile = 'assets/locales.json';
@@ -616,6 +616,15 @@ String formatClock(DateTime t) =>
 
 String formatSpeed(double bytesPerSec) =>
     '${formatBytes(bytesPerSec.round())}/s';
+
+// 0.456 -> '45%'. Rounded down on purpose: a transfer with one byte left would
+// otherwise read 100% while the bar is still moving, and 100% has to mean that
+// everything got there. Out of range cannot happen from a byte count, but a
+// number on screen is not the place to find out that it did.
+String formatPercent(double progress) {
+  final double bounded = progress.isFinite ? progress.clamp(0.0, 1.0) : 0.0;
+  return '${(bounded * 100).floor()}%';
+}
 
 // 95 -> '1:35'. Used for the remaining-time estimate.
 String formatDuration(int seconds) {
