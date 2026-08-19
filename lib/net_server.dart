@@ -176,6 +176,11 @@ class ReceiveServer {
   ReceiveReadinessFailure? readinessFailure;
   String? readinessError;
 
+  // Told when the listening socket went away on its own, so whoever owns the
+  // network state can bring it back. Only that owner knows whether receiving
+  // is still wanted at all, so this class does not restart itself.
+  void Function()? onListenerLost;
+
   // A step of the network transition failed somewhere other than here. The
   // listener may even be up, but the sequence that was supposed to bring
   // receiving into a known state did not finish, so readiness stops claiming
@@ -263,11 +268,36 @@ class ReceiveServer {
       _http = null;
       return false;
     }
-    _http!.listen(_handle, onError: (Object e) => myPrint('server error: $e'));
+    final int generation = _generation;
+    _http!.listen(
+      _handle,
+      onError: (Object e) => myPrint('server error: $e'),
+      onDone: () => _listenerClosed(generation),
+    );
     myPrint('receive server started on $port');
     serverStateChanged();
     return true;
   }
+
+  // The listening socket closed without a stop() asking it to. Nothing else
+  // would notice: `running` would keep saying yes, and start() on the next
+  // resume would find the port it wanted already "bound" and do nothing.
+  //
+  // The generation captured at listen time is what tells this apart from our
+  // own stop(), which bumps it before it closes anything.
+  void _listenerClosed(int generation) {
+    if (generation != _generation || _http == null) return;
+    myPrint('receive listener closed on its own');
+    _http = null;
+    serverStateChanged();
+    onListenerLost?.call();
+  }
+
+  // A listening socket closed by the system underneath us, which cannot be
+  // arranged from outside: the generation is left alone, so what follows is
+  // the same as if the network had taken it.
+  @visibleForTesting
+  Future<void> loseListenerForTest() async => _http?.close(force: true);
 
   Future<void> stop() async {
     // Before any await: a consent answered while this is running belongs to the

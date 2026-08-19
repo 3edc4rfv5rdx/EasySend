@@ -364,6 +364,7 @@ class _HomeScreenState extends State<HomeScreen>
     androidService.onNotificationStop = _stop;
     androidService.onNotificationExit = () =>
         _exitApp(mayKeepReceiving: false);
+    receiveServer.onListenerLost = _rebuildLostListener;
     androidService.attach();
     _startNetwork();
     _listenForShares();
@@ -461,11 +462,22 @@ class _HomeScreenState extends State<HomeScreen>
     _windowSaveTimer?.cancel();
     androidService.onNotificationStop = null;
     androidService.onNotificationExit = null;
+    receiveServer.onListenerLost = null;
     androidService.detach();
     receiveServer.stop();
     discovery.stop();
     manualPoller.stop();
     super.dispose();
+  }
+
+  // The listening socket died on its own — the network it was bound through
+  // went away. Rebinding it is a network transition like any other, so it goes
+  // through the queue instead of calling start() from under a socket callback.
+  // The epoch is deliberately left alone: a transition already in flight is
+  // bringing the same state up and does not need to abandon itself.
+  void _rebuildLostListener() {
+    if (_disposed || _exiting || !_networkDesired) return;
+    _queueNetworkTransition();
   }
 
   void _handleAndroidServiceState() {

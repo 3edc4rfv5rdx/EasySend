@@ -96,6 +96,11 @@ class DiscoveryService {
   final Duration admissionWindow;
   final Duration uiUpdateInterval;
   RawDatagramSocket? _socket;
+  // Whether this service is meant to be up. It tells a socket that died on its
+  // own — which the announce timer has to replace — apart from one that was
+  // taken down because nobody wants to be found any more.
+  bool _wanted = false;
+  int _binds = 0;
   Timer? _announceTimer;
   int _port = 0;
   Map<String, NetworkInterface> _interfaces = const {};
@@ -130,31 +135,27 @@ class DiscoveryService {
   @visibleForTesting
   Set<String> get activeInterfaceKeys => Set.unmodifiable(_interfaces.keys);
 
+  // How many sockets this service has opened. Whether a new one was made is
+  // the whole difference between rejoining the groups and moving to another
+  // network, and no other observable state tells the two apart.
+  @visibleForTesting
+  int get bindCount => _binds;
+
+  // A socket dying with its network cannot be arranged from outside, and what
+  // happens next is exactly what this is about.
+  @visibleForTesting
+  void loseSocketForTest() {
+    final RawDatagramSocket? socket = _socket;
+    if (socket != null) _socketLost(socket, 'was dropped by a test');
+  }
+
   Future<bool> start() async {
     await stop();
-    _port = bindPort;
-    try {
-      _socket = await RawDatagramSocket.bind(
-        InternetAddress.anyIPv4,
-        _port,
-        reuseAddress: true,
-        reusePort: !Platform.isWindows,
-      );
-      _socket!.broadcastEnabled = true;
-      _socket!.multicastHops = 1;
-      _socket!.multicastLoopback = true;
-      if (_port == 0) _port = _socket!.port;
-      await _reconcileInterfaces();
-      await setDiscoveryMulticastEnabled(true);
-      _socket!.listen(_onEvent);
-    } catch (e) {
-      myPrint('discovery bind failed on $_port: $e');
-      _socket = null;
+    _wanted = true;
+    if (!await _bind()) {
+      _wanted = false;
       return false;
     }
-    // Ask everyone to speak up, then keep announcing on a timer.
-    unawaited(_broadcast('query'));
-    unawaited(_broadcast('announce'));
     _announceTimer = Timer.periodic(
       const Duration(seconds: announceIntervalSec),
       (_) => unawaited(_tick()),
@@ -163,20 +164,76 @@ class DiscoveryService {
     return true;
   }
 
+  // A socket and everything that has to be true about it, without touching the
+  // announce timer. The timer outlives a socket on purpose: it is what notices
+  // that one is gone — the network changed underneath it, or the bind failed
+  // when the interface was not up yet — and comes back here to make a new one.
+  Future<bool> _bind() async {
+    _port = bindPort;
+    try {
+      final RawDatagramSocket socket = await RawDatagramSocket.bind(
+        InternetAddress.anyIPv4,
+        _port,
+        reuseAddress: true,
+        reusePort: !Platform.isWindows,
+      );
+      _socket = socket;
+      socket.broadcastEnabled = true;
+      socket.multicastHops = 1;
+      socket.multicastLoopback = true;
+      if (_port == 0) _port = socket.port;
+      await _reconcileInterfaces();
+      await setDiscoveryMulticastEnabled(true);
+      socket.listen(
+        _onEvent,
+        onError: (Object e) => _socketLost(socket, 'failed: $e'),
+        onDone: () => _socketLost(socket, 'was closed'),
+      );
+    } catch (e) {
+      myPrint('discovery bind failed on $_port: $e');
+      _dropSocket();
+      return false;
+    }
+    _binds++;
+    // Ask everyone to speak up; the timer keeps announcing from here on.
+    unawaited(_broadcast('query'));
+    unawaited(_broadcast('announce'));
+    return true;
+  }
+
+  // The socket went away without a stop() asking for it: the network it was
+  // bound through disappeared, or the system closed it. Nothing else would
+  // notice — `running` would go on saying yes while no packet ever arrives.
+  void _socketLost(RawDatagramSocket socket, String what) {
+    // A socket already replaced is not this one's business.
+    if (!identical(_socket, socket)) return;
+    myPrint('discovery socket $what');
+    _dropSocket();
+  }
+
+  // Closes the socket and forgets every membership that belonged to it. Joins
+  // do not survive their socket, so the record of them must not either.
+  void _dropSocket() {
+    _socket?.close();
+    _socket = null;
+    _interfaces = const {};
+    _joinedInterfaces.clear();
+  }
+
   // announceLeaving belongs to a real exit only. A stop for a restart, a lost
   // network or a screen going away leaves a receiver that is still meant to be
   // found, and telling everyone otherwise would blank the app out of their
   // lists for no reason.
   Future<void> stop({bool announceLeaving = false}) async {
+    // Before anything else: a socket lost from here on is one nobody wants
+    // back, and the watchdog must not race a stop that is already running.
+    _wanted = false;
     _announceTimer?.cancel();
     _announceTimer = null;
     // The last packets before the socket goes, so peers switch the row to
     // offline now instead of waiting out the silence.
     if (announceLeaving) await _sayGoodbye();
-    _socket?.close();
-    _socket = null;
-    _interfaces = const {};
-    _joinedInterfaces.clear();
+    _dropSocket();
     final Timer? pendingDeviceUpdate = _deviceUpdateTimer;
     pendingDeviceUpdate?.cancel();
     _deviceUpdateTimer = null;
@@ -192,12 +249,29 @@ class DiscoveryService {
     _tickRunning = true;
     final RawDatagramSocket? socket = _socket;
     try {
-      final bool changed = await _reconcileInterfaces();
+      // No socket, but this service is still meant to be up: it died with the
+      // network, or the bind failed while the interface was coming up. This is
+      // the only thing that puts it back.
+      if (socket == null) {
+        if (_wanted) await _bind();
+        return;
+      }
+      final ({bool changed, bool lost}) topology = await _reconcileInterfaces();
       // A stop/restart may finish while interface enumeration is in flight.
       // That obsolete tick must not broadcast through the replacement socket.
-      if (socket == null || _socket != socket) return;
-      if (changed) unawaited(_broadcast('query'));
-      unawaited(_broadcast('announce'));
+      if (_socket != socket) return;
+      // The network this socket was bound through is not there any more. On
+      // Android a socket outlives the network it was opened on and stays tied
+      // to it, so rejoining the groups is not enough — it takes a new socket
+      // to reach the new network. _bind announces us there itself.
+      if (topology.lost) {
+        myPrint('network changed under discovery, rebinding');
+        _dropSocket();
+        if (!await _bind()) return;
+      } else {
+        if (topology.changed) unawaited(_broadcast('query'));
+        unawaited(_broadcast('announce'));
+      }
       forgetStaleDevices();
       // Going offline is a silent event: nothing arrives to signal it. Without
       // a nudge here the list would keep showing a dead device as reachable.
@@ -230,7 +304,14 @@ class DiscoveryService {
     final List<int> data = utf8.encode(json.encode(_payload(type)));
     // Limited broadcast remains as a compatibility fallback. Multicast does
     // not depend on an assumed /24 netmask and is sent on every interface.
-    socket.send(data, InternetAddress('255.255.255.255'), _port);
+    try {
+      socket.send(data, InternetAddress('255.255.255.255'), _port);
+    } catch (e) {
+      // The network went away between the tick and this send. Nobody awaits
+      // this, so throwing here would surface as an unhandled error and take
+      // the rest of the tick — device ageing and the list refresh — with it.
+      myPrint('broadcast failed: $e');
+    }
     await _sendMulticast(data);
   }
 
@@ -351,9 +432,10 @@ class DiscoveryService {
     return '${interface.index}|${interface.name}|${addresses.join(',')}';
   }
 
-  Future<bool> _reconcileInterfaces() async {
+  Future<({bool changed, bool lost})> _reconcileInterfaces() async {
+    const ({bool changed, bool lost}) unchanged = (changed: false, lost: false);
     final RawDatagramSocket? socket = _socket;
-    if (socket == null) return false;
+    if (socket == null) return unchanged;
     late final List<NetworkInterface> listed;
     try {
       listed = await _interfaceProvider();
@@ -361,9 +443,9 @@ class DiscoveryService {
       // A transient enumeration failure must not tear down memberships that
       // may still be the only route to peers.
       myPrint('interface list failed: $error');
-      return false;
+      return unchanged;
     }
-    if (_socket != socket) return false;
+    if (_socket != socket) return unchanged;
 
     final Map<String, NetworkInterface> next = {
       for (final NetworkInterface interface in listed)
@@ -372,9 +454,14 @@ class DiscoveryService {
     final bool changed =
         !next.keys.toSet().containsAll(_interfaces.keys) ||
         !_interfaces.keys.toSet().containsAll(next.keys);
+    // An address this socket was working through is gone — a Wi-Fi network
+    // swapped for another one, or the same one handing out a different lease.
+    // Interfaces merely appearing beside the old ones are not that.
+    bool lost = false;
 
     for (final MapEntry<String, NetworkInterface> old in _interfaces.entries) {
       if (next.containsKey(old.key)) continue;
+      lost = true;
       if (_joinedInterfaces.remove(old.key)) {
         try {
           final leave = _leaveOverride;
@@ -406,7 +493,7 @@ class DiscoveryService {
       }
     }
     _interfaces = next;
-    return changed;
+    return (changed: changed, lost: lost);
   }
 
   Future<void> _sendMulticast(List<int> data) async {
