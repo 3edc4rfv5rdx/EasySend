@@ -72,3 +72,6 @@ else
 fi
 # Only a step that tried and failed makes the run itself a failure.
 [ -z "$FAILED" ] || exit 1
+
+sleep 3
+
