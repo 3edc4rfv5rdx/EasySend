@@ -415,6 +415,11 @@ class _HomeScreenState extends State<HomeScreen>
       _queueNetworkTransition();
     }
     if (_selected.isEmpty || !mounted) return;
+    // The whole batch leaves at the end, never row by row as the files land.
+    // The picked list is height-constrained, so each row that left mid-transfer
+    // pulled everything under it up the screen — including the progress bar the
+    // user was watching, which jumped a line at a time all through the send.
+    if (xvTransfers.any((t) => t.isRunning)) return;
     final int before = _selected.length;
     _selected.removeWhere((f) => f.done);
     if (_selected.length != before) setState(() {});
@@ -1078,7 +1083,8 @@ class _HomeScreenState extends State<HomeScreen>
     setState(() {
       _lastSent = snapshotFiles(batch);
     });
-    // Files leave the list one by one as they land, via _pruneSentFiles.
+    // What got there leaves the list when the transfer is over, via
+    // _pruneSentFiles; what did not stays, ready for another go.
     final TransferStatus status = await sender.send(
       peer: target,
       files: batch,
@@ -1345,7 +1351,8 @@ class _HomeScreenState extends State<HomeScreen>
         ),
       ),
       child: Text(
-        lw('As ZIP'),
+        // Not through lw(): the word is ZIP in every language the app speaks.
+        'ZIP',
         style: tsSmall.copyWith(color: _zip ? onColor(clAccent) : clText),
       ),
     );
@@ -1686,15 +1693,39 @@ class _HomeScreenState extends State<HomeScreen>
                         ),
                 ),
                 if (retryableTransfer(t))
-                  TextButton(
-                    onPressed:
-                        retryEnabled(
-                          senderBusy: sender.busy,
-                          anyTransferRunning: _running != null,
-                        )
-                        ? () => _retryTransfer(t)
-                        : null,
-                    child: Text(lw('Retry')),
+                  // The same 24 points as the cross beside it. A TextButton is
+                  // 36 high before the platform pads it out to a tap target, and
+                  // in a row aligned at the bottom that put its label above the
+                  // cross's centre instead of level with it.
+                  SizedBox(
+                    height: 24,
+                    child: TextButton(
+                      style: TextButton.styleFrom(
+                        minimumSize: Size.zero,
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        // Filled with the accent, like every other thing the app
+                        // offers to do: on a row that failed, the one action
+                        // worth taking must not read as another muted glyph
+                        // beside the cross. Greyed while a transfer holds it —
+                        // the same grey the main button waits in.
+                        backgroundColor: clAccent,
+                        foregroundColor: onColor(clAccent),
+                        disabledBackgroundColor: clFrame.withValues(alpha: 0.3),
+                        disabledForegroundColor: clText.withValues(alpha: 0.45),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(btnRadius),
+                        ),
+                      ),
+                      onPressed:
+                          retryEnabled(
+                            senderBusy: sender.busy,
+                            anyTransferRunning: _running != null,
+                          )
+                          ? () => _retryTransfer(t)
+                          : null,
+                      child: Text(lw('Retry')),
+                    ),
                   ),
               ],
             ),
@@ -1927,20 +1958,19 @@ class _HomeScreenState extends State<HomeScreen>
     );
     final bool ending =
         mode == SendButtonMode.stop || mode == SendButtonMode.stopping;
-    // Grey covers both the states nothing can be pressed into: a send with a
-    // piece still missing, and the deletion of the originals, which runs to its
-    // end whatever the user does.
-    final bool greyed =
-        mode == SendButtonMode.deleting ||
-        (mode == SendButtonMode.send && !_canSend);
-    // Three different things the one button can be, and each gets its own
-    // colour: red is stopping something, grey is work nobody can press into,
-    // and the progress colour is the transfer's own — the same one its bar is
-    // painted with while the archive is being built.
+    // Grey is the one state that is not work at all: a send with a piece still
+    // missing, waiting to be told which.
+    final bool greyed = mode == SendButtonMode.send && !_canSend;
+    // The two ends of a transfer that are neither sending nor stopping — the
+    // archive being built and the originals being removed — share the light
+    // amber the device list already uses for "something is going on here that
+    // is not an error". Red stays for stopping, the accent for sending.
+    final bool busyWithItsOwnWork =
+        mode == SendButtonMode.packing || mode == SendButtonMode.deleting;
     final Color face = ending
         ? clError
-        : mode == SendButtonMode.packing
-        ? clProgress
+        : busyWithItsOwnWork
+        ? clDeparted
         : greyed
         ? clFrame.withValues(alpha: 0.3)
         : clAccent;
@@ -1982,7 +2012,7 @@ class _HomeScreenState extends State<HomeScreen>
                   // A disabled button takes its own colours from the theme, and
                   // they are not the palette's.
                   disabledBackgroundColor: face,
-                  disabledForegroundColor: clText,
+                  disabledForegroundColor: onColor(face),
                   // Said outright, because the defaults are not the same on
                   // both platforms: ThemeData takes visualDensity and
                   // materialTapTargetSize from the platform, so the same code

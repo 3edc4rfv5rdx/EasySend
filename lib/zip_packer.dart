@@ -1,25 +1,21 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
 
 import 'package:archive/archive_io.dart';
-import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as p;
 
 import 'file_helpers.dart';
 import 'models.dart';
 
 // One file as it went into the archive: the parts of a fingerprint, in the form
-// that survives the trip back from the isolate. A Digest is rebuilt on the other
-// side rather than sent, so nothing but plain data crosses.
+// that survives the trip back from the isolate — plain data and nothing else.
 class PackedSource {
   final String id;
   final int size;
   final DateTime modified;
   final DateTime changed;
   final int mode;
-  final List<int> digest;
 
   const PackedSource({
     required this.id,
@@ -27,7 +23,6 @@ class PackedSource {
     required this.modified,
     required this.changed,
     required this.mode,
-    required this.digest,
   });
 
   SourceFingerprint get fingerprint => SourceFingerprint.parts(
@@ -35,7 +30,6 @@ class PackedSource {
     modified: modified,
     changed: changed,
     mode: mode,
-    digest: Digest(digest),
   );
 }
 
@@ -230,7 +224,6 @@ Future<void> _packWorker(_PackRequest request) async {
               modified: stat.modified,
               changed: stat.changed,
               mode: stat.mode,
-              digest: (await _digestOf(file)).bytes,
             ),
           );
         }
@@ -284,20 +277,4 @@ Future<void> _packWorker(_PackRequest request) async {
       PackResult(outcome: PackOutcome.failed, error: '$e', skipped: skipped),
     );
   }
-}
-
-// Streamed, never held: these are the same files the sender refuses to load
-// whole, and the isolate has no more memory than the app does.
-Future<Digest> _digestOf(File file) async {
-  Digest? digest;
-  final ByteConversionSink input = sha256.startChunkedConversion(
-    ChunkedConversionSink<Digest>.withCallback(
-      (List<Digest> digests) => digest = digests.single,
-    ),
-  );
-  await for (final List<int> chunk in file.openRead()) {
-    input.add(chunk);
-  }
-  input.close();
-  return digest!;
 }

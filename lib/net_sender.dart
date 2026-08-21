@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:archive/archive.dart';
-import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:path/path.dart' as p;
 import 'package:uuid/uuid.dart';
@@ -88,9 +87,9 @@ class SendService {
   bool get busy => _inFlight;
 
   // The tail of a move: the files are all across and the originals are being
-  // removed one by one, each one read through again to prove it is still the
-  // file that was sent. On a big batch that takes long enough to be seen, and
-  // the button said Stopping in red over work nobody had asked to stop.
+  // removed one by one, each one checked against the stat it was sent with. On a
+  // big batch that takes long enough to be seen, and the button said Stopping in
+  // red over work nobody had asked to stop.
   bool get deletingSources => _deletingSources;
 
   // Where the platform keeps copies of picked documents. Off Android there are
@@ -667,21 +666,14 @@ class SendService {
     final String? source = item.sourcePath;
     if (source == null) return;
     final File file = File(source);
+    // The stat is the whole check. It used to read the file through again and
+    // compare a SHA-256 taken while sending, which cost the batch a second full
+    // read — tens of seconds on a folder of video, all of it after the transfer
+    // was already over. What the digest caught over the stat was a file
+    // rewritten with the same size and the same timestamps to the microsecond,
+    // ctime included, which nothing does by accident: any write moves ctime.
     final SourceFingerprint? sent = _sentSources[item.id];
-    bool sameSource = sent != null;
-    if (sameSource) {
-      final FileStat before = await file.stat();
-      sameSource = sent.matches(before);
-      if (sameSource) {
-        try {
-          sameSource = await sha256.bind(file.openRead()).first == sent.digest;
-          if (sameSource) sameSource = sent.matches(await file.stat());
-        } catch (_) {
-          sameSource = false;
-        }
-      }
-    }
-    if (!sameSource) {
+    if (sent == null || !sent.matches(await file.stat())) {
       transfer.log(
         'Could not delete it here',
         file: item.relativePath,
@@ -739,25 +731,17 @@ class SendService {
     int crc = 0;
     int sent = 0;
     DateTime lastTick = DateTime.now();
-    Digest? sourceDigest;
-    final digestOutput = fingerprintSource
-        ? ChunkedConversionSink<Digest>.withCallback(
-            (digests) => sourceDigest = digests.single,
-          )
-        : null;
-    final digestInput = digestOutput == null
-        ? null
-        : sha256.startChunkedConversion(digestOutput);
 
     // The file is at the far end and named. The fingerprint is what lets a move
-    // delete this source afterwards, and it is taken from the bytes this
-    // attempt read — the window in which the source changes between the read
-    // and the deletion is the one ADD/tofix4.md finding 3 accepts.
+    // delete this source afterwards, and it describes the file this attempt
+    // read — the window in which the source changes between the read and the
+    // deletion is the one ADD/tofix4.md finding 3 accepts.
+    //
+    // What travelled is checked by its CRC32, computed above as the bytes go and
+    // confirmed by the receiver. This is the other question — whether the file
+    // still here is the one that went — and the stat answers it.
     _FileResult delivered() {
-      final Digest? digest = sourceDigest;
-      if (fingerprintSource && digest != null) {
-        _sentSources[item.id] = SourceFingerprint(stat, digest);
-      }
+      if (fingerprintSource) _sentSources[item.id] = SourceFingerprint(stat);
       return _FileResult.sent;
     }
 
@@ -771,7 +755,6 @@ class SendService {
       await for (final List<int> chunk in File(source).openRead()) {
         if (_cancelled) throw const _Cancelled();
         crc = getCrc32(chunk, crc);
-        digestInput?.add(chunk);
         sent += chunk.length;
         req.add(chunk);
         // Flush is the per-progress inactivity boundary. It resets for every
@@ -784,7 +767,6 @@ class SendService {
           transfersChanged();
         }
       }
-      digestInput?.close();
       final HttpClientResponse resp = await req.close().timeout(headerTimeout);
       // Read rather than drained: a refusal says in its body which refusal it
       // is, and one of them means the file is already there.

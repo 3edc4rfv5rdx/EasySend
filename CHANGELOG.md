@@ -4,7 +4,11 @@
 > F is the same thing done better; E is behaviour that was wrong, whatever the size of the fix.
 
 ## Unreleased
-- N: A latching "As ZIP" button in the Selected heading sends the batch as one archive: it is packed in an isolate of its own, the main button says Packing and stops it, and the archive leaves the cache with the transfer.
+- F: A move no longer hashes anything: deleting an original is decided by the size and timestamps it was sent with, so a big batch stops being read a second time here and, in a ZIP send, a third time while packing. What travelled is still checked by CRC32, and the crypto package is no longer a direct dependency.
+- F: Files that arrived leave the picked list when the transfer ends instead of one by one, so the progress bar stops jumping up the screen under them.
+- F: While a ZIP is packed or a move deletes the originals the main button is light amber, the colour the app already uses for something going on that is not an error.
+- F: The Retry button on a transfer row is filled with the accent and sits level with the remove cross instead of riding above it.
+- N: A latching "ZIP" button in the Selected heading sends the batch as one archive: it is packed in an isolate of its own, the main button says Packing and stops it, and the archive leaves the cache with the transfer.
 - F: The Deleting state is skipped when nothing arrived, so a batch with nothing to delete no longer flashes it, and tests pin when the phase is shown.
 - I: SPEC and README describe the Deleting state of the main button and why it cannot be stopped.
 - E: While a move deletes the originals the main button says Deleting and is grey, instead of offering Stopping in red over work that cannot be stopped.

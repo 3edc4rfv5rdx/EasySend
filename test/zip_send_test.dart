@@ -322,12 +322,21 @@ void main() {
       );
       expect(fingerprinted.outcome, PackOutcome.packed);
       expect(fingerprinted.sources.single.id, item.id);
-      expect(fingerprinted.sources.single.digest, isNotEmpty);
+      // It describes the file on disk, and stops describing it the moment
+      // something writes to that file — which is the whole of what a move
+      // needs to know before deleting it.
       expect(
         fingerprinted.sources.single.fingerprint.matches(
           File(item.sourcePath!).statSync(),
         ),
         isTrue,
+      );
+      await File(item.sourcePath!).writeAsString('rewritten');
+      expect(
+        fingerprinted.sources.single.fingerprint.matches(
+          File(item.sourcePath!).statSync(),
+        ),
+        isFalse,
       );
     });
   });

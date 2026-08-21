@@ -42,7 +42,7 @@ no internet: the two devices talk to each other and nothing else.
   arrived — a failure is never pushed out by a thousand successes, and a trimmed log ends
   with the count of the files it stopped naming. It lives in memory and goes with the app;
   the app keeps no history between runs.
-- **Send as one archive** — the latching *As ZIP* button in the Selected heading packs the
+- **Send as one archive** — the latching *ZIP* button in the Selected heading packs the
   whole batch into a single .zip and sends that. The archive is built first and sent after:
   the manifest declares a size before anything moves, and a compressed one is only known at
   the last byte. Packing runs in an isolate of its own, so the screen, discovery and
@@ -55,8 +55,9 @@ no internet: the two devices talk to each other and nothing else.
   once that file has been received and verified at the far end. The file is the unit: what
   did not get there stays where it is, a cancelled transfer deletes nothing, and the tick
   clears itself afterwards so the next send has to ask for it again. While the originals
-  go the button says *Deleting* and is grey: each one is read through again to prove it is
-  still the file that was sent, and that pass cannot be stopped halfway.
+  go the button says *Deleting* and turns light amber, the same colour packing uses: each
+  one is checked against the size and timestamps it was sent with, and that pass cannot be
+  stopped halfway.
 - **Receiving with the screen off** (Android) — an optional foreground service keeps the
   port open and puts an incoming request in a notification you can accept from the
   lock screen. The ongoing notification carries Stop and Exit, so a transfer can be

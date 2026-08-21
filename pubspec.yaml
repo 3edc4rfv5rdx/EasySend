@@ -4,7 +4,7 @@ publish_to: 'none'
 
 # The build number lives in two places that must stay in sync: `version:` here
 # and progVersion / buildNumber in lib/globals.dart.
-version: 0.5.260821+123
+version: 0.5.260821+126
 
 environment:
   sdk: ^3.11.5
@@ -26,10 +26,8 @@ dependencies:
   window_manager: ^0.4.3
   # Picking files and folders to send
   file_picker: ^12.0.0
-  # Used for its incremental CRC32 only
+  # Incremental CRC32, and the ZIP encoder a batch is packed with
   archive: ^4.0.7
-  # Strong streamed source fingerprint before destructive Move cleanup
-  crypto: ^3.0.7
   # Android runtime permissions: storage and notifications
   permission_handler: ^12.0.1
   # Keeps the screen awake while a transfer runs

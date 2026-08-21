@@ -1,7 +1,5 @@
 import 'dart:io' show FileStat, FileSystemEntityType;
 
-import 'package:crypto/crypto.dart' show Digest;
-
 import 'globals.dart';
 
 // A peer device: either discovered by UDP announces or added by hand.
@@ -74,18 +72,22 @@ class Device {
 }
 
 // What a source file was when its bytes were read, so a move can tell the file
-// it sent from a file that has taken its place. Both halves matter: the stat
-// catches a replacement cheaply, the digest catches an edit that kept the size
-// and the timestamps. Built either from a stat taken here or from the parts an
-// isolate read while packing — the same fingerprint, taken in two places.
+// it sent from a file that has taken its place. Size, both timestamps and the
+// mode: any write to a file moves ctime, so a replacement that gets past all
+// four does not happen by accident. A SHA-256 of the contents used to be part of
+// it and was dropped — it cost the batch a second full read at deletion time and
+// caught nothing the timestamps did not. What travelled is a different question,
+// and CRC32 answers that one on every file.
+//
+// Built either from a stat taken here or from the parts an isolate read while
+// packing — the same fingerprint, taken in two places.
 class SourceFingerprint {
   final int size;
   final DateTime modified;
   final DateTime changed;
   final int mode;
-  final Digest digest;
 
-  SourceFingerprint(FileStat stat, this.digest)
+  SourceFingerprint(FileStat stat)
     : size = stat.size,
       modified = stat.modified,
       changed = stat.changed,
@@ -96,7 +98,6 @@ class SourceFingerprint {
     required this.modified,
     required this.changed,
     required this.mode,
-    required this.digest,
   });
 
   bool matches(FileStat stat) =>
