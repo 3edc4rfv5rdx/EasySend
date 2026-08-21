@@ -1,3 +1,7 @@
+import 'dart:io' show FileStat, FileSystemEntityType;
+
+import 'package:crypto/crypto.dart' show Digest;
+
 import 'globals.dart';
 
 // A peer device: either discovered by UDP announces or added by hand.
@@ -67,6 +71,40 @@ class Device {
     trusted: j['trusted'] as bool? ?? false,
     manual: j['manual'] as bool? ?? false,
   );
+}
+
+// What a source file was when its bytes were read, so a move can tell the file
+// it sent from a file that has taken its place. Both halves matter: the stat
+// catches a replacement cheaply, the digest catches an edit that kept the size
+// and the timestamps. Built either from a stat taken here or from the parts an
+// isolate read while packing — the same fingerprint, taken in two places.
+class SourceFingerprint {
+  final int size;
+  final DateTime modified;
+  final DateTime changed;
+  final int mode;
+  final Digest digest;
+
+  SourceFingerprint(FileStat stat, this.digest)
+    : size = stat.size,
+      modified = stat.modified,
+      changed = stat.changed,
+      mode = stat.mode;
+
+  SourceFingerprint.parts({
+    required this.size,
+    required this.modified,
+    required this.changed,
+    required this.mode,
+    required this.digest,
+  });
+
+  bool matches(FileStat stat) =>
+      stat.type == FileSystemEntityType.file &&
+      stat.size == size &&
+      stat.modified == modified &&
+      stat.changed == changed &&
+      stat.mode == mode;
 }
 
 // One file inside a transfer.
@@ -225,11 +263,20 @@ class TransferSession {
   final String peerId;
   final List<FileItem> files;
   // Fixed once the manifest is: nothing adds to a session's list afterwards,
-  // and the progress bar asks for this several times a second.
-  final int bytesTotal;
+  // and the progress bar asks for this several times a second. A ZIP send is
+  // the one thing that sets it twice — see repackedAs.
+  int bytesTotal;
 
   int bytesDone = 0;
   int currentIndex = 0;
+  // The picked files are being written into one archive. Nothing has been sent
+  // yet and the row has no speed to show, so it counts files instead: on a
+  // folder of photos this is minutes of work with nothing else to look at.
+  bool packing = false;
+  // This session sent an archive, and the archive was deleted with the transfer
+  // that made it. Nothing here can be retried: the one file it names is gone,
+  // and the files it was made of belong to the picked list, not to the session.
+  bool archived = false;
   TransferStatus status = TransferStatus.pending;
   DateTime startedAt = DateTime.now();
   String? error;
@@ -290,6 +337,24 @@ class TransferSession {
   // Rolling samples for speed and ETA. The instant rate jumps around too much
   // to read, so both are averaged over speedWindowSec.
   final List<(DateTime, int)> _samples = [];
+
+  // The picked files became one archive, and from here on the session is about
+  // that archive: it is what the manifest declares, what the bar measures and
+  // what the far end receives. The only thing that ever replaces the list, and
+  // it happens before the manifest exists — nothing has been sent, no progress
+  // counted, so the totals start again from the size of the file that will go.
+  // The originals stay with the caller, which is what a move deletes.
+  void repackedAs(FileItem archive) {
+    archived = true;
+    files
+      ..clear()
+      ..add(archive);
+    bytesTotal = archive.size;
+    bytesDone = 0;
+    currentIndex = 0;
+    packing = false;
+    _samples.clear();
+  }
 
   void noteProgress(int totalBytesDone) {
     // Retries revisit an interval of the manifest; they never rewind completed

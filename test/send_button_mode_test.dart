@@ -1,3 +1,4 @@
+import 'package:easysend/globals.dart';
 import 'package:easysend/home_screen.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -57,6 +58,20 @@ void main() {
     );
   });
 
+  // Nothing is on the wire yet and the minutes are going into the archive. The
+  // button still stops the transfer — that is the only way out of a pack — but
+  // Stop is not what it has to say.
+  test('packing outranks the running transfer it is part of', () {
+    expect(
+      sendButtonMode(transferRunning: true, senderBusy: true, packing: true),
+      SendButtonMode.packing,
+    );
+    expect(
+      sendButtonMode(transferRunning: true, senderBusy: true),
+      SendButtonMode.stop,
+    );
+  });
+
   // The move's own tail: the transfer is over, the sender still holds the batch
   // while it removes the originals. Stopping in red said the user had asked for
   // something to end, and offered a press that would not have ended it.
@@ -103,5 +118,31 @@ void main() {
       retryEnabled(senderBusy: true, anyTransferRunning: false),
       isFalse,
     );
+  });
+
+  // What a Retry would have to re-send. A ZIP send has nothing: the archive it
+  // names was deleted with the transfer, and the files it held went back to the
+  // picked list, where Send is the button that sends them again.
+  group('what a transfer can offer a Retry', () {
+    TransferSession failedWith(List<FileItem> files) => TransferSession(
+      id: 'session',
+      incoming: false,
+      peerName: 'Peer',
+      peerId: 'peer',
+      files: files,
+    )..status = TransferStatus.failed;
+
+    FileItem source(String name) =>
+        FileItem(id: name, relativePath: name, size: 1, sourcePath: '/tmp/$name');
+
+    test('a plain send offers what did not get there', () {
+      expect(retryableTransfer(failedWith([source('a.txt')])), isTrue);
+    });
+
+    test('an archive offers nothing, whatever the row says', () {
+      final TransferSession transfer = failedWith([source('Trip.zip')])
+        ..archived = true;
+      expect(retryableTransfer(transfer), isFalse);
+    });
   });
 }

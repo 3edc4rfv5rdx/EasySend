@@ -11,6 +11,7 @@ import 'package:uuid/uuid.dart';
 import 'control_body.dart';
 import 'globals.dart';
 import 'net_discovery.dart';
+import 'zip_packer.dart';
 
 // Thrown from inside the upload stream to stop it mid-file. Cancelling has to
 // break the stream itself: a flag checked between files lets the current one
@@ -33,27 +34,6 @@ class _SessionGone implements Exception {
 enum _FileResult { sent, retry, hopeless }
 
 typedef _ProtocolResponse = ({int status, String body});
-
-class _SourceFingerprint {
-  final int size;
-  final DateTime modified;
-  final DateTime changed;
-  final int mode;
-  final Digest digest;
-
-  _SourceFingerprint(FileStat stat, this.digest)
-    : size = stat.size,
-      modified = stat.modified,
-      changed = stat.changed,
-      mode = stat.mode;
-
-  bool matches(FileStat stat) =>
-      stat.type == FileSystemEntityType.file &&
-      stat.size == size &&
-      stat.modified == modified &&
-      stat.changed == changed &&
-      stat.mode == mode;
-}
 
 // What the log says about a verify the receiver refused.
 //
@@ -87,7 +67,10 @@ class SendService {
   bool _cancelled = false;
   bool _inFlight = false;
   bool _deletingSources = false;
-  final Map<String, _SourceFingerprint> _sentSources = {};
+  ZipPacker? _packer;
+  // The directory this transfer's archive was built in, deleted with it.
+  String? _packDir;
+  final Map<String, SourceFingerprint> _sentSources = {};
 
   SendService({
     this.connectTimeout = const Duration(seconds: networkConnectTimeoutSec),
@@ -115,6 +98,11 @@ class SendService {
   @visibleForTesting
   Future<String?> Function() pickedCopiesRootOf = pickedCopiesRoot;
 
+  // Where a ZIP send builds its archive. Replaced in tests for the same reason:
+  // the app's temporary directory is the platform's answer, and a test has none.
+  @visibleForTesting
+  Future<String?> Function() zipStagingRootOf = zipStagingRoot;
+
   Uri _url(Device peer, String path, [Map<String, String>? query]) =>
       Uri.http('${peer.address}:${peer.port}', '$apiPrefix/$path', query);
 
@@ -123,11 +111,17 @@ class SendService {
   // `move` deletes delivered sources only after the whole batch reaches a
   // non-cancelled terminal result. It is a decision about this one batch, never
   // a setting: the caller asks for it afresh every time.
+  // `asZip` sends the whole batch as one archive instead of file after file.
+  // The archive is the app's own file: it is built in the app's temporary
+  // directory, declared to the far end like any other file, and removed when
+  // the transfer ends however it ends. A move still deletes the picked files —
+  // the originals, not the archive — and only those that actually went into it.
   Future<TransferStatus> send({
     required Device peer,
     required List<FileItem> files,
     bool move = false,
     bool moveFolders = false,
+    bool asZip = false,
   }) async {
     if (_inFlight) return TransferStatus.failed;
     _inFlight = true;
@@ -136,12 +130,14 @@ class SendService {
     _peer = peer;
     _client = HttpClient()..connectionTimeout = connectTimeout;
 
+    // The session gets a list of its own: a ZIP send replaces it with the
+    // archive, and the caller's selection is not the sender's to empty.
     final TransferSession transfer = TransferSession(
       id: const Uuid().v4(),
       incoming: false,
       peerName: peer.name,
       peerId: peer.id,
-      files: files,
+      files: List<FileItem>.of(files),
     );
     _current = transfer;
     // Said once at the top: reading the log later, the deletions further down
@@ -175,7 +171,15 @@ class SendService {
           return transfer.status;
         }
       }
-      final String? sessionId = await _prepare(peer, files);
+      // Packed only once the peer has answered for who it is: an archive of a
+      // folder of photos is minutes of work, and a device that is off or has
+      // become somebody else is worth finding out about before them.
+      if (asZip && !await _packBatch(transfer, files, fingerprint: move)) {
+        return transfer.status;
+      }
+      if (_cancelled) return transfer.status;
+
+      final String? sessionId = await _prepare(peer, transfer.files);
       if (sessionId == null) return transfer.status;
       await _trustAfterConsent(peer);
       if (_cancelled) return transfer.status;
@@ -184,7 +188,10 @@ class SendService {
       transfer.status = TransferStatus.active;
       transfersChanged();
 
-      await _sendOneByOne(peer, transfer, fingerprintSources: move);
+      // The archive is the app's own file and is deleted by the app whatever
+      // happens; only the picked files it was made of are fingerprinted, and
+      // that was done while they were read into it.
+      await _sendOneByOne(peer, transfer, fingerprintSources: move && !asZip);
       if (_cancelled) return transfer.status;
 
       final bool finished = await _finishRemote(peer, transfer, sessionId);
@@ -198,6 +205,15 @@ class SendService {
           : transfer.failedCount == 0
           ? TransferStatus.done
           : TransferStatus.partial;
+      // The archive is over there, so everything it holds is over there. The
+      // picked list is pruned by what has been delivered, and without this the
+      // files that just travelled inside it would stay in the list, ready to be
+      // sent a second time. A file that could not be packed is not one of them.
+      if (asZip && transfer.files.every((FileItem item) => item.done)) {
+        for (final FileItem item in files) {
+          if (!item.failed) item.done = true;
+        }
+      }
       // Deliberately still deleted after a failed finish: each of these got a
       // 200 from verify, so it did arrive and is published on the far side —
       // the best-effort cancel above does not take a published file back, and
@@ -205,14 +221,26 @@ class SendService {
       // Should the receiver ever discard published files on cancel, this is the
       // line that becomes a data-loss bug (see ADD/tofix5.md finding 7).
       if (move) {
-        // Said on the button before the first file goes: nothing else bumps the
-        // tick between the last upload and the end of the transfer.
-        _deletingSources = true;
-        transfersChanged();
         final String? copies = await pickedCopiesRootOf();
-        final List<FileItem> delivered = transfer.files
-            .where((item) => item.done)
-            .toList();
+        // One archive is all or nothing: the picked files it holds are gone
+        // from here only once the archive itself is confirmed over there. The
+        // fingerprints say which files it holds — one that could not be read
+        // was left out of both.
+        final List<FileItem> delivered = asZip
+            ? (transfer.files.every((FileItem item) => item.done)
+                  ? files
+                        .where((FileItem item) => _sentSources.containsKey(item.id))
+                        .toList()
+                  : <FileItem>[])
+            : transfer.files.where((item) => item.done).toList();
+        // Said on the button before the first original goes: nothing else bumps
+        // the tick between the last upload and the end of the transfer. A batch
+        // where nothing arrived has nothing to delete, and must not show the
+        // phase for the instant it takes to find that out.
+        if (delivered.isNotEmpty) {
+          _deletingSources = true;
+          transfersChanged();
+        }
         // Files the app only ever held a copy of are left alone, and the rest of
         // the batch is moved as asked. Deleting a copy would remove the app's
         // own scratch file, leave the user's file exactly where it was, and say
@@ -272,6 +300,12 @@ class SendService {
       if (transfer.isRunning) {
         _fail(transfer, transfer.error ?? lw('The transfer did not start'));
       }
+      // The archive existed for this transfer only, and gigabytes of it are
+      // sitting in the app's cache until this line runs — after a failure and a
+      // cancel as much as after a clean send.
+      transfer.packing = false;
+      _packer = null;
+      await _discardArchive();
       _sessionId = null;
       _peer = null;
       _client?.close(force: true);
@@ -282,6 +316,128 @@ class SendService {
       transfersChanged();
     }
     return transfer.status;
+  }
+
+  // Turns the batch into one archive and makes the session about that archive.
+  // False when there is nothing left to send: the transfer has been failed or
+  // cancelled here, and the log already says which.
+  //
+  // The picked files are fingerprinted as they are read, exactly as a plain send
+  // fingerprints each file as it uploads it — that read is the moment a move
+  // gets its proof, and here it is the only read there is.
+  Future<bool> _packBatch(
+    TransferSession transfer,
+    List<FileItem> files, {
+    required bool fingerprint,
+  }) async {
+    final String? root = await zipStagingRootOf();
+    if (root == null) {
+      _fail(transfer, lw('Could not pack the files'));
+      return false;
+    }
+    final String name = zipArchiveName(files, DateTime.now());
+    final String directory = p.join(root, const Uuid().v4());
+    _packDir = directory;
+    transfer.packing = true;
+    transfer.log('Packing files', detail: name);
+    transfersChanged();
+
+    int read = 0;
+    DateTime lastTick = DateTime.now();
+    final ZipPacker packer = ZipPacker();
+    _packer = packer;
+    final PackResult result = await packer.pack(
+      files: files,
+      output: p.join(directory, name),
+      fingerprint: fingerprint,
+      onFile: (String id, int bytes) {
+        read += bytes;
+        transfer.currentIndex++;
+        transfer.noteProgress(read);
+        // The same 100 ms as an upload: a batch of ten thousand small files
+        // would otherwise rebuild the screen ten thousand times.
+        final DateTime now = DateTime.now();
+        if (now.difference(lastTick).inMilliseconds >= 100) {
+          lastTick = now;
+          transfersChanged();
+        }
+      },
+    );
+    _packer = null;
+    transfer.packing = false;
+
+    // Said file by file: after the swap below the row is about the archive, and
+    // the log is the only place left that can name what did not go into it.
+    final Map<String, FileItem> byId = {
+      for (final FileItem item in files) item.id: item,
+    };
+    for (final SkippedSource skipped in result.skipped) {
+      final FileItem? item = byId[skipped.id];
+      item?.failed = true;
+      transfer.log(
+        'Could not pack the file',
+        file: item?.relativePath ?? skipped.id,
+        detail: skipped.reason,
+        failure: true,
+      );
+    }
+    // Said on screen as well as in the log, and for the same reason a move says
+    // what it could not delete: the row is about the archive from here on, and
+    // it will read "sent, 1 of 1" over a batch that quietly lost a file.
+    if (result.skipped.isNotEmpty) {
+      try {
+        okInfoBarOrange(
+          '${lw('Could not pack the file')}: ${result.skipped.length}',
+        );
+      } catch (e) {
+        myPrint('cannot report the files left out of the archive: $e');
+      }
+    }
+
+    switch (result.outcome) {
+      case PackOutcome.cancelled:
+        // cancel() has already marked the transfer; a pack that ended this way
+        // without it would be a packer talking to itself.
+        if (!_cancelled) _fail(transfer, lw('Could not pack the files'));
+        return false;
+      case PackOutcome.failed:
+        _fail(transfer, lw('Could not pack the files'));
+        transfer.log(
+          'Could not pack the files',
+          detail: result.error,
+          failure: true,
+        );
+        return false;
+      case PackOutcome.packed:
+        for (final PackedSource source in result.sources) {
+          _sentSources[source.id] = source.fingerprint;
+        }
+        transfer.repackedAs(
+          FileItem(
+            id: const Uuid().v4(),
+            relativePath: name,
+            size: result.size,
+            sourcePath: p.join(directory, name),
+          ),
+        );
+        transfer.log('Packed the files', detail: '$name — ${result.size}');
+        transfersChanged();
+        return true;
+    }
+  }
+
+  // The archive and the directory made for it, gone together. Best-effort: a
+  // cache the system has already emptied is the outcome this wants anyway.
+  Future<void> _discardArchive() async {
+    final String? directory = _packDir;
+    _packDir = null;
+    if (directory == null) return;
+    try {
+      final Directory made = Directory(directory);
+      if (await made.exists()) await made.delete(recursive: true);
+    } catch (e) {
+      myPrint('cannot remove the archive directory: $e');
+    }
   }
 
   void _fail(TransferSession transfer, String message) {
@@ -511,7 +667,7 @@ class SendService {
     final String? source = item.sourcePath;
     if (source == null) return;
     final File file = File(source);
-    final _SourceFingerprint? sent = _sentSources[item.id];
+    final SourceFingerprint? sent = _sentSources[item.id];
     bool sameSource = sent != null;
     if (sameSource) {
       final FileStat before = await file.stat();
@@ -600,7 +756,7 @@ class SendService {
     _FileResult delivered() {
       final Digest? digest = sourceDigest;
       if (fingerprintSource && digest != null) {
-        _sentSources[item.id] = _SourceFingerprint(stat, digest);
+        _sentSources[item.id] = SourceFingerprint(stat, digest);
       }
       return _FileResult.sent;
     }
@@ -812,6 +968,9 @@ class SendService {
     transfer.log('Cancelled');
     transfersChanged();
     _client?.close(force: true);
+    // An archive nobody will send is not worth the minutes it has left, and
+    // deflate does not come back between files to be asked.
+    _packer?.cancel();
 
     if (peer != null && sessionId != null) {
       await _cancelRemoteBestEffort(peer);

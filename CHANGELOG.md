@@ -4,6 +4,8 @@
 > F is the same thing done better; E is behaviour that was wrong, whatever the size of the fix.
 
 ## Unreleased
+- N: A latching "As ZIP" button in the Selected heading sends the batch as one archive: it is packed in an isolate of its own, the main button says Packing and stops it, and the archive leaves the cache with the transfer.
+- F: The Deleting state is skipped when nothing arrived, so a batch with nothing to delete no longer flashes it, and tests pin when the phase is shown.
 - I: SPEC and README describe the Deleting state of the main button and why it cannot be stopped.
 - E: While a move deletes the originals the main button says Deleting and is grey, instead of offering Stopping in red over work that cannot be stopped.
 - I: 00-MakeAll.sh pauses three seconds after the last step, and 13-MakeLinux.sh no longer carries the execute bit.

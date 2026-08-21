@@ -420,6 +420,48 @@ bool isComponentTooLong(String segment) =>
     segment.length > maxPathComponentChars ||
     utf8.encode(segment).length > maxPathComponentBytes;
 
+// The name of the archive a batch is packed into. A folder gives its own name,
+// because "Photos.zip" is the thing the user picked and the thing they will
+// look for; anything else is stamped with the moment it was made, which is all
+// that tells two archives of loose files apart. A folder name with no room left
+// for ".zip" takes the stamp as well — the name has to reach the far end, and
+// the far end measures it like any other.
+String zipArchiveName(List<FileItem> files, DateTime now) {
+  final Set<String> tops = {
+    for (final FileItem file in files)
+      if (file.relativePath.contains('/'))
+        file.relativePath.split('/').first
+      else
+        '',
+  };
+  if (tops.length == 1 && tops.first.isNotEmpty) {
+    final String named = '${tops.first}.zip';
+    if (!isComponentTooLong(named)) return named;
+  }
+  String two(int value) => value.toString().padLeft(2, '0');
+  return 'EasySend-${now.year}${two(now.month)}${two(now.day)}'
+      '-${two(now.hour)}${two(now.minute)}${two(now.second)}.zip';
+}
+
+// Files that are already compressed, by the only thing an archiver has to go
+// on. Deflating a JPEG or an MP4 again costs minutes of processor and gives
+// back a percent or two, and on a phone those minutes are battery.
+const Set<String> alreadyCompressedTypes = {
+  '.jpg', '.jpeg', '.png', '.gif', '.webp', '.heic', '.heif', '.avif',
+  '.mp4', '.mov', '.mkv', '.avi', '.m4v', '.webm', '.3gp',
+  '.mp3', '.aac', '.m4a', '.ogg', '.opus', '.flac', '.wma',
+  '.zip', '.gz', '.bz2', '.xz', '.7z', '.rar', '.zst', '.apk', '.jar',
+  '.docx', '.xlsx', '.pptx', '.odt', '.ods', '.odp', '.epub',
+};
+
+// Whether a file goes into the archive as it is instead of being compressed.
+// Two reasons, and either is enough: it is a kind of file that will not get
+// smaller, or it is large enough that compressing it would have to be done in
+// memory (see zipDeflateMaxBytes).
+bool zipStoresAsIs(String name, int size) =>
+    size > zipDeflateMaxBytes ||
+    alreadyCompressedTypes.contains(p.extension(name).toLowerCase());
+
 // Why a path was refused, when the answer is worth telling the user apart from
 // the rest. Length is the one refusal that is nobody's mistake — a name simply
 // grew past what a filesystem will hold — so it gets said in those words.
@@ -642,6 +684,21 @@ Future<String?> pickedCopiesRoot() async {
   }
 }
 
+// Where a ZIP send builds its archive: the app's own temporary directory, on
+// every platform this time — the archive is the app's file from the moment it
+// is created until the transfer that made it is over.
+const String zipStagingDirName = 'zip';
+
+Future<String?> zipStagingRoot() async {
+  try {
+    final Directory temporary = await getTemporaryDirectory();
+    return p.join(temporary.path, zipStagingDirName);
+  } catch (e) {
+    myPrint('cannot resolve the archive directory: $e');
+    return null;
+  }
+}
+
 // Whether all the app ever had of this file is a copy of its own.
 //
 // A document on internal storage arrives as a plain path and is the user's own
@@ -661,18 +718,26 @@ bool isAppOwnedCopy(String sourcePath, String? copiesRoot) =>
 // "Once per run" means once per launch of the app, not once per process: on
 // Android the process outlives an exit, so both flags are cleared on the way
 // out and the next launch sweeps again.
+//
+// The archives a ZIP send builds go the same way and for the same reason: a
+// transfer removes its own, and a process that was killed mid-send leaves one
+// behind that nothing else will ever ask about.
 bool _copiesSwept = false;
 
-Future<void> sweepPickedCopiesOnce() async {
+Future<void> sweepScratchOnce() async {
   if (_copiesSwept) return;
   _copiesSwept = true;
-  final String? root = await pickedCopiesRoot();
-  if (root == null) return;
-  try {
-    final Directory copies = Directory(root);
-    if (await copies.exists()) await copies.delete(recursive: true);
-  } catch (e) {
-    myPrint('cannot sweep picked copies: $e');
+  for (final String? root in [
+    await pickedCopiesRoot(),
+    await zipStagingRoot(),
+  ]) {
+    if (root == null) continue;
+    try {
+      final Directory scratch = Directory(root);
+      if (await scratch.exists()) await scratch.delete(recursive: true);
+    } catch (e) {
+      myPrint('cannot sweep $root: $e');
+    }
   }
 }
 

@@ -487,7 +487,13 @@ class AndroidService {
       final bool enteringTransfer = !_transferMode;
       await _keepScreenOn(true);
       final int percent = (active.progress * 100).round();
-      final String title = active.incoming ? lw('Receiving') : lw('Sending');
+      final String title = active.incoming
+          ? lw('Receiving')
+          : active.packing
+          // Nothing is going out yet, and on a big batch this is where the
+          // minutes are spent: a shade saying "Sending" over it is wrong.
+          ? lw('Packing')
+          : lw('Sending');
       final String text = '${active.peerName} — $percent%';
       await _push(
         title: title,

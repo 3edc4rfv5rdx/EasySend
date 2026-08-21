@@ -42,6 +42,15 @@ no internet: the two devices talk to each other and nothing else.
   arrived — a failure is never pushed out by a thousand successes, and a trimmed log ends
   with the count of the files it stopped naming. It lives in memory and goes with the app;
   the app keeps no history between runs.
+- **Send as one archive** — the latching *As ZIP* button in the Selected heading packs the
+  whole batch into a single .zip and sends that. The archive is built first and sent after:
+  the manifest declares a size before anything moves, and a compressed one is only known at
+  the last byte. Packing runs in an isolate of its own, so the screen, discovery and
+  receiving carry on; the row counts files while it goes, the main button says *Packing*
+  and ends it mid-file when pressed, and the archive is removed from the cache whichever
+  way the transfer ended. Big files and already-compressed ones go in stored rather than
+  deflated — the encoder compresses a file in memory as a whole, and a video put through
+  it would ask for its own size in RAM.
 - **Move instead of copy** — the *delete originals* tick beside Send removes each source
   once that file has been received and verified at the far end. The file is the unit: what
   did not get there stays where it is, a cancelled transfer deletes nothing, and the tick

@@ -31,7 +31,7 @@ void main() {
     // near a directory, so a test host with no plugins behind it still leaves
     // them where a real run would.
     try {
-      await sweepPickedCopiesOnce();
+      await sweepScratchOnce();
     } catch (_) {}
     try {
       await sweepOrphanSessionsOnce();

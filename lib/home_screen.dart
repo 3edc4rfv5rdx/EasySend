@@ -180,6 +180,17 @@ Future<void> shutdownForExit({
 bool retryEnabled({required bool senderBusy, required bool anyTransferRunning}) =>
     !senderBusy && !anyTransferRunning;
 
+// Whether a finished transfer has anything left to offer a Retry. A ZIP send
+// never has: the one file it names is the archive, which went with the transfer
+// that built it, and the files it held are the picked list's again — sending
+// them once more is Send, not Retry.
+bool retryableTransfer(TransferSession transfer) =>
+    !transfer.incoming &&
+    !transfer.archived &&
+    (transfer.status == TransferStatus.partial ||
+        transfer.status == TransferStatus.failed) &&
+    transfer.files.any((file) => !file.done && file.sourcePath != null);
+
 // Why Send cannot start right now, or null when nothing is in the way.
 enum SendBlock {
   // A receive holds the one transfer slot. Not the same as a row in the transfer
@@ -204,7 +215,7 @@ SendBlock? sendBlockedBy({
   return null;
 }
 
-enum SendButtonMode { send, stop, stopping, deleting }
+enum SendButtonMode { send, stop, stopping, packing, deleting }
 
 // What the one button at the bottom is at this moment. Cancelling marks the
 // transfer cancelled straight away, while the send holds its client until the
@@ -215,11 +226,16 @@ enum SendButtonMode { send, stop, stopping, deleting }
 // is already done, and the originals are still going. It is not a stop and
 // cannot be stopped, so it comes before the busy sender and reads as its own
 // state rather than as Stopping in red.
+// Packing is a transfer that is running, so it comes before Stop: the button
+// still stops it — that is the only way out of a pack — but what it says is
+// where the minutes are going, because nothing is on the wire yet.
 SendButtonMode sendButtonMode({
   required bool transferRunning,
   required bool senderBusy,
+  bool packing = false,
   bool deletingSources = false,
 }) {
+  if (packing) return SendButtonMode.packing;
   if (transferRunning) return SendButtonMode.stop;
   if (deletingSources) return SendButtonMode.deleting;
   if (senderBusy) return SendButtonMode.stopping;
@@ -324,6 +340,11 @@ class _HomeScreenState extends State<HomeScreen>
   // Only meaningful while _move is on: whether the move also takes the folders
   // it emptied.
   bool _moveFolders = false;
+  // Send the whole selection as one archive. A latching button rather than a
+  // tick, and unlike the move it stays on until it is pressed again: it deletes
+  // nothing, so a second batch sent the same way is a convenience and not a
+  // risk. Never persisted — a run starts sending files as files.
+  bool _zip = false;
   // Immutable source/relative-path pairs preserve folder structure while
   // current size/date are re-read when the batch is restored.
   List<FileSnapshot> _lastSent = [];
@@ -633,7 +654,7 @@ class _HomeScreenState extends State<HomeScreen>
     // Copies the picker had to make of documents it could not hand over as
     // plain files. Nobody owns them once the app has restarted, and a couple of
     // picked videos leave gigabytes in the cache.
-    await sweepPickedCopiesOnce();
+    await sweepScratchOnce();
     if (!_stillWantsNetwork(epoch)) return;
     if (_restartPending) {
       // Leave everything exactly as it is until the sockets are free: starting
@@ -1063,6 +1084,7 @@ class _HomeScreenState extends State<HomeScreen>
       files: batch,
       move: _move,
       moveFolders: _move && _moveFolders,
+      asZip: _zip,
     );
     if (!mounted) return;
     // Whatever came of it, the ticks do not carry into the next transfer.
@@ -1289,14 +1311,44 @@ class _HomeScreenState extends State<HomeScreen>
         style: _headerButtonStyle,
       );
     } else if (!empty) {
-      trailing = TextButton(
-        onPressed: _clear,
-        style: _headerButtonStyle,
-        child: Text(lw('Clear'), style: tsSmall),
+      // Beside the selection it acts on, and beside Clear because both are
+      // about what has been picked rather than about where it is going.
+      trailing = Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _zipButton(),
+          const SizedBox(width: 6),
+          TextButton(
+            onPressed: _clear,
+            style: _headerButtonStyle,
+            child: Text(lw('Clear'), style: tsSmall),
+          ),
+        ],
       );
     }
 
     return sectionTitle(title, trailing: trailing);
+  }
+
+  // A button that stays pressed. Off it is one of the header's buttons; on it
+  // is filled with the accent, because a mode that changes what leaves the
+  // device has to be readable at a glance and an outline is not.
+  Widget _zipButton() {
+    return TextButton(
+      onPressed: () => setState(() => _zip = !_zip),
+      style: _headerButtonStyle.copyWith(
+        backgroundColor: WidgetStatePropertyAll<Color>(
+          _zip ? clAccent : clButton,
+        ),
+        foregroundColor: WidgetStatePropertyAll<Color>(
+          _zip ? onColor(clAccent) : clText,
+        ),
+      ),
+      child: Text(
+        lw('As ZIP'),
+        style: tsSmall.copyWith(color: _zip ? onColor(clAccent) : clText),
+      ),
+    );
   }
 
   ButtonStyle get _headerButtonStyle => TextButton.styleFrom(
@@ -1633,7 +1685,7 @@ class _HomeScreenState extends State<HomeScreen>
                           },
                         ),
                 ),
-                if (_canRetry(t))
+                if (retryableTransfer(t))
                   TextButton(
                     onPressed:
                         retryEnabled(
@@ -1659,12 +1711,6 @@ class _HomeScreenState extends State<HomeScreen>
       ),
     );
   }
-
-  bool _canRetry(TransferSession transfer) =>
-      !transfer.incoming &&
-      (transfer.status == TransferStatus.partial ||
-          transfer.status == TransferStatus.failed) &&
-      transfer.files.any((file) => !file.done && file.sourcePath != null);
 
   Future<void> _retryTransfer(TransferSession transfer) async {
     final int peerIndex = xvDevices.indexWhere(
@@ -1762,6 +1808,11 @@ class _HomeScreenState extends State<HomeScreen>
         return '${lw('Error')}: ${t.error ?? ''}';
       case TransferStatus.pending:
       case TransferStatus.active:
+        // Nothing has been sent yet and there is no speed to show: what the row
+        // can say is how much of the batch is already inside the archive.
+        if (t.packing) {
+          return '${lw('Packing')} ${t.currentIndex}/${t.files.length}';
+        }
         final String name = currentFile?.name ?? '';
         final String counter = '${t.currentIndex + 1}/${t.files.length}';
         final String speed = formatSpeed(t.speed);
@@ -1867,9 +1918,11 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Widget _buildSendButton() {
+    final TransferSession? running = _running;
     final SendButtonMode mode = sendButtonMode(
-      transferRunning: _running != null,
+      transferRunning: running != null,
       senderBusy: sender.busy,
+      packing: running?.packing ?? false,
       deletingSources: sender.deletingSources,
     );
     final bool ending =
@@ -1880,8 +1933,14 @@ class _HomeScreenState extends State<HomeScreen>
     final bool greyed =
         mode == SendButtonMode.deleting ||
         (mode == SendButtonMode.send && !_canSend);
+    // Three different things the one button can be, and each gets its own
+    // colour: red is stopping something, grey is work nobody can press into,
+    // and the progress colour is the transfer's own — the same one its bar is
+    // painted with while the archive is being built.
     final Color face = ending
         ? clError
+        : mode == SendButtonMode.packing
+        ? clProgress
         : greyed
         ? clFrame.withValues(alpha: 0.3)
         : clAccent;
@@ -1891,6 +1950,7 @@ class _HomeScreenState extends State<HomeScreen>
     final String label = switch (mode) {
       SendButtonMode.stop => lw('Stop'),
       SendButtonMode.stopping => lw('Stopping'),
+      SendButtonMode.packing => lw('Packing'),
       SendButtonMode.deleting => lw('Deleting'),
       SendButtonMode.send => _move ? lw('Move') : lw('Send'),
     };
@@ -1906,10 +1966,13 @@ class _HomeScreenState extends State<HomeScreen>
                 // Disabled only while the originals go: with a piece still
                 // missing the button says which one it is instead of sitting
                 // there grey and mute, and pressing it while the stop is still
-                // unwinding asks again, which costs nothing.
+                // unwinding asks again, which costs nothing. Packing says what
+                // it is doing rather than Stop, and still stops when pressed —
+                // it is the transfer's own beginning, and the only way out of
+                // it.
                 onPressed: mode == SendButtonMode.deleting
                     ? null
-                    : ending
+                    : ending || mode == SendButtonMode.packing
                     ? _stop
                     : _sendOrPickTarget,
                 style: ElevatedButton.styleFrom(
@@ -1939,11 +2002,7 @@ class _HomeScreenState extends State<HomeScreen>
                     // Whatever the button is painted with decides the
                     // lettering: an accent light enough for dark text is a
                     // valid palette.
-                    color: ending
-                        ? onColor(clError)
-                        : greyed
-                        ? clText
-                        : onColor(clAccent),
+                    color: greyed ? clText : onColor(face),
                   ),
                 ),
               ),

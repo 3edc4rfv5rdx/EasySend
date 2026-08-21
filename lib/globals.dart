@@ -20,8 +20,8 @@ final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey =
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 const String prgName = 'easysend';
-const String progVersion = '0.5.260819';
-const int buildNumber = 122;
+const String progVersion = '0.5.260821';
+const int buildNumber = 123;
 const String progAuthor = 'Eugen';
 
 const String langFile = 'assets/locales.json';
@@ -86,6 +86,12 @@ const int maxSenderNameBytes = 256;
 const int maxDeclaredFileBytes = 16 * 1024 * 1024 * 1024 * 1024;
 const int maxDeclaredTransferBytes = 64 * 1024 * 1024 * 1024 * 1024;
 const int maxInfoBodyBytes = 64 * 1024;
+// The largest file a ZIP send will actually compress. The encoder deflates a
+// file into memory as a whole and only then writes it out, so compressing a
+// video would ask for its own size in RAM and be killed for it on a phone.
+// Anything above this is stored instead — copied into the archive as it is
+// read, at no cost in memory and none worth measuring in size either.
+const int zipDeflateMaxBytes = 64 * 1024 * 1024;
 const int maxPlatformBytes = 32;
 // An announce is a handful of short fields; anything larger is not one.
 const int maxDiscoveryPacketBytes = 4 * 1024;

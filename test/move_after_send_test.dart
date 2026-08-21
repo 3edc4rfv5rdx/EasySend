@@ -360,4 +360,67 @@ void main() {
       isTrue,
     );
   });
+
+  // The main button reads the phase off the sender. Between the last upload and
+  // the end of the transfer nothing else moves, so the phase has to raise the
+  // tick itself, and it has to be gone by the time send() returns — a flag left
+  // standing would grey the button for good.
+  group('the deletion of the originals is a phase of its own', () {
+    // Every listener call is sampled, not just the last: the flag goes up and
+    // comes down inside one send, and only the sample taken while it stood
+    // proves the button ever had a Deleting to show.
+    List<bool> watchPhase(SendService service) {
+      final List<bool> seen = [];
+      void sample() => seen.add(service.deletingSources);
+      transfersTick.addListener(sample);
+      addTearDown(() => transfersTick.removeListener(sample));
+      return seen;
+    }
+
+    test('it is announced while it runs and dropped afterwards', () async {
+      final FileItem first = await pick('one.txt');
+      final FileItem second = await pick('two.txt');
+      final SendService service = SendService();
+      final List<bool> seen = watchPhase(service);
+
+      expect(
+        await service.send(peer: peer, files: [first, second], move: true),
+        TransferStatus.done,
+      );
+
+      expect(seen, contains(true), reason: 'the button never saw the phase');
+      expect(service.deletingSources, isFalse);
+    });
+
+    test('a batch that arrived nowhere never shows it', () async {
+      final FileItem item = await pick('refused.txt');
+      refuse.add(item.id);
+      final SendService service = SendService();
+      final List<bool> seen = watchPhase(service);
+
+      expect(
+        await service.send(peer: peer, files: [item], move: true),
+        TransferStatus.partial,
+      );
+
+      expect(await File(item.sourcePath!).exists(), isTrue);
+      expect(seen, everyElement(isFalse));
+    });
+
+    // A plain send has no tail to announce: the originals were never anybody's
+    // to remove.
+    test('a send that was never a move keeps the button silent', () async {
+      final FileItem item = await pick('kept.txt');
+      final SendService service = SendService();
+      final List<bool> seen = watchPhase(service);
+
+      expect(
+        await service.send(peer: peer, files: [item]),
+        TransferStatus.done,
+      );
+
+      expect(await File(item.sourcePath!).exists(), isTrue);
+      expect(seen, everyElement(isFalse));
+    });
+  });
 }
