@@ -4,6 +4,7 @@
 > F is the same thing done better; E is behaviour that was wrong, whatever the size of the fix.
 
 ## Unreleased
+- E: The directory a ZIP send builds its archive in is named after the app, so on Linux it no longer claims /tmp/zip — a name anything could be using, and one the app deletes whole at every launch.
 
 ## v0.5.260821+126
 - F: A move no longer hashes anything: deleting an original is decided by the size and timestamps it was sent with, so a big batch stops being read a second time here and, in a ZIP send, a third time while packing. What travelled is still checked by CRC32, and the crypto package is no longer a direct dependency.

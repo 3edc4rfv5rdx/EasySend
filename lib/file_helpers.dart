@@ -684,10 +684,14 @@ Future<String?> pickedCopiesRoot() async {
   }
 }
 
-// Where a ZIP send builds its archive: the app's own temporary directory, on
-// every platform this time — the archive is the app's file from the moment it
-// is created until the transfer that made it is over.
-const String zipStagingDirName = 'zip';
+// Where a ZIP send builds its archive: the temporary directory, on every
+// platform this time — the archive is the app's file from the moment it is
+// created until the transfer that made it is over.
+//
+// Named after the app, because off Android that temporary directory is /tmp and
+// belongs to everyone. A plain 'zip' there would be a name anybody could be
+// using, and the once-a-launch sweep deletes this directory whole.
+const String zipStagingDirName = 'easysend-zip';
 
 Future<String?> zipStagingRoot() async {
   try {
