@@ -4,6 +4,7 @@
 > F is the same thing done better; E is behaviour that was wrong, whatever the size of the fix.
 
 ## Unreleased
+- I: SPEC and README describe the Deleting state of the main button and why it cannot be stopped.
 - E: While a move deletes the originals the main button says Deleting and is grey, instead of offering Stopping in red over work that cannot be stopped.
 - I: 00-MakeAll.sh pauses three seconds after the last step, and 13-MakeLinux.sh no longer carries the execute bit.
 - N: Every transfer row shows its percent over the right end of the bar, rounded down so 100% only ever means everything arrived.

@@ -45,7 +45,9 @@ no internet: the two devices talk to each other and nothing else.
 - **Move instead of copy** — the *delete originals* tick beside Send removes each source
   once that file has been received and verified at the far end. The file is the unit: what
   did not get there stays where it is, a cancelled transfer deletes nothing, and the tick
-  clears itself afterwards so the next send has to ask for it again.
+  clears itself afterwards so the next send has to ask for it again. While the originals
+  go the button says *Deleting* and is grey: each one is read through again to prove it is
+  still the file that was sent, and that pass cannot be stopped halfway.
 - **Receiving with the screen off** (Android) — an optional foreground service keeps the
   port open and puts an incoming request in a notification you can accept from the
   lock screen. The ongoing notification carries Stop and Exit, so a transfer can be
