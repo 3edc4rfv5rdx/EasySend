@@ -4,6 +4,8 @@
 > F is the same thing done better; E is behaviour that was wrong, whatever the size of the fix.
 
 ## Unreleased
+
+## v0.5.260821+126
 - F: A move no longer hashes anything: deleting an original is decided by the size and timestamps it was sent with, so a big batch stops being read a second time here and, in a ZIP send, a third time while packing. What travelled is still checked by CRC32, and the crypto package is no longer a direct dependency.
 - F: Files that arrived leave the picked list when the transfer ends instead of one by one, so the progress bar stops jumping up the screen under them.
 - F: While a ZIP is packed or a move deletes the originals the main button is light amber, the colour the app already uses for something going on that is not an error.
