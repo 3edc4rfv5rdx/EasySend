@@ -57,6 +57,29 @@ void main() {
     );
   });
 
+  // The move's own tail: the transfer is over, the sender still holds the batch
+  // while it removes the originals. Stopping in red said the user had asked for
+  // something to end, and offered a press that would not have ended it.
+  test('deleting the originals is its own state, not a stop', () {
+    expect(
+      sendButtonMode(
+        transferRunning: false,
+        senderBusy: true,
+        deletingSources: true,
+      ),
+      SendButtonMode.deleting,
+    );
+    // An incoming transfer still owns the button: that one can be stopped.
+    expect(
+      sendButtonMode(
+        transferRunning: true,
+        senderBusy: true,
+        deletingSources: true,
+      ),
+      SendButtonMode.stop,
+    );
+  });
+
   test('with nothing in flight the button sends', () {
     expect(
       sendButtonMode(transferRunning: false, senderBusy: false),

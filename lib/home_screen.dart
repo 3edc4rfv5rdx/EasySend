@@ -204,17 +204,24 @@ SendBlock? sendBlockedBy({
   return null;
 }
 
-enum SendButtonMode { send, stop, stopping }
+enum SendButtonMode { send, stop, stopping, deleting }
 
 // What the one button at the bottom is at this moment. Cancelling marks the
 // transfer cancelled straight away, while the send holds its client until the
 // request it was in the middle of has unwound. Without the state in between,
 // the button offered Send in that gap and did nothing at all when pressed.
+//
+// Deleting is the other end of the same transfer: the files are across, the row
+// is already done, and the originals are still going. It is not a stop and
+// cannot be stopped, so it comes before the busy sender and reads as its own
+// state rather than as Stopping in red.
 SendButtonMode sendButtonMode({
   required bool transferRunning,
   required bool senderBusy,
+  bool deletingSources = false,
 }) {
   if (transferRunning) return SendButtonMode.stop;
+  if (deletingSources) return SendButtonMode.deleting;
   if (senderBusy) return SendButtonMode.stopping;
   return SendButtonMode.send;
 }
@@ -1863,14 +1870,28 @@ class _HomeScreenState extends State<HomeScreen>
     final SendButtonMode mode = sendButtonMode(
       transferRunning: _running != null,
       senderBusy: sender.busy,
+      deletingSources: sender.deletingSources,
     );
-    final bool ending = mode != SendButtonMode.send;
+    final bool ending =
+        mode == SendButtonMode.stop || mode == SendButtonMode.stopping;
+    // Grey covers both the states nothing can be pressed into: a send with a
+    // piece still missing, and the deletion of the originals, which runs to its
+    // end whatever the user does.
+    final bool greyed =
+        mode == SendButtonMode.deleting ||
+        (mode == SendButtonMode.send && !_canSend);
+    final Color face = ending
+        ? clError
+        : greyed
+        ? clFrame.withValues(alpha: 0.3)
+        : clAccent;
     // The count and the size are in the Selected heading already; what the
     // button has to say is what pressing it does, and with the tick on that is
     // no longer sending.
     final String label = switch (mode) {
       SendButtonMode.stop => lw('Stop'),
       SendButtonMode.stopping => lw('Stopping'),
+      SendButtonMode.deleting => lw('Deleting'),
       SendButtonMode.send => _move ? lw('Move') : lw('Send'),
     };
     return SafeArea(
@@ -1882,20 +1903,23 @@ class _HomeScreenState extends State<HomeScreen>
             const SizedBox(width: 8),
             Expanded(
               child: ElevatedButton(
-                // Never disabled: a transfer in flight has already turned this
-                // into Stop, and with a piece still missing the button says
-                // which one it is instead of sitting there grey and mute.
-                // Pressing it while the stop is still unwinding asks again,
-                // which costs nothing.
-                onPressed: ending ? _stop : _sendOrPickTarget,
+                // Disabled only while the originals go: with a piece still
+                // missing the button says which one it is instead of sitting
+                // there grey and mute, and pressing it while the stop is still
+                // unwinding asks again, which costs nothing.
+                onPressed: mode == SendButtonMode.deleting
+                    ? null
+                    : ending
+                    ? _stop
+                    : _sendOrPickTarget,
                 style: ElevatedButton.styleFrom(
                   // Grey while a target is still missing: pressing it then only
                   // asks for one.
-                  backgroundColor: ending
-                      ? clError
-                      : _canSend
-                      ? clAccent
-                      : clFrame.withValues(alpha: 0.3),
+                  backgroundColor: face,
+                  // A disabled button takes its own colours from the theme, and
+                  // they are not the palette's.
+                  disabledBackgroundColor: face,
+                  disabledForegroundColor: clText,
                   // Said outright, because the defaults are not the same on
                   // both platforms: ThemeData takes visualDensity and
                   // materialTapTargetSize from the platform, so the same code
@@ -1917,9 +1941,9 @@ class _HomeScreenState extends State<HomeScreen>
                     // valid palette.
                     color: ending
                         ? onColor(clError)
-                        : _canSend
-                        ? onColor(clAccent)
-                        : clText,
+                        : greyed
+                        ? clText
+                        : onColor(clAccent),
                   ),
                 ),
               ),

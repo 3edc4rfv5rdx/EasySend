@@ -86,6 +86,7 @@ class SendService {
   Device? _peer;
   bool _cancelled = false;
   bool _inFlight = false;
+  bool _deletingSources = false;
   final Map<String, _SourceFingerprint> _sentSources = {};
 
   SendService({
@@ -102,6 +103,12 @@ class SendService {
 
   TransferSession? get current => _current;
   bool get busy => _inFlight;
+
+  // The tail of a move: the files are all across and the originals are being
+  // removed one by one, each one read through again to prove it is still the
+  // file that was sent. On a big batch that takes long enough to be seen, and
+  // the button said Stopping in red over work nobody had asked to stop.
+  bool get deletingSources => _deletingSources;
 
   // Where the platform keeps copies of picked documents. Off Android there are
   // none; a test replaces this to stand in for a phone's cache directory.
@@ -198,6 +205,10 @@ class SendService {
       // Should the receiver ever discard published files on cancel, this is the
       // line that becomes a data-loss bug (see ADD/tofix5.md finding 7).
       if (move) {
+        // Said on the button before the first file goes: nothing else bumps the
+        // tick between the last upload and the end of the transfer.
+        _deletingSources = true;
+        transfersChanged();
         final String? copies = await pickedCopiesRootOf();
         final List<FileItem> delivered = transfer.files
             .where((item) => item.done)
@@ -266,6 +277,7 @@ class SendService {
       _client?.close(force: true);
       _client = null;
       _sentSources.clear();
+      _deletingSources = false;
       _inFlight = false;
       transfersChanged();
     }
