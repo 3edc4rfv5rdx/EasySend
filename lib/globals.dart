@@ -20,8 +20,8 @@ final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey =
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 const String prgName = 'easysend';
-const String progVersion = '0.5.260821';
-const int buildNumber = 126;
+const String progVersion = '0.6.260831';
+const int buildNumber = 130;
 const String progAuthor = 'Eugen';
 
 const String langFile = 'assets/locales.json';
@@ -93,6 +93,10 @@ const int maxInfoBodyBytes = 64 * 1024;
 // read, at no cost in memory and none worth measuring in size either.
 const int zipDeflateMaxBytes = 64 * 1024 * 1024;
 const int maxPlatformBytes = 32;
+// A received clipboard file is read into memory whole before it goes into the
+// clipboard. Text the user copied is never near this; a file that is only named
+// like one is left on disk as a plain file instead.
+const int maxClipboardBytes = 1024 * 1024;
 // An announce is a handful of short fields; anything larger is not one.
 const int maxDiscoveryPacketBytes = 4 * 1024;
 const int protocolBodyTimeoutSec = 5;
@@ -619,6 +623,13 @@ String formatDateTime(DateTime t) =>
 // 14:30:07. Log lines happen seconds apart, so the date would only repeat.
 String formatClock(DateTime t) =>
     '${_two(t.hour)}:${_two(t.minute)}:${_two(t.second)}';
+
+// 20260807-143007. The stamp that names a file the app makes by itself — a ZIP
+// archive of loose files, a copy of the clipboard — and it has to survive every
+// filesystem the app sends to, so no colons and no spaces.
+String stampName(DateTime t) =>
+    '${t.year}${_two(t.month)}${_two(t.day)}'
+    '-${_two(t.hour)}${_two(t.minute)}${_two(t.second)}';
 
 String formatSpeed(double bytesPerSec) =>
     '${formatBytes(bytesPerSec.round())}/s';

@@ -51,6 +51,17 @@ no internet: the two devices talk to each other and nothing else.
   way the transfer ended. Big files and already-compressed ones go in stored rather than
   deflated — the encoder compresses a file in memory as a whole, and a video put through
   it would ask for its own size in RAM.
+- **Send the clipboard** — the *Clipboard* button beside File and Folder saves what you
+  copied as `x.20260831-143007.txt` in a `clipboard` subfolder of the receive folder and
+  adds it to the selection like any other file. Nothing about the protocol changes: it
+  travels as a file — folder and all, as `clipboard/x.20260831-143007.txt`, since paths
+  are the only structure the manifest carries — lands as a file in the same subfolder at
+  the far end, and the receiver additionally puts what is inside it into its own
+  clipboard. The whole path is the mark: the name without that folder is somebody's text
+  file, and the same pair deeper inside a sent folder belongs to that folder. The transfer
+  log and the notification say when the clipboard was filled; Android may refuse it to an
+  app that is not in front, and then the text is still there as a file. The saved file is
+  kept — the app never sweeps that folder.
 - **Move instead of copy** — the *delete originals* tick beside Send removes each source
   once that file has been received and verified at the far end. The file is the unit: what
   did not get there stays where it is, a cancelled transfer deletes nothing, and the tick
@@ -72,7 +83,10 @@ no internet: the two devices talk to each other and nothing else.
 
 A subfolder `EasySend` inside the system downloads folder — `Download/EasySend` on
 Android, the XDG downloads folder on Linux. It is created on the first transfer and can be
-changed in the settings.
+changed in the settings. The app keeps one subfolder of its own in there, `clipboard`,
+holding the text the Clipboard button sends and the clipboards other devices send you —
+they arrive under that same path. Everything else received lands in the receive folder
+itself.
 
 ## Network
 

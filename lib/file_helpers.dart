@@ -438,9 +438,7 @@ String zipArchiveName(List<FileItem> files, DateTime now) {
     final String named = '${tops.first}.zip';
     if (!isComponentTooLong(named)) return named;
   }
-  String two(int value) => value.toString().padLeft(2, '0');
-  return 'EasySend-${now.year}${two(now.month)}${two(now.day)}'
-      '-${two(now.hour)}${two(now.minute)}${two(now.second)}.zip';
+  return 'EasySend-${stampName(now)}.zip';
 }
 
 // Files that are already compressed, by the only thing an archiver has to go
@@ -700,6 +698,100 @@ Future<String?> zipStagingRoot() async {
   } catch (e) {
     myPrint('cannot resolve the archive directory: $e');
     return null;
+  }
+}
+
+// The clipboard travels as a file and nothing else: the protocol carries files,
+// so the only thing the two ends have to agree on is the name. Anything named
+// like this arrives as an ordinary text file wherever files land, and the
+// receiver additionally puts what is inside it into its own clipboard.
+//
+// Saved beside the received files, in a subfolder of its own, and kept: what
+// was in the clipboard is often the only copy of it, and a folder the user can
+// open is where it stays findable after the send. Nothing sweeps this one.
+const String clipboardDirName = 'clipboard';
+
+Future<String?> clipboardSaveRoot() async {
+  if (xvRecvDir.isEmpty) return null;
+  return p.join(xvRecvDir, clipboardDirName);
+}
+
+// x.20260807-143007.txt — one letter and the moment it was taken, so two of
+// them in one selection are told apart by the only thing that differs. Short on
+// purpose: it is read off a phone screen.
+String clipboardFileName(DateTime now) => 'x.${stampName(now)}.txt';
+
+// What it is called inside the transfer. The folder travels with the file — a
+// path is the only structure this protocol has — and it is the better half of
+// the mark: a file of somebody's own would have to sit in a top-level folder
+// named exactly this to be taken for a clipboard.
+String clipboardSendPath(String fileName) => '$clipboardDirName/$fileName';
+
+final RegExp _clipboardName = RegExp(r'^x\.\d{8}-\d{6}\.txt$');
+
+// A file this app made out of somebody's clipboard, by its path alone. Only at
+// the top of a transfer: the same thing deeper inside a sent folder belongs to
+// that folder and is none of the receiver's business.
+bool isClipboardFile(String relativePath) {
+  final int slash = relativePath.indexOf('/');
+  return slash > 0 &&
+      relativePath.substring(0, slash) == clipboardDirName &&
+      _clipboardName.hasMatch(relativePath.substring(slash + 1));
+}
+
+// The clipboard file of a finished receive, if one arrived. The last one wins:
+// a batch with two of them ends with the newer text in the clipboard, which is
+// the same answer as copying them one after the other.
+FileItem? clipboardArrival(Iterable<FileItem> files) {
+  FileItem? found;
+  for (final FileItem file in files) {
+    if (file.done && isClipboardFile(file.relativePath)) found = file;
+  }
+  return found;
+}
+
+// Text on its way out: the clipboard as a file the send can pick up. Returns
+// the path, or null when there is nowhere to write it.
+Future<String?> writeClipboardFile(
+  String text,
+  DateTime now, {
+  Future<String?> Function() rootOf = clipboardSaveRoot,
+}) async {
+  final String? root = await rootOf();
+  if (root == null) return null;
+  try {
+    await Directory(root).create(recursive: true);
+    final File file = File(p.join(root, clipboardFileName(now)));
+    await file.writeAsString(text, flush: true);
+    return file.path;
+  } catch (e) {
+    myPrint('cannot save the clipboard: $e');
+    return null;
+  }
+}
+
+// Text that arrived: the file is already published under its own name, and this
+// is the second half of the promise — it is in the clipboard as well. Says
+// whether it got there, because that is what the user is told afterwards.
+Future<bool> copyArrivedClipboard(FileItem file) async {
+  final String? path = file.destinationPath;
+  if (path == null) return false;
+  try {
+    final File arrived = File(path);
+    // A file that is only named like a clipboard copy: it stays on disk as the
+    // plain file it is, and nothing is read into memory for it.
+    if (await arrived.length() > maxClipboardBytes) return false;
+    final String text = utf8.decode(
+      await arrived.readAsBytes(),
+      allowMalformed: true,
+    );
+    await Clipboard.setData(ClipboardData(text: text));
+    return true;
+  } catch (e) {
+    // Android may refuse the clipboard to an app that is not in front. The file
+    // is already where it belongs, so this is a line in the log and no more.
+    myPrint('cannot put the received text in the clipboard: $e');
+    return false;
   }
 }
 

@@ -172,6 +172,11 @@ class ReceiveServer {
   @visibleForTesting
   Future<void> Function(String text) notifyFinished = notifyTransferFinished;
 
+  // The clipboard of a received clipboard file. A test replaces this because
+  // the real one talks to the platform.
+  @visibleForTesting
+  Future<bool> Function(FileItem file) copyClipboard = copyArrivedClipboard;
+
   // Set when this process cannot truthfully advertise itself as a receiver.
   ReceiveReadinessFailure? readinessFailure;
   String? readinessError;
@@ -1004,11 +1009,30 @@ class ReceiveServer {
           ? TransferStatus.done
           : TransferStatus.partial;
       transfer.noteProgress(transfer.bytesTotal);
+      // Text sent as a file is a file here like any other; this is the rest of
+      // it, and it happens once for the transfer rather than per file.
+      final FileItem? clip = clipboardArrival(transfer.files);
+      bool copied = false;
+      if (clip != null) {
+        try {
+          copied = await copyClipboard(clip);
+        } catch (e) {
+          // The text is on disk either way, and the sender is still waiting for
+          // an answer this must not cost it.
+          myPrint('cannot put the received text in the clipboard: $e');
+        }
+        if (copied) {
+          transfer.log('Copied to the clipboard', file: clip.relativePath);
+        }
+      }
+      final String copiedLine = copied
+          ? ' — ${lw('Copied to the clipboard')}'
+          : '';
       try {
         await notifyFinished(
           transfer.failedCount == 0
-              ? '${lw('Received')}: ${transfer.doneCount} — ${formatBytes(transfer.bytesTotal)}'
-              : '${lw('Received')} ${transfer.doneCount}/${transfer.files.length}, ${lw('failed')}: ${transfer.failedCount}',
+              ? '${lw('Received')}: ${transfer.doneCount} — ${formatBytes(transfer.bytesTotal)}$copiedLine'
+              : '${lw('Received')} ${transfer.doneCount}/${transfer.files.length}, ${lw('failed')}: ${transfer.failedCount}$copiedLine',
         );
       } catch (e) {
         // Telling the user is best-effort. A notification that cannot be posted

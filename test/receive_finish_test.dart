@@ -123,6 +123,77 @@ void main() {
     expect(next.status, 200);
   });
 
+  // Text sent as a file: the receiver's half of it is the clipboard, and it is
+  // filled once the transfer is over rather than as the file lands.
+  test('a clipboard file that arrived fills the clipboard', () async {
+    final List<String> copied = [];
+    final List<String> notified = [];
+    server.copyClipboard = (FileItem file) async {
+      copied.add(file.relativePath);
+      return true;
+    };
+    server.notifyFinished = (String text) async => notified.add(text);
+    final String session = await sessionReadyToFinish(
+      'clipboard/x.20260831-143007.txt',
+    );
+
+    final Reply finished = await post('finish', query: {'session': session});
+
+    expect(finished.status, 200);
+    expect(copied, ['clipboard/x.20260831-143007.txt']);
+    // The file is a file like any other and stays where files land.
+    expect(
+      await File(
+        p.join(xvRecvDir, 'clipboard/x.20260831-143007.txt'),
+      ).readAsBytes(),
+      [7],
+    );
+    expect(notified.single, contains('Copied to the clipboard'));
+    expect(
+      xvTransfers.single.events.any(
+        (TransferEvent e) => e.message == 'Copied to the clipboard',
+      ),
+      isTrue,
+    );
+  });
+
+  test('an ordinary file never touches the clipboard', () async {
+    bool asked = false;
+    final List<String> notified = [];
+    server.copyClipboard = (FileItem file) async {
+      asked = true;
+      return true;
+    };
+    server.notifyFinished = (String text) async => notified.add(text);
+    final String session = await sessionReadyToFinish('notes.txt');
+
+    expect((await post('finish', query: {'session': session})).status, 200);
+
+    expect(asked, isFalse);
+    expect(notified.single, isNot(contains('Copied to the clipboard')));
+  });
+
+  // Android refuses the clipboard to an app that is not in front, and the text
+  // is on disk either way: the sender must still get its answer.
+  test('a clipboard the platform refuses still finishes the session', () async {
+    server.copyClipboard = (FileItem file) async =>
+        throw const OSError('the clipboard is not ours to write');
+    final String session = await sessionReadyToFinish(
+      'clipboard/x.20260831-143007.txt',
+    );
+
+    final Reply finished = await post('finish', query: {'session': session});
+
+    expect(finished.status, 200);
+    expect(xvTransfers.single.status, TransferStatus.done);
+    expect(
+      xvTransfers.single.events.any(
+        (TransferEvent e) => e.message == 'Copied to the clipboard',
+      ),
+      isFalse,
+    );
+  });
+
   // The other end of finding 7: the sender's finish never landed, so it sent a
   // best-effort cancel over a session whose every file is already published.
   // That is not a transfer being stopped, and saying "Cancelled" over a full

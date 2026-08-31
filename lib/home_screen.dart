@@ -250,6 +250,24 @@ IconData deviceRowIcon({required bool phone, required bool online}) {
   return phone ? Icons.phonelink_off : Icons.desktop_access_disabled;
 }
 
+// The icon of a transfer row: which way it went, and whether what went was a
+// clipboard. Only a transfer that is nothing but clipboard files says so — one
+// that merely carries one among a batch of files is a batch of files, and the
+// row would be lying about the rest. The direction survives either way, since
+// whose clipboard it was is the first thing the row has to answer.
+IconData transferRowIcon({
+  required bool incoming,
+  required Iterable<FileItem> files,
+}) {
+  final bool clipboard =
+      files.isNotEmpty &&
+      files.every((FileItem f) => isClipboardFile(f.relativePath));
+  if (clipboard) {
+    return incoming ? Icons.content_paste : Icons.content_paste_go;
+  }
+  return incoming ? Icons.download : Icons.upload;
+}
+
 // A receiver destination may only occur once. Case folding also prevents a
 // selection that would collapse when the peer runs Windows.
 String targetKey(FileItem f) => f.relativePath.toLowerCase();
@@ -763,6 +781,41 @@ class _HomeScreenState extends State<HomeScreen>
     await _addPaths([dir]);
   }
 
+  // The clipboard joins the selection as a text file, so it travels the way
+  // everything else does — through the same limits, the same list and the same
+  // transfer — and the receiver puts what is in it into its own clipboard.
+  Future<void> _pickClipboard() async {
+    String? text;
+    try {
+      text = (await Clipboard.getData(Clipboard.kTextPlain))?.text;
+    } catch (e) {
+      myPrint('cannot read the clipboard: $e');
+    }
+    if (!mounted) return;
+    // Nothing to send is not a failure, and an image or a file in the clipboard
+    // reaches this the same way: there is no text in it.
+    if (text == null || text.isEmpty) {
+      okInfoBarOrange(lw('There is no text in the clipboard'));
+      return;
+    }
+    final String? path = await writeClipboardFile(text, DateTime.now());
+    if (path == null) {
+      if (mounted) okInfoBarRed(lw('The clipboard could not be saved'));
+      return;
+    }
+    // Not through _addPaths: a picked file travels under its own name, and this
+    // one has to travel under its folder as well — that folder is what tells
+    // the receiver it is a clipboard and not a text file somebody sent.
+    final CollectedFiles collected = await collectFiles([path]);
+    if (!mounted) return;
+    if (collected.items.isEmpty) {
+      okInfoBarRed(lw('The clipboard could not be saved'));
+      return;
+    }
+    final FileItem saved = collected.items.first;
+    await _admit([saved.renamed(clipboardSendPath(saved.name))]);
+  }
+
   Future<void> _addPaths(List<String> paths) async {
     final CollectedFiles collected = await collectFiles(paths);
     if (!mounted) return;
@@ -810,7 +863,7 @@ class _HomeScreenState extends State<HomeScreen>
     if (!mounted || repaired.isEmpty) return;
     // Through the same sort again: a repaired name can collide with something
     // already picked, and it still has to pass every other rule.
-    await _addRepaired(repaired);
+    await _admit(repaired);
   }
 
   // Whether the selection may not grow by these files, said out loud when so.
@@ -832,8 +885,11 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
-  Future<void> _addRepaired(List<FileItem> repaired) async {
-    final picked = sortPickedFiles(repaired, _selected);
+  // Files that are ready to join the selection and have not been through the
+  // pick walk: a name the user agreed to repair, the clipboard under its own
+  // path. The rules that admit them are the ones every pick passes.
+  Future<void> _admit(List<FileItem> items) async {
+    final picked = sortPickedFiles(items, _selected);
     if (_refuseOverLimit(picked.fresh)) return;
     setState(() => _selected.addAll(picked.fresh));
     if (picked.refused.isNotEmpty) {
@@ -1238,6 +1294,14 @@ class _HomeScreenState extends State<HomeScreen>
         Expanded(
           child: _pickButton(Icons.folder_open, lw('Folder'), _pickFolder),
         ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _pickButton(
+            Icons.content_paste,
+            lw('Clipboard'),
+            _pickClipboard,
+          ),
+        ),
       ],
     );
 
@@ -1285,7 +1349,9 @@ class _HomeScreenState extends State<HomeScreen>
     return OutlinedButton.icon(
       onPressed: onPressed,
       icon: Icon(icon),
-      label: Text(label),
+      // Three of these share the row now, and a long word in one of the
+      // languages must shorten rather than run over the button beside it.
+      label: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
       style: OutlinedButton.styleFrom(
         foregroundColor: clText,
         backgroundColor: clButton,
@@ -1637,7 +1703,10 @@ class _HomeScreenState extends State<HomeScreen>
                       Row(
                         children: [
                           Icon(
-                            t.incoming ? Icons.download : Icons.upload,
+                            transferRowIcon(
+                              incoming: t.incoming,
+                              files: t.files,
+                            ),
                             size: 18,
                             color: clText,
                           ),
