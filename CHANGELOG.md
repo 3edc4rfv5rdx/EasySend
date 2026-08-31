@@ -4,6 +4,8 @@
 > F is the same thing done better; E is behaviour that was wrong, whatever the size of the fix.
 
 ## Unreleased
+
+## v0.6.260831+134
 - E: A second Clipboard press before the first has finished says duplicates skipped instead of adding the same text a second time.
 - E: A screen lock the system refused is tried again next time instead of being remembered as taken, so a failed release no longer keeps the screen on for the rest of the run.
 - E: A file that failed an earlier send leaves the selected list when it travels inside an archive, instead of staying there and going a second time.
