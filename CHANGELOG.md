@@ -4,6 +4,7 @@
 > F is the same thing done better; E is behaviour that was wrong, whatever the size of the fix.
 
 ## Unreleased
+- E: A clipboard the receiver chose to keep its own copy of is no longer pasted, so its clipboard is left alone by a transfer that delivered nothing.
 - E: Replacing writes over only the names the incoming question counted, and leaves a file that appeared in the receive folder during the transfer alone.
 - F: A file the receiver is going to throw away is not sent at all: the answer to prepare names those files, and the sender skips them. An older sender still sends them and they are still discarded.
 - N: When files arriving carry names the receive folder already holds, the incoming dialog says how many and offers three answers — add copies (as before), replace, or keep what is here. A trusted sender is asked too, without the trust question: trust says who may send, not whose files may be written over. Keeping writes nothing and tells the sender, so a move leaves the original alone.

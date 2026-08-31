@@ -158,7 +158,7 @@ after prepare answers; that file must still be there afterwards and the arriving
 one must land beside it under a free name, while the occupied one is written
 over. The test must fail on the current code.
 
-## 2. P2 — A clipboard the receiver refused to save is pasted anyway, out of the receiver's own old file
+## 2. P2 [FIXED d7ea3fb] — A clipboard the receiver refused to save is pasted anyway, out of the receiver's own old file
 
 **Verdict: real, probed** against the live server (output below).
 
