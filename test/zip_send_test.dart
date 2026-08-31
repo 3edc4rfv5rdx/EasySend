@@ -26,6 +26,9 @@ void main() {
   // has not started.
   Completer<void>? holdUpload;
   Completer<void>? uploadHeld;
+  // The receiver already holds every name the manifest offers and its owner
+  // said to keep what is here: prepare comes back naming them all in `skip`.
+  bool keepEverything = false;
 
   setUp(() async {
     sandbox = await Directory.systemTemp.createTemp('easysend-zip-');
@@ -38,6 +41,7 @@ void main() {
     uploaded = {};
     holdUpload = null;
     uploadHeld = null;
+    keepEverything = false;
 
     server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     server.listen((HttpRequest request) async {
@@ -50,7 +54,11 @@ void main() {
           manifest[entry['id'] as String] = entry['path'] as String;
         }
         request.response.headers.contentType = ContentType.json;
-        request.response.write('{"sessionId":"session"}');
+        request.response.write(
+          keepEverything
+              ? '{"sessionId":"session","skip":${json.encode(manifest.keys.toList())}}'
+              : '{"sessionId":"session"}',
+        );
       } else if (path.endsWith('/upload')) {
         final Completer<void>? hold = holdUpload;
         if (hold != null) {
@@ -159,6 +167,29 @@ void main() {
       // Loose files have no folder to be named after.
       expect(receivedName(), startsWith('EasySend-'));
       expect(receivedName(), endsWith('.zip'));
+    });
+
+    // The far end already had a file of that name and its owner said to keep
+    // it. The archive was never written over there, so nothing it holds got
+    // there either: the batch stays in the picked list, ready to be sent again,
+    // and a move deletes nothing.
+    test('an archive nothing was kept of leaves the batch alone', () async {
+      keepEverything = true;
+      final FileItem one = await pick('Trip/beach.txt');
+      final FileItem two = await pick('Trip/hills/hut.txt', 'hut');
+
+      final TransferStatus status = await zipSender().send(
+        peer: peer,
+        files: [one, two],
+        move: true,
+        asZip: true,
+      );
+
+      expect(status, TransferStatus.done);
+      expect(one.done, isFalse);
+      expect(two.done, isFalse);
+      expect(await File(one.sourcePath!).exists(), isTrue);
+      expect(await File(two.sourcePath!).exists(), isTrue);
     });
 
     test('the archive is gone from the cache afterwards', () async {

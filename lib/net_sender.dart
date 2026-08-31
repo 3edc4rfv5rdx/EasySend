@@ -217,7 +217,15 @@ class SendService {
       // picked list is pruned by what has been delivered, and without this the
       // files that just travelled inside it would stay in the list, ready to be
       // sent a second time. A file that could not be packed is not one of them.
-      if (asZip && transfer.files.every((FileItem item) => item.done)) {
+      //
+      // Written down over there, not merely answered for: an archive whose name
+      // the receiver already held and was told to keep is on nobody's disk, so
+      // nothing it holds arrived either and the whole batch stays in the queue.
+      // The same question the move asks below, and it has to be the same one.
+      if (asZip &&
+          transfer.files.every(
+            (FileItem item) => item.done && item.stored,
+          )) {
         for (final FileItem item in files) {
           if (!item.failed) item.done = true;
         }
