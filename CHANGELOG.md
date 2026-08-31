@@ -4,6 +4,8 @@
 > F is the same thing done better; E is behaviour that was wrong, whatever the size of the fix.
 
 ## Unreleased
+- N: When files arriving carry names the receive folder already holds, the incoming dialog says how many and offers three answers — add copies (as before), replace, or keep what is here. A trusted sender is asked too, without the trust question: trust says who may send, not whose files may be written over. Keeping writes nothing and tells the sender, so a move leaves the original alone.
+- F: The question about an incoming transfer stands for a minute instead of half of one — thirty seconds is over before a phone in a pocket has been reached — and the sender waits that out with it.
 - I: IDEAS.txt records the decision against age-based cleanup: the receive folder is the user's own and configurable, and the clipboard folder is kept on purpose.
 - E: A picture in the clipboard is said out loud instead of being sent: Android answers a text/plain request with the picture's own content:// URI, and that string used to be saved and sent as though it were the text the user copied.
 - E: Pressing Clipboard twice over the same text adds it once: the second press used to write an identical file, send it twice and leave it in the folder for good. Different text still goes in as a second clipboard.

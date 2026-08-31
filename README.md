@@ -25,6 +25,13 @@ no internet: the two devices talk to each other and nothing else.
   `IP:port`) and polled over HTTP instead; a device that has sent to you once is
   remembered with the address it came from. Leaving is said out loud: a device that
   exits announces it, and its row is marked *exited* instead of going quietly stale.
+- **Names that are already taken** — when what arrives would land on a file the receive
+  folder already holds, the incoming dialog says how many and offers three answers: add
+  copies (`photo (1).jpg`, what it has always done), replace, or keep what is here. A
+  trusted sender is asked too — without the trust question, because trust says who may
+  send, not whose files may be written over. Replacing renames over the old file in one
+  step and only after the checksum matches; keeping writes nothing and tells the sender so,
+  which is what stops a move from deleting an original whose only copy is here.
 - **Ask once, then trust** — an unknown sender has to be confirmed on the receiving
   device. "Always trust" binds that answer to the sender's id, and trusted devices are
   listed in the settings, revocable one by one. A device that let your files in is

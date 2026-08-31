@@ -12,6 +12,10 @@ void main() {
   // File ids the fake receiver refuses to verify, so a file can be made to fail
   // while the rest of the batch goes through.
   late Set<String> refuse;
+  // File ids the fake receiver answers with "arrived, and I did not write it
+  // down" — the answer it gives when it was told to keep the file it already
+  // had under that name.
+  late Set<String> keptThere;
   Completer<void>? holdUpload;
   String? holdUploadFor;
   Completer<void>? uploadHeld;
@@ -26,6 +30,7 @@ void main() {
     xvTransfers = [];
     xdef['Program language'] = 'en';
     refuse = <String>{};
+    keptThere = <String>{};
     holdUpload = null;
     holdUploadFor = null;
     uploadHeld = null;
@@ -57,6 +62,9 @@ void main() {
         }
         if (refuse.contains(file)) {
           request.response.statusCode = HttpStatus.conflict;
+        } else if (keptThere.contains(file)) {
+          request.response.headers.contentType = ContentType.json;
+          request.response.write('{"ok":true,"stored":false}');
         }
       }
       await request.response.close();
@@ -263,6 +271,33 @@ void main() {
     expect(
       lines.where((l) => l.contains('moved.txt')),
       contains(contains('Deleted here')),
+    );
+  });
+
+  // The receiver had that name already and was told to keep its own file. The
+  // transfer succeeded, but there is no copy over there, so deleting the
+  // original would be the only copy going.
+  test('a file the far end did not store is not deleted', () async {
+    final FileItem kept = await pick('kept.txt');
+    final FileItem stored = await pick('stored.txt');
+    keptThere.add('kept.txt');
+
+    expect(
+      await SendService().send(peer: peer, files: [kept, stored], move: true),
+      TransferStatus.done,
+    );
+
+    expect(await File(kept.sourcePath!).exists(), isTrue);
+    expect(kept.done, isTrue);
+    expect(kept.stored, isFalse);
+    // The rest of the batch is moved as asked.
+    expect(await File(stored.sourcePath!).exists(), isFalse);
+    final List<String> lines = xvTransfers.single.events
+        .map(formatTransferEvent)
+        .toList();
+    expect(
+      lines.where((String l) => l.contains('kept.txt')),
+      contains(contains('Kept at the other end')),
     );
   });
 

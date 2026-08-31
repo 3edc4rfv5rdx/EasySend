@@ -109,7 +109,8 @@ void main() {
             required String senderName,
             required int fileCount,
             required int totalBytes,
-          }) async => (accepted, trust);
+            required int occupied,
+          }) async => (accepted, trust, ConflictMode.copies);
     }
 
     setUp(() async {

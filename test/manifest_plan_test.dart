@@ -31,8 +31,8 @@ void main() {
       item('1', 'same.txt'),
       item('2', 'same.txt', size: 99),
     ]);
-    expect(plan['1'], p.join(root.path, 'same.txt'));
-    expect(plan['2'], p.join(root.path, 'same (1).txt'));
+    expect(plan.paths['1'], p.join(root.path, 'same.txt'));
+    expect(plan.paths['2'], p.join(root.path, 'same (1).txt'));
   });
 
   test('reserves case-only collisions for Windows', () async {
@@ -41,8 +41,8 @@ void main() {
       item('2', 'file.txt'),
     ], windows: true);
     expect(
-      pathEqualityKey(plan['1']!, windows: true),
-      isNot(pathEqualityKey(plan['2']!, windows: true)),
+      pathEqualityKey(plan.paths['1']!, windows: true),
+      isNot(pathEqualityKey(plan.paths['2']!, windows: true)),
     );
   });
 
@@ -53,8 +53,8 @@ void main() {
       item('1', 'a.txt'),
       item('2', 'b.txt'),
     ]);
-    expect(p.basename(plan['1']!), 'a (1).txt');
-    expect(p.basename(plan['2']!), 'b (1).txt');
+    expect(p.basename(plan.paths['1']!), 'a (1).txt');
+    expect(p.basename(plan.paths['2']!), 'b (1).txt');
   });
 
   test('rejects file and directory prefix conflicts', () async {
@@ -78,7 +78,7 @@ void main() {
       item('1', 'Photos'),
       item('2', 'photos/a.txt'),
     ], windows: false);
-    expect(plan.length, 2);
+    expect(plan.paths.length, 2);
   });
 
   // The conflicting entry need not be the immediate parent: any ancestor of a
@@ -107,7 +107,7 @@ void main() {
       item('2', 'a/b/two.txt'),
       item('3', 'a/other.txt'),
     ]);
-    expect(plan.length, 3);
+    expect(plan.paths.length, 3);
   });
 
   // The conflict check used to compare every entry with every other one, which
@@ -239,5 +239,41 @@ void main() {
     // nothing occupies — the old one was returned without ever looking.
     expect(p.dirname(first), root.path);
     expect(await File(first).exists(), isFalse);
+  });
+
+  // What the incoming question is asked about: names that were in the folder
+  // before this transfer, and not names the manifest collides with itself on.
+  test('occupied names are the ones that were already on disk', () async {
+    await File(p.join(root.path, 'here.txt')).writeAsString('old');
+
+    final plan = await buildDestinationPlan(root.path, [
+      item('1', 'here.txt'),
+      item('2', 'fresh.txt'),
+      item('3', 'fresh.txt'),
+    ]);
+
+    expect(plan.occupied, {'1'});
+    expect(plan.paths['2'], p.join(root.path, 'fresh.txt'));
+    expect(plan.paths['3'], p.join(root.path, 'fresh (1).txt'));
+  });
+
+  test('replacing and keeping aim at the name itself', () async {
+    await File(p.join(root.path, 'here.txt')).writeAsString('old');
+
+    for (final ConflictMode mode in [
+      ConflictMode.replace,
+      ConflictMode.keep,
+    ]) {
+      final plan = await buildDestinationPlan(root.path, [
+        item('1', 'here.txt'),
+        item('2', 'here.txt'),
+      ], mode: mode);
+
+      expect(plan.occupied, {'1'});
+      expect(plan.paths['1'], p.join(root.path, 'here.txt'));
+      // Two entries of one transfer must never be planned onto one path, so
+      // the second still steps aside whatever the mode.
+      expect(plan.paths['2'], p.join(root.path, 'here (1).txt'));
+    }
   });
 }

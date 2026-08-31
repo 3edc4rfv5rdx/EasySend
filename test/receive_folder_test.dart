@@ -133,9 +133,10 @@ void main() {
             required String senderName,
             required int fileCount,
             required int totalBytes,
+            required int occupied,
           }) async {
             if (!asked.isCompleted) asked.complete();
-            return (await answer.future, false);
+            return (await answer.future, false, ConflictMode.copies);
           };
 
       final HttpClientRequest req = await client.postUrl(url('prepare'));

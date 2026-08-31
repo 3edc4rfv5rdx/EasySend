@@ -44,6 +44,22 @@ abstract interface class ReceiveFileWriter {
   Future<void> abort();
 }
 
+// Nothing is written for a file the receiver was told to keep its own copy of.
+// The bytes are still read, counted and checksummed — the transfer has to look
+// and behave exactly like any other one — they simply go nowhere.
+class _DiscardingFileWriter implements ReceiveFileWriter {
+  const _DiscardingFileWriter();
+
+  @override
+  Future<void> write(List<int> chunk) async {}
+
+  @override
+  Future<void> close() async {}
+
+  @override
+  Future<void> abort() async {}
+}
+
 class _IoReceiveFileWriter implements ReceiveFileWriter {
   final IOSink _sink;
   Future<void>? _closeFuture;
@@ -120,6 +136,10 @@ class _Incoming {
   final Map<String, String> incompletePaths; // fileId -> owned temporary path
   final Map<String, int> progressOffsets; // fileId -> prior manifest bytes
   final Map<String, int> crc = {}; // fileId -> checksum computed here
+  // What was answered about names that were already taken, and which files that
+  // answer applies to. Empty unless the answer was to keep what is here.
+  final ConflictMode mode;
+  final Set<String> kept; // fileIds that are read and checked but not written
   bool cancelled = false; // set when the user stops the receive
   _ReceivePhase phase = _ReceivePhase.ready;
   String? activeFileId;
@@ -136,6 +156,8 @@ class _Incoming {
     required this.finalPaths,
     required this.incompletePaths,
     required this.progressOffsets,
+    this.mode = ConflictMode.copies,
+    this.kept = const <String>{},
   });
 }
 
@@ -160,10 +182,11 @@ class ReceiveServer {
   // on screen, a notification when it is not — and a test replaces this to hold
   // the answer back for as long as it needs.
   @visibleForTesting
-  Future<(bool, bool)> Function({
+  Future<(bool, bool, ConflictMode)> Function({
     required String senderName,
     required int fileCount,
     required int totalBytes,
+    required int occupied,
   })?
   askUser;
 
@@ -448,7 +471,7 @@ class ReceiveServer {
       // written safely is refused as a whole, not half-accepted. The folder is
       // read once here and carried by the session from now on.
       final String recvDir = xvRecvDir;
-      final Map<String, String> finalPaths;
+      DestinationPlan plan;
       final String root;
       try {
         final String? resolved = await resolveReceiveRoot(recvDir);
@@ -456,8 +479,8 @@ class ReceiveServer {
           throw const DestinationPlanException('receive folder unavailable');
         }
         root = resolved;
-        finalPaths = await buildDestinationPlan(recvDir, files);
-        for (final String dest in finalPaths.values) {
+        plan = await buildDestinationPlan(recvDir, files);
+        for (final String dest in plan.paths.values) {
           if (!await ensureSafeDestination(recvDir, dest, resolvedRoot: root)) {
             throw const DestinationPlanException('unsafe filesystem component');
           }
@@ -467,16 +490,40 @@ class ReceiveServer {
         return _json(req, {'reason': e.reason}, status: HttpStatus.badRequest);
       }
 
-      if (!await _askAccept(
+      final ConflictMode? mode = await _askAccept(
         senderId,
         senderName,
         files.length,
         totalBytes,
         address: req.connectionInfo?.remoteAddress.address ?? '',
         port: _senderPort(body['senderPort']),
-      )) {
+        occupied: plan.occupied.length,
+      );
+      if (mode == null) {
         return _json(req, {'reason': 'declined'}, status: HttpStatus.forbidden);
       }
+      // Only an answer other than the default moves anything: the plan is built
+      // again because those two aim at the names themselves rather than at the
+      // next free one, and the folder has had the length of the question to
+      // change underneath it.
+      if (mode != ConflictMode.copies) {
+        try {
+          plan = await buildDestinationPlan(recvDir, files, mode: mode);
+          for (final String dest in plan.paths.values) {
+            if (!await ensureSafeDestination(
+              recvDir,
+              dest,
+              resolvedRoot: root,
+            )) {
+              throw const DestinationPlanException('unsafe filesystem component');
+            }
+          }
+        } on DestinationPlanException catch (e) {
+          myPrint('refused manifest: $e');
+          return _json(req, {'reason': e.reason}, status: HttpStatus.badRequest);
+        }
+      }
+      final Map<String, String> finalPaths = plan.paths;
 
       // The answer can arrive after the server was torn down — the app was put
       // away with the question still on screen, or the port changed. Installing
@@ -514,6 +561,10 @@ class ReceiveServer {
       transfersChanged();
 
       _current = _Incoming(
+        mode: mode,
+        // Only the names that were taken are kept: the rest of the manifest is
+        // written like any other transfer.
+        kept: mode == ConflictMode.keep ? plan.occupied : const <String>{},
         sessionId: transfer.id,
         recvDir: recvDir,
         resolvedRoot: root,
@@ -542,14 +593,16 @@ class ReceiveServer {
   }
 
   // Trusted senders are accepted silently; an unknown one has to be confirmed,
-  // and stays unconfirmed if nobody answers in time.
-  Future<bool> _askAccept(
+  // and stays unconfirmed if nobody answers in time. The answer is what to do
+  // with names that are already taken — null is a refusal of the whole thing.
+  Future<ConflictMode?> _askAccept(
     String senderId,
     String senderName,
     int count,
     int bytes, {
     required String address,
     required int port,
+    required int occupied,
   }) async {
     // A sender carrying our own id is this machine talking to itself: a second
     // copy of the app started alongside the first. The transfer is still worth
@@ -562,6 +615,16 @@ class ReceiveServer {
     // merely fell quiet while the question stood on screen has not become one
     // that only a poll can find.
     final bool wasOnline = known >= 0 && xvDevices[known].online;
+    // Withdrawn if the server stops underneath the question, whichever question
+    // is being asked: an answer nobody can act on should not sit there waiting
+    // to be given.
+    final Completer<void> abort = Completer<void>();
+    _consentAbort = abort;
+
+    // Whether the names that are already taken are worth asking about at all.
+    final bool askAboutNames =
+        occupied > 0 && xdef['Ask about existing files'] == 'true';
+
     // A trusted sender is accepted here and now, so what the connection says
     // about it can be written down here and now too.
     if (known >= 0 && xvDevices[known].trusted) {
@@ -573,29 +636,46 @@ class ReceiveServer {
       );
       await saveSettings();
       devicesChanged();
-      return true;
-    }
-
-    // Off screen there is nobody to show a dialog to; ask by notification.
-    // Either way the question is withdrawn if the server stops underneath it:
-    // an answer nobody can act on should not sit there asking to be given.
-    final Completer<void> abort = Completer<void>();
-    _consentAbort = abort;
-    final bool accepted;
-    bool trust = false;
-    final Future<(bool, bool)> Function({
-      required String senderName,
-      required int fileCount,
-      required int totalBytes,
-    })?
-    prompt = askUser;
-    if (prompt != null) {
-      (accepted, trust) = await prompt(
+      // Trust answers whether this device may send, not whether your files may
+      // be written over. The second question is still yours, so a trusted
+      // sender is silent only while it brings names nothing here holds.
+      if (!askAboutNames || (Platform.isAndroid && !appInForeground)) {
+        if (identical(_consentAbort, abort)) _consentAbort = null;
+        return ConflictMode.copies;
+      }
+      final (bool accepted, _, ConflictMode mode) = await showAcceptDialog(
         senderName: senderName,
         fileCount: count,
         totalBytes: bytes,
+        occupied: occupied,
+        askTrust: false,
+        cancelled: abort.future,
+      );
+      if (identical(_consentAbort, abort)) _consentAbort = null;
+      return accepted ? mode : null;
+    }
+
+    // Off screen there is nobody to show a dialog to; ask by notification.
+    final bool accepted;
+    bool trust = false;
+    ConflictMode mode = ConflictMode.copies;
+    final Future<(bool, bool, ConflictMode)> Function({
+      required String senderName,
+      required int fileCount,
+      required int totalBytes,
+      required int occupied,
+    })?
+    prompt = askUser;
+    if (prompt != null) {
+      (accepted, trust, mode) = await prompt(
+        senderName: senderName,
+        fileCount: count,
+        totalBytes: bytes,
+        occupied: askAboutNames ? occupied : 0,
       );
     } else if (Platform.isAndroid && !appInForeground) {
+      // Two buttons is all a notification has; the choice about names belongs
+      // to a screen, and this one keeps what the app has always done.
       accepted = await askAcceptViaNotification(
         senderName: senderName,
         fileCount: count,
@@ -603,10 +683,11 @@ class ReceiveServer {
         cancelled: abort.future,
       );
     } else {
-      (accepted, trust) = await showAcceptDialog(
+      (accepted, trust, mode) = await showAcceptDialog(
         senderName: senderName,
         fileCount: count,
         totalBytes: bytes,
+        occupied: askAboutNames ? occupied : 0,
         cancelled: abort.future,
       );
     }
@@ -646,7 +727,7 @@ class ReceiveServer {
         devicesChanged();
       }
     }
-    return accepted;
+    return accepted ? mode : null;
   }
 
   Future<void> _upload(HttpRequest req) async {
@@ -746,7 +827,12 @@ class ReceiveServer {
       }
 
       part = File(partPath);
-      final ReceiveFileWriter writer = fileWriterFactory(part);
+      // A file whose name the receiver was told to keep is read to the end like
+      // any other — the sender is owed the same answers and the same progress —
+      // and none of it is written down.
+      final ReceiveFileWriter writer = session.kept.contains(fileId)
+          ? const _DiscardingFileWriter()
+          : fileWriterFactory(part);
       session.cancelActiveOperation = writer.abort;
       int written = 0;
       int crc = 0;
@@ -918,6 +1004,27 @@ class ReceiveServer {
         return _json(req, {'reason': reasonChecksum}, status: HttpStatus.conflict);
       }
 
+      // Kept: the bytes arrived and matched, and that is the whole of it. The
+      // answer says the file is not on this disk, because a move on the other
+      // side must not delete an original over a copy that was never written.
+      if (session.kept.contains(fileId)) {
+        await deleteQuietly(part);
+        item.destinationPath = null;
+        item.done = true;
+        item.failed = false;
+        session.transfer.log(
+          'Already here, not saved',
+          file: item.relativePath,
+        );
+        session.transfer.noteProgress(
+          session.progressOffsets[fileId]! + item.size,
+        );
+        _touch(session);
+        session.phase = _ReceivePhase.ready;
+        transfersChanged();
+        return _json(req, {'ok': true, 'stored': false});
+      }
+
       // Only now does the file get its real name: a partial file must never look
       // like a complete one. Publication claims the name before it renames, so
       // an entry that appears between the two keeps its place and this file
@@ -941,6 +1048,9 @@ class ReceiveServer {
                 resolvedRoot: session.resolvedRoot,
               ),
               reserved: reserved,
+              // Told to write over what is there: the planned name is the name
+              // of the file being replaced, not the next free one.
+              replace: session.mode == ConflictMode.replace,
             )
           : null;
       if (published == null) {

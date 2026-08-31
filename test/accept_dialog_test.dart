@@ -16,7 +16,7 @@ void main() {
   ) async {
     await pumpHost(tester);
     final Completer<void> abort = Completer<void>();
-    final Future<(bool, bool)> answer = showAcceptDialog(
+    final Future<(bool, bool, ConflictMode)> answer = showAcceptDialog(
       senderName: 'Peer',
       fileCount: 2,
       totalBytes: 2048,
@@ -29,14 +29,14 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Incoming files'), findsNothing);
-    expect(await answer, (false, false));
+    expect(await answer, (false, false, ConflictMode.copies));
   });
 
   testWidgets('rebuilding the app does not leave a deadline behind', (
     WidgetTester tester,
   ) async {
     await pumpHost(tester);
-    final Future<(bool, bool)> answer = showAcceptDialog(
+    final Future<(bool, bool, ConflictMode)> answer = showAcceptDialog(
       senderName: 'Peer',
       fileCount: 1,
       totalBytes: 1,
@@ -58,7 +58,7 @@ void main() {
 
     await tester.tap(find.text('Decline'));
     await tester.pumpAndSettle();
-    expect(await answer, (false, false));
+    expect(await answer, (false, false, ConflictMode.copies));
     // The test itself fails on any timer still pending here, which is the
     // whole point: a deadline started inside the builder outlived its dialog.
   });
@@ -68,7 +68,7 @@ void main() {
   ) async {
     await pumpHost(tester);
     final Completer<void> abort = Completer<void>();
-    final Future<(bool, bool)> answer = showAcceptDialog(
+    final Future<(bool, bool, ConflictMode)> answer = showAcceptDialog(
       senderName: 'Peer',
       fileCount: 1,
       totalBytes: 1,
@@ -82,6 +82,70 @@ void main() {
     abort.complete();
     await tester.pumpAndSettle();
 
-    expect(await answer, (true, false));
+    expect(await answer, (true, false, ConflictMode.copies));
+  });
+
+  testWidgets('names that are already taken are asked about', (
+    WidgetTester tester,
+  ) async {
+    await pumpHost(tester);
+    final Future<(bool, bool, ConflictMode)> answer = showAcceptDialog(
+      senderName: 'Peer',
+      fileCount: 5,
+      totalBytes: 5,
+      occupied: 3,
+    );
+    await tester.pump();
+
+    expect(find.text('Such files are already here: 3'), findsOneWidget);
+    // The default is what the app has always done.
+    expect(find.text('Add copies'), findsOneWidget);
+    await tester.tap(find.text('Keep what is here'));
+    await tester.pump();
+    await tester.tap(find.text('Accept'));
+    await tester.pumpAndSettle();
+
+    expect(await answer, (true, false, ConflictMode.keep));
+  });
+
+  testWidgets('nothing is asked about names when none are taken', (
+    WidgetTester tester,
+  ) async {
+    await pumpHost(tester);
+    final Future<(bool, bool, ConflictMode)> answer = showAcceptDialog(
+      senderName: 'Peer',
+      fileCount: 1,
+      totalBytes: 1,
+    );
+    await tester.pump();
+
+    expect(find.text('Add copies'), findsNothing);
+    await tester.tap(find.text('Accept'));
+    await tester.pumpAndSettle();
+    expect(await answer, (true, false, ConflictMode.copies));
+  });
+
+  // A device that is trusted already is asked about the names alone.
+  testWidgets('a trusted sender is not asked about trust again', (
+    WidgetTester tester,
+  ) async {
+    await pumpHost(tester);
+    final Future<(bool, bool, ConflictMode)> answer = showAcceptDialog(
+      senderName: 'Peer',
+      fileCount: 2,
+      totalBytes: 2,
+      occupied: 1,
+      askTrust: false,
+    );
+    await tester.pump();
+
+    expect(find.text('Always trust this device'), findsNothing);
+    expect(find.text('Such files are already here: 1'), findsOneWidget);
+    await tester.tap(find.text('Replace'));
+    await tester.pump();
+    await tester.tap(find.text('Accept'));
+    await tester.pumpAndSettle();
+
+    expect(await answer, (true, false, ConflictMode.replace));
   });
 }

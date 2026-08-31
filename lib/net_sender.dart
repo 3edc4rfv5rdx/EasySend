@@ -231,7 +231,9 @@ class SendService {
                         .where((FileItem item) => _sentSources.containsKey(item.id))
                         .toList()
                   : <FileItem>[])
-            : transfer.files.where((item) => item.done).toList();
+            : transfer.files
+                  .where((item) => item.done && item.stored)
+                  .toList();
         // Said on the button before the first original goes: nothing else bumps
         // the tick between the last upload and the end of the transfer. A batch
         // where nothing arrived has nothing to delete, and must not show the
@@ -800,7 +802,16 @@ class SendService {
         crc,
       );
       item.crc32 = crc;
-      if (verify.status == HttpStatus.ok) return delivered();
+      if (verify.status == HttpStatus.ok) {
+        // The receiver had this name and was told to keep its own file. The
+        // transfer is done with this one, and a move must not delete the
+        // original over a copy that was never written down.
+        if (_saidNotStored(verify.body)) {
+          item.stored = false;
+          transfer.log('Kept at the other end', file: item.relativePath);
+        }
+        return delivered();
+      }
       final String? refusal = _reasonOf(verify.body);
       if (refusal == reasonNoSession) throw const _SessionGone();
       // Each failed attempt writes its own line, so the number of them is what
@@ -893,6 +904,19 @@ class SendService {
 
   // The `reason` a control answer carries, for the refusals that mean something
   // other than "that failed". Anything unreadable is no reason at all.
+  // Whether the receiver said outright that it did not write the file down.
+  // Anything else — an older receiver, an empty body, a body that is not JSON —
+  // means the file is over there, which is what every previous version meant.
+  bool _saidNotStored(String body) {
+    if (body.isEmpty) return false;
+    try {
+      final dynamic decoded = json.decode(body);
+      return decoded is Map && decoded['stored'] == false;
+    } on FormatException {
+      return false;
+    }
+  }
+
   String? _reasonOf(String body) {
     if (body.isEmpty) return null;
     try {

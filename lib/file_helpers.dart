@@ -520,11 +520,29 @@ class DestinationPlanException implements Exception {
   String toString() => reason;
 }
 
+// Where a manifest is going to land, and which of its names are already taken.
+//
+// The occupied set is what the incoming question is asked about: it is the
+// files whose own name is on disk already, whatever the mode does about that.
+class DestinationPlan {
+  final Map<String, String> paths;
+  final Set<String> occupied;
+
+  const DestinationPlan({required this.paths, required this.occupied});
+}
+
 // Reserve every destination before consent. Names already on disk and names
 // allocated earlier in this same manifest participate in one collision set.
-Future<Map<String, String>> buildDestinationPlan(
+//
+// `mode` decides what a taken name means. Copies step aside and take the next
+// free ' (n)'; the other two aim at the name itself — one to write over it, one
+// not to write at all — and only fall back to a free name when this very
+// manifest has already claimed it, because two entries of one transfer must
+// never be planned onto one path.
+Future<DestinationPlan> buildDestinationPlan(
   String baseDir,
   List<FileItem> files, {
+  ConflictMode mode = ConflictMode.copies,
   bool? windows,
 }) async {
   final Set<String> ids = {};
@@ -569,10 +587,22 @@ Future<Map<String, String>> buildDestinationPlan(
 
   final Set<String> reserved = {};
   final Map<String, String> result = {};
+  final Set<String> occupied = {};
   for (int i = 0; i < files.length; i++) {
     final String? full = await resolveInside(baseDir, safePaths[i]);
     if (full == null) {
       throw const DestinationPlanException('path escapes receive directory');
+    }
+    final String key = pathEqualityKey(full, windows: windows);
+    // A name this very manifest has already claimed is not a name that was
+    // here before: the transfer is colliding with itself, and that is what the
+    // ' (n)' fallback below is for whatever the mode.
+    final bool mine = reserved.contains(key);
+    if (mode != ConflictMode.copies && !mine) {
+      if (await _taken(full)) occupied.add(files[i].id);
+      reserved.add(key);
+      result[files[i].id] = full;
+      continue;
     }
     final String? free = await uniquePath(
       full,
@@ -582,9 +612,14 @@ Future<Map<String, String>> buildDestinationPlan(
     if (free == null) {
       throw const DestinationPlanException('no free destination name');
     }
+    // Asked without a second look at the disk: uniquePath returns the name it
+    // was given when nothing holds it, and anything else means something does.
+    // A stat per file is what this loop is careful about — 3000 of them cost
+    // 281 ms before the question is even shown.
+    if (!mine && free != full) occupied.add(files[i].id);
     result[files[i].id] = free;
   }
-  return result;
+  return DestinationPlan(paths: result, occupied: occupied);
 }
 
 // The receive root, made and canonicalized once so that every destination in a
@@ -1182,7 +1217,22 @@ Future<String?> publishVerifiedFile(
   required Future<bool> Function(String candidate) accept,
   Set<String>? reserved,
   bool? windows,
+  // Take the planned name whether or not something holds it. Only ever reached
+  // with a verified file, and rename() puts it there in one step, so the old
+  // file is never gone before the new one is in its place.
+  bool replace = false,
 }) async {
+  if (replace) {
+    if (!await accept(planned)) return null;
+    try {
+      await part.rename(planned);
+      return planned;
+    } catch (e) {
+      // A directory under that name, or a filesystem that will not do it: take
+      // a free name below rather than lose a file that already travelled.
+      myPrint('cannot write over $planned: $e');
+    }
+  }
   String? candidate = planned;
   for (int attempt = 0; attempt < _publishAttempts; attempt++) {
     if (candidate == null) return null;

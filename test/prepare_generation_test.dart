@@ -80,9 +80,10 @@ void main() {
             required String senderName,
             required int fileCount,
             required int totalBytes,
+            required int occupied,
           }) async {
             if (!asked.isCompleted) asked.complete();
-            return (await answer.future, false);
+            return (await answer.future, false, ConflictMode.copies);
           };
 
       // The request dies with the socket; only what it leaves behind matters.
@@ -126,9 +127,10 @@ void main() {
           required String senderName,
           required int fileCount,
           required int totalBytes,
+          required int occupied,
         }) async {
           if (!asked.isCompleted) asked.complete();
-          return (await answer.future, false);
+          return (await answer.future, false, ConflictMode.copies);
         };
 
     final Future<Reply> first = post('prepare', body: manifest('first.bin'));
@@ -155,9 +157,10 @@ void main() {
           required String senderName,
           required int fileCount,
           required int totalBytes,
+          required int occupied,
         }) async {
           if (!asked.isCompleted) asked.complete();
-          return (await answer.future, false);
+          return (await answer.future, false, ConflictMode.copies);
         };
 
     final Future<Reply> parked = post('prepare', body: manifest('late.bin'));

@@ -119,6 +119,10 @@ class FileItem {
   int? crc32; // computed on the fly, known once the file ends
   bool done = false;
   bool failed = false;
+  // Sender side: whether the far end wrote this file down. False only when the
+  // receiver already had that name and was told to keep what it has — the file
+  // got there, nothing is on its disk, and a move must leave the original.
+  bool stored = true;
 
   FileItem({
     required this.id,
@@ -155,6 +159,18 @@ class FileItem {
     relativePath: j['path'] as String? ?? '',
     size: j['size'] as int? ?? 0,
   );
+}
+
+// What the receiver does with a file whose name is already taken in the receive
+// folder. The default is what the app has always done; the other two are only
+// ever chosen by the person answering the incoming question.
+enum ConflictMode {
+  // photo.jpg, photo (1).jpg, photo (2).jpg — both files kept, side by side.
+  copies,
+  // The arriving file takes the place of the one that is there.
+  replace,
+  // The file that is here stays and the arriving one is not written at all.
+  keep,
 }
 
 // Why a picked file cannot travel under its own name. Only the backslash is

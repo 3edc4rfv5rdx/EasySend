@@ -320,6 +320,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
               }
             },
           ),
+        SwitchListTile(
+          dense: true,
+          visualDensity: const VisualDensity(vertical: -2),
+          secondary: Icon(Icons.file_copy_outlined, color: clText),
+          activeThumbColor: clAccent,
+          value: xdef['Ask about existing files'] == 'true',
+          title: Text(lw('Ask about existing files'), style: tsNormal),
+          subtitle: Text(
+            lw('When a name is taken in the receive folder'),
+            style: tsSmall,
+          ),
+          onChanged: (v) => _apply(() => xdef['Ask about existing files'] = '$v'),
+        ),
         sectionTitle(lw('Application')),
         _tile(
           icon: Icons.language,

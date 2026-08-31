@@ -21,7 +21,7 @@ final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 const String prgName = 'easysend';
 const String progVersion = '0.6.260831';
-const int buildNumber = 131;
+const int buildNumber = 132;
 const String progAuthor = 'Eugen';
 
 const String langFile = 'assets/locales.json';
@@ -55,8 +55,11 @@ const int deviceDropSec = deviceTimeoutSec + departedNoticeSec;
 // Manual devices send no announces, so they are polled over HTTP instead.
 const int manualPollSec = 10;
 const int manualPollTimeoutSec = 2;
-// Seconds the receiver waits for the user to accept an unknown sender.
-const int acceptTimeoutSec = 30;
+// Seconds the receiver waits for the user to accept an unknown sender. A minute
+// rather than half of one: the question arrives while the phone is in a pocket
+// or on the other side of the room, and thirty seconds is over before it has
+// been walked to. The sender waits this out plus the transport margin below.
+const int acceptTimeoutSec = 60;
 // How long an exit waits while the outgoing transfer tells the receiver it is
 // cancelled. Shorter than the sum of that request's own deadlines on purpose: an
 // exit is an immediate answer to a button, and a peer that has gone away must not
@@ -356,6 +359,7 @@ Map<String, dynamic> defaultSettings() => {
   'Trust after sending': 'true',
   'Ask before exit': 'true',
   'Keep the screen on': 'true',
+  'Ask about existing files': 'true',
   '.Device id': '',
   '.First start': 'true',
   '.Prog version': progVersion,

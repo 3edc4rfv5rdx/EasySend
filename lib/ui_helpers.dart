@@ -283,26 +283,36 @@ void showCustomDialog({
   );
 }
 
-// Ask whether to accept an incoming transfer. Returns (accepted, trust).
+// Ask whether to accept an incoming transfer. Returns (accepted, trust, mode).
 // Unanswered after acceptTimeoutSec the dialog closes itself and declines: the
 // sender must not hang waiting for someone who is not at the screen. The
 // receiver can also withdraw the question through `cancelled` — once its server
 // is gone, no answer means anything any more.
-Future<(bool, bool)> showAcceptDialog({
+//
+// `occupied` is how many of the arriving names are already taken in the receive
+// folder; zero leaves the dialog exactly as it has always been. `askTrust` is
+// off for a sender that is trusted already: it is here for the names alone,
+// and the trust question has been answered long ago.
+Future<(bool, bool, ConflictMode)> showAcceptDialog({
   required String senderName,
   required int fileCount,
   required int totalBytes,
+  int occupied = 0,
+  bool askTrust = true,
   Future<void>? cancelled,
 }) async {
   final BuildContext? context = navigatorKey.currentContext;
-  if (context == null) return (false, false);
+  if (context == null) return (false, false, ConflictMode.copies);
 
   bool trust = false;
+  // What the app has always done, and what a question nobody answers comes
+  // back with: copies side by side, and nothing of the user's is touched.
+  ConflictMode mode = ConflictMode.copies;
   BuildContext? liveDialog;
   void close() {
     final BuildContext? ctx = liveDialog;
     if (ctx != null && ctx.mounted && Navigator.canPop(ctx)) {
-      Navigator.pop(ctx, (false, false));
+      Navigator.pop(ctx, (false, false, ConflictMode.copies));
     }
   }
 
@@ -314,7 +324,8 @@ Future<(bool, bool)> showAcceptDialog({
   final Timer timer = Timer(const Duration(seconds: acceptTimeoutSec), close);
   cancelled?.then((_) => close());
   try {
-    final (bool, bool)? result = await showFlatDialog<(bool, bool)>(
+    final (bool, bool, ConflictMode)? result =
+        await showFlatDialog<(bool, bool, ConflictMode)>(
       context: context,
       barrierDismissible: false,
       builder: (BuildContext dialogContext) {
@@ -348,27 +359,71 @@ Future<(bool, bool)> showAcceptDialog({
                     '$fileCount — ${formatBytes(totalBytes)}',
                     style: tsNormal,
                   ),
-                  const SizedBox(height: 8),
-                  CheckboxListTile(
-                    dense: true,
-                    contentPadding: EdgeInsets.zero,
-                    controlAffinity: ListTileControlAffinity.leading,
-                    value: trust,
-                    activeColor: clAccent,
-                    checkColor: onColor(clAccent),
-                    title: Text(lw('Always trust this device'), style: tsSmall),
-                    onChanged: (v) => setState(() => trust = v ?? false),
-                  ),
+                  if (occupied > 0) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      '${lw('Such files are already here')}: $occupied',
+                      style: tsNormal,
+                    ),
+                    // One under another rather than side by side: a translation
+                    // of any of these is longer than a phone dialog is wide.
+                    RadioGroup<ConflictMode>(
+                      groupValue: mode,
+                      onChanged: (ConflictMode? picked) =>
+                          setState(() => mode = picked ?? mode),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          for (final ConflictMode choice
+                              in ConflictMode.values)
+                            RadioListTile<ConflictMode>(
+                              dense: true,
+                              contentPadding: EdgeInsets.zero,
+                              visualDensity: const VisualDensity(vertical: -4),
+                              controlAffinity:
+                                  ListTileControlAffinity.leading,
+                              value: choice,
+                              activeColor: clAccent,
+                              title: Text(
+                                conflictModeLabel(choice),
+                                style: tsSmall,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                  if (askTrust) ...[
+                    const SizedBox(height: 8),
+                    CheckboxListTile(
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      controlAffinity: ListTileControlAffinity.leading,
+                      value: trust,
+                      activeColor: clAccent,
+                      checkColor: onColor(clAccent),
+                      title: Text(
+                        lw('Always trust this device'),
+                        style: tsSmall,
+                      ),
+                      onChanged: (v) => setState(() => trust = v ?? false),
+                    ),
+                  ],
                 ],
               ),
               actions: [
                 TextButton(
-                  onPressed: () => Navigator.pop(dialogContext, (false, false)),
+                  onPressed: () => Navigator.pop(dialogContext, (
+                    false,
+                    false,
+                    ConflictMode.copies,
+                  )),
                   style: dialogCancelStyle,
                   child: Text(lw('Decline')),
                 ),
                 TextButton(
-                  onPressed: () => Navigator.pop(dialogContext, (true, trust)),
+                  onPressed: () =>
+                      Navigator.pop(dialogContext, (true, trust, mode)),
                   style: dialogButtonStyle,
                   child: Text(lw('Accept')),
                 ),
@@ -378,11 +433,20 @@ Future<(bool, bool)> showAcceptDialog({
         );
       },
     );
-    return result ?? (false, false);
+    return result ?? (false, false, ConflictMode.copies);
   } finally {
     timer.cancel();
   }
 }
+
+// What each answer about a taken name says on the button. All three describe
+// what happens to the files that are here, not to the ones arriving: side by
+// side, written over, left alone.
+String conflictModeLabel(ConflictMode mode) => switch (mode) {
+  ConflictMode.copies => lw('Add copies'),
+  ConflictMode.replace => lw('Replace'),
+  ConflictMode.keep => lw('Keep what is here'),
+};
 
 String _refusalReason(PickProblem problem) => switch (problem) {
   PickProblem.tooLong => lw('the name is too long'),
