@@ -781,13 +781,24 @@ bool isClipboardOnly(Iterable<FileItem> files) =>
     files.isNotEmpty &&
     files.every((FileItem file) => isClipboardFile(file.relativePath));
 
-// The clipboard file of a finished receive, if one arrived. The last one wins:
-// a batch with two of them ends with the newer text in the clipboard, which is
-// the same answer as copying them one after the other.
+// The clipboard file of a finished receive, if one landed here. The last one
+// wins: a batch with two of them ends with the newer text in the clipboard,
+// which is the same answer as copying them one after the other.
+//
+// Landing here is more than being done. A file whose name was already taken and
+// whose owner said to keep what is here counts as done — the transfer has
+// nothing left to do about it — and nothing of it was written: its destination
+// is the user's own file, or none at all. Reading that one would paste the
+// receiver's existing file over its own clipboard on the strength of a transfer
+// that never delivered anything.
 FileItem? clipboardArrival(Iterable<FileItem> files) {
   FileItem? found;
   for (final FileItem file in files) {
-    if (file.done && isClipboardFile(file.relativePath)) found = file;
+    if (file.done &&
+        file.destinationPath != null &&
+        isClipboardFile(file.relativePath)) {
+      found = file;
+    }
   }
   return found;
 }

@@ -57,17 +57,38 @@ void main() {
   });
 
   test('the last clipboard file that arrived is the one copied', () {
-    FileItem item(String name, {bool done = true}) => FileItem(
-      id: name,
-      relativePath: name,
-      size: 1,
-    )..done = done;
+    FileItem item(String name, {bool done = true, bool landed = true}) =>
+        FileItem(
+          id: name,
+          relativePath: name,
+          size: 1,
+          destinationPath: landed ? '/receive/$name' : null,
+        )..done = done;
 
     expect(clipboardArrival([item('notes.txt')]), isNull);
     // Sent but never received: nothing goes into the clipboard for it.
     expect(
       clipboardArrival([item('clipboard/x.20260831-143007.txt', done: false)]),
       isNull,
+    );
+    // Done, but nothing of it was written here: the name was already taken and
+    // the answer was to keep what is here. Its planned destination is the
+    // user's own file, and pasting that would be this transfer overwriting a
+    // clipboard with something it never delivered.
+    expect(
+      clipboardArrival([
+        item('clipboard/x.20260831-143007.txt', landed: false),
+      ]),
+      isNull,
+    );
+    // And in a batch, the last one that actually landed is the one that wins,
+    // not the last one that merely finished.
+    expect(
+      clipboardArrival([
+        item('clipboard/x.20260831-143007.txt'),
+        item('clipboard/x.20260831-150000.txt', landed: false),
+      ])!.relativePath,
+      'clipboard/x.20260831-143007.txt',
     );
     final List<FileItem> batch = [
       item('clipboard/x.20260831-143007.txt'),

@@ -1136,6 +1136,12 @@ class ReceiveServer {
         if (session.kept.contains(f.id)) {
           f.done = true;
           f.failed = false;
+          // Nothing of this file is on this disk, so it has no destination of
+          // its own here: what the plan resolved for it is the user's own file,
+          // which this transfer did not write and nothing may now read as
+          // though it had. The same line the verify path writes for a file an
+          // older sender sent anyway.
+          f.destinationPath = null;
           transfer.log('Already here, not saved', file: f.relativePath);
           continue;
         }

@@ -268,6 +268,81 @@ void main() {
     );
   });
 
+  // A clipboard is a file like any other here, so it can be the file whose name
+  // is already taken. Keeping means nothing was written — and nothing may be
+  // pasted either, least of all the receiver's own older file.
+  group('a clipboard whose name is already taken', () {
+    late String name;
+    late File old;
+
+    setUp(() async {
+      name = 'x.20260831-120000.txt';
+      old = File(p.join(xvRecvDir, clipboardDirName, name));
+      await old.parent.create(recursive: true);
+      await old.writeAsString('what was here before');
+    });
+
+    test('keeping it pastes nothing', () async {
+      answerWith(ConflictMode.keep);
+      final List<FileItem> asked = [];
+      server.copyClipboard = (FileItem file) async {
+        asked.add(file);
+        return true;
+      };
+
+      final Reply prepared = await post(
+        'prepare',
+        body: {
+          'senderId': 'sender',
+          'senderName': 'Sender',
+          'files': [
+            {
+              'id': 'file-1',
+              'path': '$clipboardDirName/$name',
+              'size': payload.length,
+            },
+          ],
+        },
+      );
+      expect(prepared.body['skip'], ['file-1']);
+      // What a sender that honoured the skip list does: nothing to upload.
+      expect(
+        (await post(
+          'finish',
+          query: {'session': prepared.body['sessionId'] as String},
+        )).status,
+        200,
+      );
+
+      expect(asked, isEmpty);
+      expect(await old.readAsString(), 'what was here before');
+      expect(
+        xvTransfers.single.events.any(
+          (TransferEvent e) => e.message == 'Copied to the clipboard',
+        ),
+        isFalse,
+      );
+    });
+
+    test('a copy beside it is pasted as always', () async {
+      answerWith(ConflictMode.copies);
+      final List<FileItem> asked = [];
+      server.copyClipboard = (FileItem file) async {
+        asked.add(file);
+        return true;
+      };
+
+      expect((await sendOne('$clipboardDirName/$name')).status, 200);
+
+      expect(asked.single.relativePath, '$clipboardDirName/$name');
+      expect(
+        asked.single.destinationPath,
+        p.join(xvRecvDir, clipboardDirName, 'x.20260831-120000 (1).txt'),
+      );
+      expect(await old.readAsString(), 'what was here before');
+    });
+  });
+
   test('nothing is asked when the setting is off', () async {
     await alreadyHere('note.txt');
     final List<int> seen = [];
