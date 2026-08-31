@@ -54,8 +54,10 @@ void main() {
   // the half of the lock the screen owns is pinned by reading the source.
   test('the main screen takes and releases its half of the lock', () async {
     final String home = await File('lib/home_screen.dart').readAsString();
-    // Asked for at startup, and again whenever the app comes and goes.
-    expect(home, contains('_syncScreenWake();'));
+    // Taken at startup outright: the binding may not have been told the
+    // lifecycle state yet when this screen is built, and a lock that waits for
+    // that message is a lock that may never be taken at all.
+    expect(home, contains('_syncScreenWake(resumed: true);'));
     expect(
       home,
       contains('_syncScreenWake(resumed: state == AppLifecycleState.resumed)'),

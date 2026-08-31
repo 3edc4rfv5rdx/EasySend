@@ -418,7 +418,11 @@ class _HomeScreenState extends State<HomeScreen>
         _exitApp(mayKeepReceiving: false);
     receiveServer.onListenerLost = _rebuildLostListener;
     androidService.attach();
-    _syncScreenWake();
+    // Said outright rather than read off the lifecycle: this screen is built for
+    // a launch that puts it in front, and the binding may not have been told the
+    // state yet at this point. The observer corrects it the moment that stops
+    // being true.
+    _syncScreenWake(resumed: true);
     _startNetwork();
     _listenForShares();
     WidgetsBinding.instance.addPostFrameCallback(

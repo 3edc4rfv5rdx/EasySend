@@ -6,6 +6,7 @@
 ## Unreleased
 - E: Two clipboard copies in the same second no longer land on one file: the second was silently dropped as a duplicate while its text replaced what the selection was still pointing at, which sent the wrong text or failed the transfer on "A file changed on disk".
 - E: An empty file that arrives under a clipboard name is left as a file instead of wiping the clipboard it would have pasted nothing into.
+- E: The screen lock the open app holds is taken when the main screen is built rather than off the lifecycle state, which the binding may not have been told yet at that moment.
 - E: A clipboard sent on its own no longer leaves as an archive when the latching ZIP button is still pressed from an earlier batch: it went as clipboard.zip and arrived as an archive nothing could paste back. The button now shows pale over such a selection instead of pretending it applies.
 - N: A "Keep the screen on" switch in the settings (Android, on by default) holds the screen while the app is open; a transfer holds it anyway, and neither of the two takes it from the other.
 - F: A transfer that is nothing but a clipboard shows a clipboard icon in its row instead of the plain direction arrow, and still says which way it went.
