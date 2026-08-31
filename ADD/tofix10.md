@@ -483,7 +483,7 @@ event and every transfer tick — means a successful no-op must stay a no-op.
 the old state, and the next call asking for the same state must reach the
 platform again. Existing behaviour with a toggle that succeeds must not change.
 
-## 7. P3 — The Clipboard button can be entered twice and add the same text twice
+## 7. P3 [FIXED f47e678] — The Clipboard button can be entered twice and add the same text twice
 
 **Verdict: real as a missing guard, unproven as a symptom.** That nothing
 prevents a second entry is a code fact — `onPressed: _pickClipboard` with no
