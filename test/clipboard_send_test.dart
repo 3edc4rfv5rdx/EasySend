@@ -72,4 +72,30 @@ void main() {
     ];
     expect(clipboardArrival(batch)!.relativePath, 'clipboard/x.20260831-150000.txt');
   });
+
+  // Two taps fit inside one second, and the stamp counts in seconds. The second
+  // one must not land on the file the selection is already pointing at.
+  test('a second copy in the same second gets a name of its own', () async {
+    final Directory sandbox = await Directory.systemTemp.createTemp(
+      'easysend-clip-',
+    );
+    addTearDown(() async => sandbox.delete(recursive: true));
+    Future<String?> write(String text) => writeClipboardFile(
+      text,
+      DateTime(2026, 8, 31, 14, 30, 7),
+      rootOf: () async => '${sandbox.path}/clip',
+    );
+
+    final String? first = await write('first');
+    final String? second = await write('second');
+
+    expect(first, isNotNull);
+    expect(second, isNotNull);
+    expect(second, isNot(first));
+    expect(first!.endsWith('x.20260831-143007.txt'), isTrue);
+    expect(second!.endsWith('x.20260831-143008.txt'), isTrue);
+    // And the first one still holds what it was written with.
+    expect(await File(first).readAsString(), 'first');
+    expect(await File(second).readAsString(), 'second');
+  });
 }

@@ -757,8 +757,20 @@ FileItem? clipboardArrival(Iterable<FileItem> files) {
   return found;
 }
 
+// How far the stamp may be walked forward to find a name nothing holds. A
+// second per attempt, so this is a minute of taps in the same second.
+const int _clipboardNameTries = 60;
+
 // Text on its way out: the clipboard as a file the send can pick up. Returns
 // the path, or null when there is nowhere to write it.
+//
+// Never over a file that is already there. The stamp counts in seconds and two
+// taps fit inside one: the second write would replace text the selection is
+// still pointing at — silently sending something else under an entry the user
+// added for the first one, or failing the transfer on "A file changed on disk"
+// when the two texts differ in length. The name walks forward a second at a
+// time until it is free; being a second ahead of the clock is a label, not a
+// claim about when it was copied.
 Future<String?> writeClipboardFile(
   String text,
   DateTime now, {
@@ -768,7 +780,15 @@ Future<String?> writeClipboardFile(
   if (root == null) return null;
   try {
     await Directory(root).create(recursive: true);
-    final File file = File(p.join(root, clipboardFileName(now)));
+    DateTime stamp = now;
+    File file = File(p.join(root, clipboardFileName(stamp)));
+    for (int tries = 0; tries < _clipboardNameTries; tries++) {
+      if (!await file.exists()) break;
+      stamp = stamp.add(const Duration(seconds: 1));
+      file = File(p.join(root, clipboardFileName(stamp)));
+    }
+    // A minute of them and every name taken: overwriting the oldest of the run
+    // is better than refusing to send what the user just copied.
     await file.writeAsString(text, flush: true);
     return file.path;
   } catch (e) {
