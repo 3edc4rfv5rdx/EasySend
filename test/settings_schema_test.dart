@@ -30,6 +30,7 @@ void main() {
           'Program language': 'ua',
           'Ask before exit': 'false',
           'Trust after sending': 'false',
+          'Keep the screen on': 'false',
         },
       }),
     );
@@ -42,6 +43,11 @@ void main() {
     // restart: a key the loader does not know is quietly replaced by its
     // default, which for this one means trust granted again.
     expect(xdef['Trust after sending'], 'false');
+    // A switch the loader does not know about is silently replaced by its
+    // default, and this one defaults to on: the screen would start staying lit
+    // again after every restart.
+    expect(xdef['Keep the screen on'], 'false');
+    expect(defaultSettings()['Keep the screen on'], 'true');
   });
 
   test(

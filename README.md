@@ -73,6 +73,10 @@ no internet: the two devices talk to each other and nothing else.
   port open and puts an incoming request in a notification you can accept from the
   lock screen. The ongoing notification carries Stop and Exit, so a transfer can be
   stopped and the app closed without opening it.
+- **The screen stays lit** (Android) — a transfer always holds the screen awake, and the
+  *Keep the screen on* switch, on by default, holds it while the app is open as well.
+  One lock with two owners: whichever lets go first does not take the screen from the
+  other, and leaving the app never darkens a transfer in progress.
 - **Themes and languages** — five palettes (Light, Dark, Sand, Slate, Olive) plus System,
   and English, Russian and Ukrainian. Both are data, not code: add a palette to
   `assets/colors.json` or a locale to `assets/locales.json` and it shows up in the

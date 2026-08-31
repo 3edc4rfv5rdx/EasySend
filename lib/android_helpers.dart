@@ -342,7 +342,6 @@ class AndroidService {
   // machine against a mocked channel.
   final bool android;
   bool _serviceUp = false;
-  bool _screenHeld = false;
   bool _attached = false;
   bool _transferMode = false;
   bool _dataSyncTimedOut = false;
@@ -423,7 +422,7 @@ class AndroidService {
     _serviceUp = false;
     _transferMode = false;
     _lastText = '';
-    await _keepScreenOn(false);
+    await screenWake.forTransfer(false);
     final String message = lw(
       'Background receiving is unavailable',
     );
@@ -481,11 +480,11 @@ class AndroidService {
       // throws. The quota resets when the app returns to the foreground; until
       // then the transfer may continue without falsely restoring the service.
       if (_dataSyncTimedOut && !appInForeground) {
-        await _keepScreenOn(false);
+        await screenWake.forTransfer(false);
         return;
       }
       final bool enteringTransfer = !_transferMode;
-      await _keepScreenOn(true);
+      await screenWake.forTransfer(true);
       final int percent = (active.progress * 100).round();
       final String title = active.incoming
           ? lw('Receiving')
@@ -512,7 +511,7 @@ class AndroidService {
       return;
     }
 
-    await _keepScreenOn(false);
+    await screenWake.forTransfer(false);
 
     // No transfer: keep listening only if the user asked for it.
     if (xdef['Receive in background'] == 'true') {
@@ -596,16 +595,44 @@ class AndroidService {
     }
   }
 
-  // The lock screen timeout must not fire in the middle of a transfer.
-  Future<void> _keepScreenOn(bool on) async {
-    if (_screenHeld == on) return;
-    _screenHeld = on;
+}
+
+final AndroidService androidService = AndroidService();
+
+// Two things want the screen awake and there is one lock for both: a running
+// transfer, whose lock-screen timeout must not fire in the middle of it, and
+// the app being open with "Keep the screen on" set. Held while either wants it
+// and released when neither does — two owners toggling the lock directly would
+// take turns undoing each other, and the transfer would lose it the moment the
+// app was closed.
+class ScreenWake {
+  bool _transfer = false;
+  bool _openApp = false;
+  bool _held = false;
+
+  // What the lock is actually doing, for a test to read.
+  bool get held => _held;
+
+  Future<void> forTransfer(bool on) {
+    _transfer = on;
+    return _apply();
+  }
+
+  Future<void> forOpenApp(bool on) {
+    _openApp = on;
+    return _apply();
+  }
+
+  Future<void> _apply() async {
+    final bool wanted = _transfer || _openApp;
+    if (wanted == _held) return;
+    _held = wanted;
     try {
-      await WakelockPlus.toggle(enable: on);
+      await WakelockPlus.toggle(enable: wanted);
     } catch (e) {
       myPrint('wakelock failed: $e');
     }
   }
 }
 
-final AndroidService androidService = AndroidService();
+final ScreenWake screenWake = ScreenWake();

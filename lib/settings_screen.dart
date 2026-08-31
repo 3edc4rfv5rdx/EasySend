@@ -370,6 +370,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           onChanged: (v) => _apply(() => xdef['Ask before exit'] = '$v'),
         ),
+        if (Platform.isAndroid)
+          SwitchListTile(
+            dense: true,
+            visualDensity: const VisualDensity(vertical: -2),
+            secondary: Icon(Icons.brightness_high, color: clText),
+            activeThumbColor: clAccent,
+            value: xdef['Keep the screen on'] == 'true',
+            title: Text(lw('Keep the screen on'), style: tsNormal),
+            subtitle: Text(
+              lw('A transfer always keeps it on'),
+              style: tsSmall,
+            ),
+            onChanged: (v) async {
+              await _apply(() => xdef['Keep the screen on'] = '$v');
+              // This screen is on top of the main one, so the app is in front:
+              // the switch is the answer for right now as well as for later.
+              await screenWake.forOpenApp(v);
+            },
+          ),
         sectionTitle('${lw('Trusted devices')} (${trusted.length})'),
         // The policy sits above the list it fills: the switch is what puts
         // most of these rows here.

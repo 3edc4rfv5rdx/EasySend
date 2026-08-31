@@ -355,6 +355,7 @@ Map<String, dynamic> defaultSettings() => {
   'Receive in background': 'false',
   'Trust after sending': 'true',
   'Ask before exit': 'true',
+  'Keep the screen on': 'true',
   '.Device id': '',
   '.First start': 'true',
   '.Prog version': progVersion,

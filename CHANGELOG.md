@@ -4,6 +4,7 @@
 > F is the same thing done better; E is behaviour that was wrong, whatever the size of the fix.
 
 ## Unreleased
+- N: A "Keep the screen on" switch in the settings (Android, on by default) holds the screen while the app is open; a transfer holds it anyway, and neither of the two takes it from the other.
 - F: A transfer that is nothing but a clipboard shows a clipboard icon in its row instead of the plain direction arrow, and still says which way it went.
 - N: A "Clipboard" button beside File and Folder sends what you copied: the text is saved as a file in a `clipboard` subfolder of the receive folder and travels under that folder, and the receiver — which goes by that whole path — puts it into its own clipboard as well as onto disk.
 - E: The directory a ZIP send builds its archive in is named after the app, so on Linux it no longer claims /tmp/zip — a name anything could be using, and one the app deletes whole at every launch.

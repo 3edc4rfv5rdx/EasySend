@@ -412,6 +412,7 @@ class _HomeScreenState extends State<HomeScreen>
         _exitApp(mayKeepReceiving: false);
     receiveServer.onListenerLost = _rebuildLostListener;
     androidService.attach();
+    _syncScreenWake();
     _startNetwork();
     _listenForShares();
     WidgetsBinding.instance.addPostFrameCallback(
@@ -461,6 +462,9 @@ class _HomeScreenState extends State<HomeScreen>
     // window answers too.
     _syncManualPolling(state);
     if (!Platform.isAndroid) return;
+    // Off screen the setting means nothing: what it asks for is that the screen
+    // the user is looking at stays lit.
+    _syncScreenWake(resumed: state == AppLifecycleState.resumed);
     final LifecycleNetworkDecision decision = lifecycleNetworkDecision(
       state,
       receiveInBackground: xdef['Receive in background'] == 'true',
@@ -476,6 +480,17 @@ class _HomeScreenState extends State<HomeScreen>
     if (state == AppLifecycleState.resumed) {
       unawaited(androidService.reassert());
     }
+  }
+
+  // The open app's half of the screen lock: asked for by the setting, and only
+  // while the app is actually in front. A transfer holds the other half by
+  // itself, so this never takes the screen away from one.
+  void _syncScreenWake({bool? resumed}) {
+    if (!Platform.isAndroid) return;
+    final bool visible = resumed ?? appInForeground;
+    unawaited(
+      screenWake.forOpenApp(visible && xdef['Keep the screen on'] == 'true'),
+    );
   }
 
   // "Share -> EasySend" drops straight into the selection, so all that is left
@@ -513,6 +528,9 @@ class _HomeScreenState extends State<HomeScreen>
     _windowSaveTimer?.cancel();
     androidService.onNotificationStop = null;
     androidService.onNotificationExit = null;
+    // The screen is nobody's to hold once this one is gone. A transfer that is
+    // still running keeps its own half of the lock.
+    unawaited(screenWake.forOpenApp(false));
     receiveServer.onListenerLost = null;
     androidService.detach();
     receiveServer.stop();

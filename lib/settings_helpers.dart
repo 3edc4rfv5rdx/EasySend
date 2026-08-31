@@ -81,6 +81,7 @@ String? _validSetting(String key, dynamic value) {
     case 'Receive in background':
     case 'Trust after sending':
     case 'Ask before exit':
+    case 'Keep the screen on':
     case '.First start':
     case '.External id fallback':
       return value == 'true' || value == 'false' ? value : null;
