@@ -192,6 +192,21 @@ void main() {
       expect(await File(two.sourcePath!).exists(), isTrue);
     });
 
+    // What an earlier attempt said about a picked file is not this transfer's
+    // answer about it. A file left over from a send that could not get it there
+    // travels inside this archive like any other and leaves the list with it.
+    test('a file an earlier send failed still leaves with the archive', () async {
+      final FileItem one = await pick('Trip/beach.txt');
+      one.failed = true;
+
+      expect(
+        await zipSender().send(peer: peer, files: [one], asZip: true),
+        TransferStatus.done,
+      );
+
+      expect(one.done, isTrue);
+    });
+
     test('the archive is gone from the cache afterwards', () async {
       final FileItem item = await pick('Trip/beach.txt');
 

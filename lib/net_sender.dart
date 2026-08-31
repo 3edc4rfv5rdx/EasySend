@@ -70,6 +70,12 @@ class SendService {
   // The directory this transfer's archive was built in, deleted with it.
   String? _packDir;
   final Map<String, SourceFingerprint> _sentSources = {};
+  // The picked files this pack actually holds. Kept apart from _sentSources,
+  // which is only filled when a move asks for fingerprints, and asked instead
+  // of reading a flag off the picked item: `failed` is what some earlier
+  // attempt said about that file, and a file that goes into this archive is
+  // delivered by this transfer whatever the last one thought of it.
+  final Set<String> _packedSources = {};
 
   SendService({
     this.connectTimeout = const Duration(seconds: networkConnectTimeoutSec),
@@ -126,6 +132,7 @@ class SendService {
     _inFlight = true;
     _cancelled = false;
     _sentSources.clear();
+    _packedSources.clear();
     _peer = peer;
     _client = HttpClient()..connectionTimeout = connectTimeout;
 
@@ -227,7 +234,7 @@ class SendService {
             (FileItem item) => item.done && item.stored,
           )) {
         for (final FileItem item in files) {
-          if (!item.failed) item.done = true;
+          if (_packedSources.contains(item.id)) item.done = true;
         }
       }
       // Deliberately still deleted after a failed finish: each of these got a
@@ -331,6 +338,7 @@ class SendService {
       _client?.close(force: true);
       _client = null;
       _sentSources.clear();
+      _packedSources.clear();
       _deletingSources = false;
       _inFlight = false;
       transfersChanged();
@@ -432,6 +440,14 @@ class SendService {
         for (final PackedSource source in result.sources) {
           _sentSources[source.id] = source.fingerprint;
         }
+        // Everything that was offered, less what the packer could not read.
+        // Taken here rather than from result.sources, which stays empty unless
+        // a move asked for fingerprints.
+        _packedSources
+          ..addAll(files.map((FileItem item) => item.id))
+          ..removeAll(
+            result.skipped.map((SkippedSource skipped) => skipped.id),
+          );
         transfer.repackedAs(
           FileItem(
             id: const Uuid().v4(),
