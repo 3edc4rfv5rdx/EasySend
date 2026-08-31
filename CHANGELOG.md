@@ -4,6 +4,7 @@
 > F is the same thing done better; E is behaviour that was wrong, whatever the size of the fix.
 
 ## Unreleased
+- E: A file that failed an earlier send leaves the selected list when it travels inside an archive, instead of staying there and going a second time.
 - E: A ZIP send whose archive the far end already had and kept leaves the whole batch in the selected list instead of clearing it.
 - E: A folder wearing the name of an arriving file no longer refuses the whole transfer: it is not counted among the names asked about, and the file lands beside it.
 - E: A clipboard the receiver chose to keep its own copy of is no longer pasted, so its clipboard is left alone by a transfer that delivered nothing.

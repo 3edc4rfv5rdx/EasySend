@@ -388,7 +388,7 @@ picked list must still hold every file of the batch afterwards, and no original
 may be deleted under a move. The existing "a delivered archive empties the list"
 case must keep passing.
 
-## 5. P3 — A file left `failed` by an earlier send is delivered inside an archive and stays in the picked list
+## 5. P3 [FIXED d44902d] — A file left `failed` by an earlier send is delivered inside an archive and stays in the picked list
 
 **Verdict: real**, read off the source; not probed. The data-flow claim rests on
 `grep` over the whole of `lib/`: the only writes to `FileItem.failed` on the
