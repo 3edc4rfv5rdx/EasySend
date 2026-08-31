@@ -826,6 +826,11 @@ class _HomeScreenState extends State<HomeScreen>
       okInfoBarOrange(lw('There is no text in the clipboard'));
       return;
     }
+    // The same text twice is the button pressed twice, not two clipboards.
+    if (await clipboardAlreadyPicked(text, _selected)) {
+      if (mounted) okInfoBarOrange('${lw('Duplicates skipped')}: 1');
+      return;
+    }
     final String? path = await writeClipboardFile(text, DateTime.now());
     if (path == null) {
       if (mounted) okInfoBarRed(lw('The clipboard could not be saved'));

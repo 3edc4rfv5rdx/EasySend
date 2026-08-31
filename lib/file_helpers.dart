@@ -761,6 +761,34 @@ FileItem? clipboardArrival(Iterable<FileItem> files) {
 // second per attempt, so this is a minute of taps in the same second.
 const int _clipboardNameTries = 60;
 
+// Whether this very text is already in the selection as a clipboard file.
+//
+// A double tap on the button is one clipboard and not two: the second file
+// would be an identical copy, sent twice and then kept in the folder for good,
+// since nothing sweeps that one. Different text is a second clipboard and goes
+// in as one — copy a link, add it, copy another, add that too.
+Future<bool> clipboardAlreadyPicked(
+  String text,
+  Iterable<FileItem> selected,
+) async {
+  final int length = utf8.encode(text).length;
+  for (final FileItem item in selected) {
+    final String? source = item.sourcePath;
+    if (source == null || !isClipboardFile(item.relativePath)) continue;
+    // The size is free and settles it nearly every time; the file is only read
+    // when it could still be the same text.
+    if (item.size != length) continue;
+    try {
+      if (await File(source).readAsString() == text) return true;
+    } catch (e) {
+      // Unreadable or no longer there: it cannot be shown to be the same text,
+      // and refusing the new one on that would lose what the user just copied.
+      myPrint('cannot compare $source with the clipboard: $e');
+    }
+  }
+  return false;
+}
+
 // Text on its way out: the clipboard as a file the send can pick up. Returns
 // the path, or null when there is nowhere to write it.
 //

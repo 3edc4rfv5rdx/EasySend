@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:easysend/globals.dart';
 import 'package:flutter/services.dart';
+import 'package:path/path.dart' as p;
 import 'package:flutter_test/flutter_test.dart';
 
 // The clipboard travels as a plain file. What has to hold: the name says what
@@ -183,4 +184,57 @@ void main() {
       isFalse,
     );
   });
+
+  group('the same text twice', () {
+    late Directory sandbox;
+
+    setUp(() async {
+      sandbox = await Directory.systemTemp.createTemp('easysend-clip-');
+    });
+    tearDown(() async => sandbox.delete(recursive: true));
+
+    Future<FileItem> picked(String text, {String? name}) async {
+      final File file = File(
+        '${sandbox.path}/${name ?? 'x.20260831-143007.txt'}',
+      );
+      await file.writeAsString(text);
+      return FileItem(
+        id: file.path,
+        relativePath: 'clipboard/${p.basename(file.path)}',
+        size: await file.length(),
+        sourcePath: file.path,
+      );
+    }
+
+    test('a second press on the same clipboard adds nothing', () async {
+      final FileItem first = await picked('ссылка');
+      expect(await clipboardAlreadyPicked('ссылка', [first]), isTrue);
+    });
+
+    test('other text is a clipboard of its own', () async {
+      final FileItem first = await picked('ссылка');
+      expect(await clipboardAlreadyPicked('другая ссылка', [first]), isFalse);
+      // Same length, different text: the size check must not settle it alone.
+      expect(await clipboardAlreadyPicked('ссылкА', [first]), isFalse);
+    });
+
+    test('an ordinary file of the same text is not a clipboard', () async {
+      final File plain = File('${sandbox.path}/notes.txt');
+      await plain.writeAsString('ссылка');
+      final FileItem item = FileItem(
+        id: plain.path,
+        relativePath: 'notes.txt',
+        size: await plain.length(),
+        sourcePath: plain.path,
+      );
+      expect(await clipboardAlreadyPicked('ссылка', [item]), isFalse);
+    });
+
+    test('a picked clipboard that is gone does not block the new one', () async {
+      final FileItem first = await picked('ссылка');
+      await File(first.sourcePath!).delete();
+      expect(await clipboardAlreadyPicked('ссылка', [first]), isFalse);
+    });
+  });
+
 }

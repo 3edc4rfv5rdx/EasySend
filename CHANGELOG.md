@@ -4,6 +4,7 @@
 > F is the same thing done better; E is behaviour that was wrong, whatever the size of the fix.
 
 ## Unreleased
+- E: Pressing Clipboard twice over the same text adds it once: the second press used to write an identical file, send it twice and leave it in the folder for good. Different text still goes in as a second clipboard.
 - E: Two clipboard copies in the same second no longer land on one file: the second was silently dropped as a duplicate while its text replaced what the selection was still pointing at, which sent the wrong text or failed the transfer on "A file changed on disk".
 - E: An empty file that arrives under a clipboard name is left as a file instead of wiping the clipboard it would have pasted nothing into.
 - E: The screen lock the open app holds is taken when the main screen is built rather than off the lifecycle state, which the binding may not have been told yet at that moment.
