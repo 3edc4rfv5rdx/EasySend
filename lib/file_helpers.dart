@@ -599,10 +599,25 @@ Future<DestinationPlan> buildDestinationPlan(
     // ' (n)' fallback below is for whatever the mode.
     final bool mine = reserved.contains(key);
     if (mode != ConflictMode.copies && !mine) {
-      if (await _taken(full)) occupied.add(files[i].id);
-      reserved.add(key);
-      result[files[i].id] = full;
-      continue;
+      final FileSystemEntityType holder = await FileSystemEntity.type(
+        full,
+        followLinks: false,
+      );
+      // Only a plain file is a name the question was about. All three answers
+      // talk about the user's *files* — put beside, written over, left alone —
+      // and none of them can be carried out against a folder or a link: a
+      // rename will not go over a directory, and "keep what is here" would be
+      // keeping something this transfer was never going to touch. Such a name
+      // steps aside to the next free one in every mode, exactly as `copies`
+      // does, instead of being aimed at and refused later by the containment
+      // check, which used to take the whole manifest down with it.
+      if (holder == FileSystemEntityType.notFound ||
+          holder == FileSystemEntityType.file) {
+        if (holder == FileSystemEntityType.file) occupied.add(files[i].id);
+        reserved.add(key);
+        result[files[i].id] = full;
+        continue;
+      }
     }
     final String? free = await uniquePath(
       full,
@@ -612,11 +627,16 @@ Future<DestinationPlan> buildDestinationPlan(
     if (free == null) {
       throw const DestinationPlanException('no free destination name');
     }
-    // Asked without a second look at the disk: uniquePath returns the name it
-    // was given when nothing holds it, and anything else means something does.
-    // A stat per file is what this loop is careful about — 3000 of them cost
-    // 281 ms before the question is even shown.
-    if (!mine && free != full) occupied.add(files[i].id);
+    // Whether something holds the name is asked without a second look at the
+    // disk: uniquePath returns the name it was given when nothing does, and
+    // anything else means something does. A stat per file is what this loop is
+    // careful about — 3000 of them cost 281 ms before the question is even
+    // shown. What holds it is only asked when something does, which is rare and
+    // costs one stat per collision rather than one per file: a folder or a link
+    // is not a file the user can be asked about (see the branch above).
+    if (!mine && free != full && await _fileHolds(full)) {
+      occupied.add(files[i].id);
+    }
     result[files[i].id] = free;
   }
   return DestinationPlan(paths: result, occupied: occupied);
@@ -1282,3 +1302,10 @@ Future<bool> _claimName(String path) async {
 Future<bool> _taken(String path) async =>
     await FileSystemEntity.type(path, followLinks: false) !=
     FileSystemEntityType.notFound;
+
+// Whether a plain file sits on this name, as against a folder, a link or
+// nothing at all. What the incoming question counts: the answers are about the
+// user's files and can only be carried out against one.
+Future<bool> _fileHolds(String path) async =>
+    await FileSystemEntity.type(path, followLinks: false) ==
+    FileSystemEntityType.file;

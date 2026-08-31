@@ -343,6 +343,53 @@ void main() {
     });
   });
 
+  // A folder wearing the name of an arriving file used to be counted as a taken
+  // name, offered all three answers, and then refused by the containment check
+  // once one of them was picked — taking the whole manifest with it.
+  test('a folder on the name never refuses the transfer', () async {
+    await Directory(p.join(xvRecvDir, 'Photos')).create();
+    final List<int> statuses = [];
+    final List<int> asked = [];
+    for (final ConflictMode mode in ConflictMode.values) {
+      answerWith(mode, seen: asked);
+
+      final Reply prepared = await post(
+        'prepare',
+        body: {
+          'senderId': 'sender',
+          'senderName': 'Sender',
+          'files': [
+            {'id': 'file-1', 'path': 'Photos', 'size': payload.length},
+            {'id': 'file-2', 'path': 'beside.txt', 'size': payload.length},
+          ],
+        },
+      );
+      statuses.add(prepared.status);
+      if (prepared.status != 200) continue;
+      expect(prepared.body['skip'], isNull, reason: '$mode');
+      expect(
+        (await post(
+          'cancel',
+          query: {'session': prepared.body['sessionId'] as String},
+        )).status,
+        200,
+      );
+    }
+    // The answer the dialog offered must never be the thing that kills the
+    // transfer: every one of the three has to get as far as a session.
+    expect(statuses, [200, 200, 200]);
+    // And nothing was worth asking about: a folder is not one of the files the
+    // question is about.
+    expect(asked, [0, 0, 0]);
+    expect(
+      await FileSystemEntity.type(
+        p.join(xvRecvDir, 'Photos'),
+        followLinks: false,
+      ),
+      FileSystemEntityType.directory,
+    );
+  });
+
   test('nothing is asked when the setting is off', () async {
     await alreadyHere('note.txt');
     final List<int> seen = [];

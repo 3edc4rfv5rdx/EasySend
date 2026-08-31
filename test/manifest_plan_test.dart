@@ -257,6 +257,47 @@ void main() {
     expect(plan.paths['3'], p.join(root.path, 'fresh (1).txt'));
   });
 
+  // The three answers are about the user's files. A folder or a link wearing
+  // the name is not one, cannot be written over and cannot be "kept" against a
+  // transfer that was never going to touch it, so it is not counted and the
+  // arriving file steps aside — in every mode, the way copies always did.
+  test('a folder or a link on the name is not a file to ask about', () async {
+    await Directory(p.join(root.path, 'Photos')).create();
+    await Link(p.join(root.path, 'shortcut.txt')).create(
+      p.join(root.path, 'elsewhere.txt'),
+    );
+
+    for (final ConflictMode mode in ConflictMode.values) {
+      final plan = await buildDestinationPlan(root.path, [
+        item('1', 'Photos'),
+        item('2', 'shortcut.txt'),
+      ], mode: mode);
+
+      expect(plan.occupied, isEmpty, reason: '$mode');
+      expect(p.basename(plan.paths['1']!), 'Photos (1)', reason: '$mode');
+      expect(
+        p.basename(plan.paths['2']!),
+        'shortcut (1).txt',
+        reason: '$mode',
+      );
+    }
+    // And neither of them was disturbed by the planning.
+    expect(
+      await FileSystemEntity.type(
+        p.join(root.path, 'Photos'),
+        followLinks: false,
+      ),
+      FileSystemEntityType.directory,
+    );
+    expect(
+      await FileSystemEntity.type(
+        p.join(root.path, 'shortcut.txt'),
+        followLinks: false,
+      ),
+      FileSystemEntityType.link,
+    );
+  });
+
   test('replacing and keeping aim at the name itself', () async {
     await File(p.join(root.path, 'here.txt')).writeAsString('old');
 
