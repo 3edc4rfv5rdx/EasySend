@@ -761,6 +761,17 @@ FileItem? clipboardArrival(Iterable<FileItem> files) {
 // second per attempt, so this is a minute of taps in the same second.
 const int _clipboardNameTries = 60;
 
+final RegExp _contentUri = RegExp(r'^content://\S+$');
+
+// Whether what came back from the clipboard is not text at all.
+//
+// Android does not answer "no text": asked for text/plain it coerces whatever
+// is there, and a copied image comes back as the string "content://media/…" —
+// the URI of the picture, not the picture and not text anybody meant to send.
+// A link the user actually copied is http(s) and is text; only Android's own
+// scheme, on its own line and with nothing around it, is this.
+bool isNonTextClipboard(String text) => _contentUri.hasMatch(text.trim());
+
 // Whether this very text is already in the selection as a clipboard file.
 //
 // A double tap on the button is one clipboard and not two: the second file

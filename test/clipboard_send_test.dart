@@ -237,4 +237,20 @@ void main() {
     });
   });
 
+  // Asked for text, Android coerces whatever is in the clipboard: a copied
+  // picture comes back as its own URI rather than as nothing at all.
+  test('a coerced content URI is not text', () {
+    expect(isNonTextClipboard('content://media/external/images/media/91'), isTrue);
+    // Trailing whitespace is the clipboard's, not the user's.
+    expect(isNonTextClipboard('  content://media/external/images/media/91\n'), isTrue);
+  });
+
+  test('a link the user copied is text and is sent', () {
+    expect(isNonTextClipboard('https://example.org/a?b=1'), isFalse);
+    expect(isNonTextClipboard('file:///home/e/notes.txt'), isFalse);
+    // A sentence that merely mentions one.
+    expect(isNonTextClipboard('content://media/91 and a word'), isFalse);
+    expect(isNonTextClipboard('content://media/91\nsecond line'), isFalse);
+    expect(isNonTextClipboard('обычный текст'), isFalse);
+  });
 }

@@ -826,6 +826,12 @@ class _HomeScreenState extends State<HomeScreen>
       okInfoBarOrange(lw('There is no text in the clipboard'));
       return;
     }
+    // Said apart from the empty case, because it is a different thing to fix:
+    // there is something in the clipboard, it is simply not text.
+    if (isNonTextClipboard(text)) {
+      okInfoBarOrange(lw('The clipboard is not text'));
+      return;
+    }
     // The same text twice is the button pressed twice, not two clipboards.
     if (await clipboardAlreadyPicked(text, _selected)) {
       if (mounted) okInfoBarOrange('${lw('Duplicates skipped')}: 1');
