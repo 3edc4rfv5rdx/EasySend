@@ -173,6 +173,64 @@ void main() {
     expect(xvTransfers.single.status, TransferStatus.done);
   });
 
+  // The answer covers the names the question counted. A file that appears at a
+  // destination which was free when the plan was built was never part of that
+  // question, so Replace must not write over it: it claims its name like any
+  // other file and steps aside when somebody else already holds it.
+  test('replace only writes over the names that were asked about', () async {
+    final File old = await alreadyHere('asked.txt');
+    answerWith(ConflictMode.replace);
+
+    final Reply prepared = await post(
+      'prepare',
+      body: {
+        'senderId': 'sender',
+        'senderName': 'Sender',
+        'files': [
+          {'id': 'file-1', 'path': 'asked.txt', 'size': payload.length},
+          {'id': 'file-2', 'path': 'free.txt', 'size': payload.length},
+        ],
+      },
+    );
+    expect(prepared.status, 200);
+    final String session = prepared.body['sessionId'] as String;
+
+    // Somebody else takes the second destination while the transfer runs.
+    final File latecomer = File(p.join(xvRecvDir, 'free.txt'));
+    await latecomer.writeAsString('written after prepare');
+
+    for (final String id in ['file-1', 'file-2']) {
+      final HttpClientRequest upload = await client.postUrl(
+        url('upload', {'session': session, 'file': id}),
+      );
+      upload.contentLength = payload.length;
+      upload.add(payload);
+      await (await upload.close()).drain<void>();
+      expect(
+        (await post(
+          'verify',
+          query: {
+            'session': session,
+            'file': id,
+            'crc': getCrc32(payload).toRadixString(16),
+          },
+        )).status,
+        200,
+      );
+    }
+    expect((await post('finish', query: {'session': session})).status, 200);
+
+    // The name that was counted is written over, as the answer asked.
+    expect(await old.readAsString(), 'the new one');
+    // The one nobody was asked about is untouched, and the arriving file is
+    // beside it rather than instead of it.
+    expect(await latecomer.readAsString(), 'written after prepare');
+    expect(
+      await File(p.join(xvRecvDir, 'free (1).txt')).readAsString(),
+      'the new one',
+    );
+  });
+
   test('keeping what is here writes nothing and says so', () async {
     final File old = await alreadyHere('note.txt');
     answerWith(ConflictMode.keep);

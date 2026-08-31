@@ -137,9 +137,15 @@ class _Incoming {
   final Map<String, int> progressOffsets; // fileId -> prior manifest bytes
   final Map<String, int> crc = {}; // fileId -> checksum computed here
   // What was answered about names that were already taken, and which files that
-  // answer applies to. Empty unless the answer was to keep what is here.
-  final ConflictMode mode;
+  // answer applies to. Both are sets of fileIds rather than one mode, because
+  // the answer is about the names the plan found occupied and about nothing
+  // else: the rest of the manifest is written the way it always is, whichever
+  // of the three was picked.
   final Set<String> kept; // fileIds that are read and checked but not written
+  // fileIds that may be written straight over what is there. Only these: a name
+  // that was free when the question was asked is a name nobody was asked about,
+  // and a file that appears at one while the transfer runs must keep it.
+  final Set<String> replaced;
   bool cancelled = false; // set when the user stops the receive
   _ReceivePhase phase = _ReceivePhase.ready;
   String? activeFileId;
@@ -156,8 +162,8 @@ class _Incoming {
     required this.finalPaths,
     required this.incompletePaths,
     required this.progressOffsets,
-    this.mode = ConflictMode.copies,
     this.kept = const <String>{},
+    this.replaced = const <String>{},
   });
 }
 
@@ -561,10 +567,12 @@ class ReceiveServer {
       transfersChanged();
 
       _current = _Incoming(
-        mode: mode,
-        // Only the names that were taken are kept: the rest of the manifest is
-        // written like any other transfer.
+        // Only the names that were taken carry the answer: the rest of the
+        // manifest is written like any other transfer.
         kept: mode == ConflictMode.keep ? plan.occupied : const <String>{},
+        replaced: mode == ConflictMode.replace
+            ? plan.occupied
+            : const <String>{},
         sessionId: transfer.id,
         recvDir: recvDir,
         resolvedRoot: root,
@@ -1058,8 +1066,12 @@ class ReceiveServer {
               ),
               reserved: reserved,
               // Told to write over what is there: the planned name is the name
-              // of the file being replaced, not the next free one.
-              replace: session.mode == ConflictMode.replace,
+              // of the file being replaced, not the next free one. Asked per
+              // file, because the answer covers the names the question counted
+              // and no others — a destination that was free at prepare claims
+              // its name like any other, so a file created there in the
+              // meantime keeps it.
+              replace: session.replaced.contains(fileId),
             )
           : null;
       if (published == null) {
