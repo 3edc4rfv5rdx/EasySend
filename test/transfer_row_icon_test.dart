@@ -39,4 +39,22 @@ void main() {
   test('a transfer with no files is not a clipboard', () {
     expect(transferRowIcon(incoming: true, files: const []), Icons.download);
   });
+
+  // The ZIP button latches and outlives its batch: a clipboard sent after a
+  // folder must not leave as an archive nothing pastes back.
+  test('a clipboard alone never goes as an archive', () {
+    final List<FileItem> clip = [file('clipboard/x.20260831-143007.txt')];
+    expect(sendsAsZip(zipWanted: true, batch: clip), isFalse);
+    expect(sendsAsZip(zipWanted: false, batch: clip), isFalse);
+  });
+
+  test('a batch that merely carries one is archived like any other', () {
+    final List<FileItem> mixed = [
+      file('clipboard/x.20260831-143007.txt'),
+      file('photo.jpg'),
+    ];
+    expect(sendsAsZip(zipWanted: true, batch: mixed), isTrue);
+    expect(sendsAsZip(zipWanted: true, batch: [file('photo.jpg')]), isTrue);
+    expect(sendsAsZip(zipWanted: false, batch: mixed), isFalse);
+  });
 }

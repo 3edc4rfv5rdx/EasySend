@@ -61,7 +61,9 @@ no internet: the two devices talk to each other and nothing else.
   file, and the same pair deeper inside a sent folder belongs to that folder. The transfer
   log and the notification say when the clipboard was filled; Android may refuse it to an
   app that is not in front, and then the text is still there as a file. The saved file is
-  kept — the app never sweeps that folder.
+  kept — the app never sweeps that folder. A clipboard sent on its own ignores the latching
+  ZIP button — an archive is not something the far end can paste — and the button shows
+  pale over such a selection; among other files it is archived like anything else.
 - **Move instead of copy** — the *delete originals* tick beside Send removes each source
   once that file has been received and verified at the far end. The file is the unit: what
   did not get there stays where it is, a cancelled transfer deletes nothing, and the tick

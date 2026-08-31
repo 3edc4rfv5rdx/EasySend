@@ -739,6 +739,13 @@ bool isClipboardFile(String relativePath) {
       _clipboardName.hasMatch(relativePath.substring(slash + 1));
 }
 
+// A batch that is nothing but clipboard files. A transfer of one is a clipboard
+// and is treated as one; a batch that merely carries one among other files is a
+// batch of files, and nothing about it changes.
+bool isClipboardOnly(Iterable<FileItem> files) =>
+    files.isNotEmpty &&
+    files.every((FileItem file) => isClipboardFile(file.relativePath));
+
 // The clipboard file of a finished receive, if one arrived. The last one wins:
 // a batch with two of them ends with the newer text in the clipboard, which is
 // the same answer as copying them one after the other.

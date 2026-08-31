@@ -259,14 +259,20 @@ IconData transferRowIcon({
   required bool incoming,
   required Iterable<FileItem> files,
 }) {
-  final bool clipboard =
-      files.isNotEmpty &&
-      files.every((FileItem f) => isClipboardFile(f.relativePath));
-  if (clipboard) {
+  if (isClipboardOnly(files)) {
     return incoming ? Icons.content_paste : Icons.content_paste_go;
   }
   return incoming ? Icons.download : Icons.upload;
 }
+
+// Whether this batch actually goes as an archive. The ZIP button latches and
+// outlives the batch it was pressed for, so a clipboard sent after a folder
+// would quietly leave as clipboard.zip — a name borrowed from the app's own
+// folder — and arrive as an archive nothing pastes back. A batch that is only
+// the clipboard therefore ignores the button; the button itself is left alone,
+// because it is the answer for the next batch and not for this one.
+bool sendsAsZip({required bool zipWanted, required Iterable<FileItem> batch}) =>
+    zipWanted && !isClipboardOnly(batch);
 
 // A receiver destination may only occur once. Case folding also prevents a
 // selection that would collapse when the peer runs Windows.
@@ -1164,7 +1170,7 @@ class _HomeScreenState extends State<HomeScreen>
       files: batch,
       move: _move,
       moveFolders: _move && _moveFolders,
-      asZip: _zip,
+      asZip: sendsAsZip(zipWanted: _zip, batch: batch),
     );
     if (!mounted) return;
     // Whatever came of it, the ticks do not carry into the next transfer.
@@ -1424,20 +1430,28 @@ class _HomeScreenState extends State<HomeScreen>
   // is filled with the accent, because a mode that changes what leaves the
   // device has to be readable at a glance and an outline is not.
   Widget _zipButton() {
+    // Pressed but not acting on this selection: a clipboard alone never goes as
+    // an archive. Shown faded rather than switched off — the button is still
+    // the answer for the next batch, and moving it would change that answer.
+    final bool idle = _zip && !sendsAsZip(zipWanted: _zip, batch: _selected);
+    // Still filled, so the latch does not read as released — just pale enough
+    // to say it is not what this selection is going to do.
+    final Color face = !_zip
+        ? clButton
+        : idle
+        ? clAccent.withValues(alpha: 0.3)
+        : clAccent;
+    final Color letters = _zip && !idle ? onColor(clAccent) : clText;
     return TextButton(
       onPressed: () => setState(() => _zip = !_zip),
       style: _headerButtonStyle.copyWith(
-        backgroundColor: WidgetStatePropertyAll<Color>(
-          _zip ? clAccent : clButton,
-        ),
-        foregroundColor: WidgetStatePropertyAll<Color>(
-          _zip ? onColor(clAccent) : clText,
-        ),
+        backgroundColor: WidgetStatePropertyAll<Color>(face),
+        foregroundColor: WidgetStatePropertyAll<Color>(letters),
       ),
       child: Text(
         // Not through lw(): the word is ZIP in every language the app speaks.
         'ZIP',
-        style: tsSmall.copyWith(color: _zip ? onColor(clAccent) : clText),
+        style: tsSmall.copyWith(color: letters),
       ),
     );
   }
