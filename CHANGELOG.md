@@ -4,6 +4,7 @@
 > F is the same thing done better; E is behaviour that was wrong, whatever the size of the fix.
 
 ## Unreleased
+- I: IDEAS.txt records the decision against age-based cleanup: the receive folder is the user's own and configurable, and the clipboard folder is kept on purpose.
 - E: A picture in the clipboard is said out loud instead of being sent: Android answers a text/plain request with the picture's own content:// URI, and that string used to be saved and sent as though it were the text the user copied.
 - E: Pressing Clipboard twice over the same text adds it once: the second press used to write an identical file, send it twice and leave it in the folder for good. Different text still goes in as a second clipboard.
 - E: Two clipboard copies in the same second no longer land on one file: the second was silently dropped as a duplicate while its text replaced what the selection was still pointing at, which sent the wrong text or failed the transfer on "A file changed on disk".
