@@ -220,4 +220,88 @@ void main() {
 
     expect(seen, [0]);
   });
+
+  // A file the receiver will throw away need not travel at all: prepare names
+  // it, and a sender that understands the field never sends it.
+  test('keeping asks the sender not to send those files', () async {
+    await alreadyHere('note.txt');
+    answerWith(ConflictMode.keep);
+
+    final Reply prepared = await post(
+      'prepare',
+      body: {
+        'senderId': 'sender',
+        'senderName': 'Sender',
+        'files': [
+          {'id': 'file-1', 'path': 'note.txt', 'size': 3},
+          {'id': 'file-2', 'path': 'fresh.txt', 'size': 3},
+        ],
+      },
+    );
+
+    expect(prepared.status, 200);
+    expect(prepared.body['skip'], ['file-1']);
+  });
+
+  test('the other answers ask for everything', () async {
+    await alreadyHere('note.txt');
+    for (final ConflictMode mode in [
+      ConflictMode.copies,
+      ConflictMode.replace,
+    ]) {
+      answerWith(mode);
+      final Reply prepared = await post(
+        'prepare',
+        body: {
+          'senderId': 'sender',
+          'senderName': 'Sender',
+          'files': [
+            {'id': 'file-1', 'path': 'note.txt', 'size': 3},
+          ],
+        },
+      );
+      expect(prepared.body['skip'], isNull);
+      expect(
+        (await post(
+          'cancel',
+          query: {'session': prepared.body['sessionId'] as String},
+        )).status,
+        200,
+      );
+    }
+  });
+
+  test('a file nobody sent because we asked is not a failure', () async {
+    final File old = await alreadyHere('note.txt');
+    answerWith(ConflictMode.keep);
+
+    final Reply prepared = await post(
+      'prepare',
+      body: {
+        'senderId': 'sender',
+        'senderName': 'Sender',
+        'files': [
+          {'id': 'file-1', 'path': 'note.txt', 'size': 3},
+        ],
+      },
+    );
+    expect(prepared.status, 200);
+    // Straight to finish: this is what a sender that honoured the skip list
+    // does, having had nothing to upload.
+    final Reply finished = await post(
+      'finish',
+      query: {'session': prepared.body['sessionId'] as String},
+    );
+
+    expect(finished.status, 200);
+    expect(xvTransfers.single.status, TransferStatus.done);
+    expect(xvTransfers.single.failedCount, 0);
+    expect(await old.readAsString(), 'the old one');
+    expect(
+      xvTransfers.single.events.any(
+        (TransferEvent e) => e.message == 'Already here, not saved',
+      ),
+      isTrue,
+    );
+  });
 }

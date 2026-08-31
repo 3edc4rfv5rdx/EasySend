@@ -578,7 +578,16 @@ class ReceiveServer {
         progressOffsets: _manifestProgressOffsets(files),
       );
       _touch(_current!);
-      return _json(req, {'sessionId': transfer.id});
+      // What the sender need not send at all. A file whose name is here and
+      // whose owner said to keep what is here would be read and thrown away;
+      // naming it in the answer saves the whole transfer of it. A sender that
+      // does not know the field sends it anyway and it is discarded, which is
+      // the same outcome for a little more wire.
+      final Set<String> kept = _current!.kept;
+      return _json(req, {
+        'sessionId': transfer.id,
+        if (kept.isNotEmpty) 'skip': kept.toList(),
+      });
     } on _ProtocolProblem catch (e) {
       return _json(req, {'reason': e.reason}, status: e.status);
     } on FormatException {
@@ -1110,6 +1119,14 @@ class ReceiveServer {
     try {
       for (final FileItem f in transfer.files) {
         if (f.done) continue;
+        // Never sent because this end asked for it not to be: the name is here
+        // already and the answer was to keep what is here. Nothing is missing.
+        if (session.kept.contains(f.id)) {
+          f.done = true;
+          f.failed = false;
+          transfer.log('Already here, not saved', file: f.relativePath);
+          continue;
+        }
         f.failed = true;
         // The sender gave up on this one and moved past it; from here it simply
         // never arrived, and the log has to say so for every such file.

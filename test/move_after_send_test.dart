@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:easysend/globals.dart';
@@ -16,6 +17,10 @@ void main() {
   // down" — the answer it gives when it was told to keep the file it already
   // had under that name.
   late Set<String> keptThere;
+  // File ids the fake receiver names in its prepare answer as ones it does not
+  // want at all, and every id it was actually asked to take.
+  late Set<String> skipThere;
+  late List<String> uploaded;
   Completer<void>? holdUpload;
   String? holdUploadFor;
   Completer<void>? uploadHeld;
@@ -31,6 +36,8 @@ void main() {
     xdef['Program language'] = 'en';
     refuse = <String>{};
     keptThere = <String>{};
+    skipThere = <String>{};
+    uploaded = <String>[];
     holdUpload = null;
     holdUploadFor = null;
     uploadHeld = null;
@@ -45,8 +52,12 @@ void main() {
       final String file = request.uri.queryParameters['file'] ?? '';
       if (path.endsWith('/prepare')) {
         request.response.headers.contentType = ContentType.json;
-        request.response.write('{"sessionId":"session"}');
+        final String skip = skipThere.isEmpty
+            ? ''
+            : ',"skip":${json.encode(skipThere.toList())}';
+        request.response.write('{"sessionId":"session"$skip}');
       } else if (path.endsWith('/upload')) {
+        uploaded.add(file);
         final Completer<void>? hold = holdUpload;
         if (hold != null && (holdUploadFor == null || holdUploadFor == file)) {
           final Completer<void>? held = uploadHeld;
@@ -297,6 +308,38 @@ void main() {
         .toList();
     expect(
       lines.where((String l) => l.contains('kept.txt')),
+      contains(contains('Kept at the other end')),
+    );
+  });
+
+  // The receiver said up front that it already holds this name and keeps what
+  // it has. There is nothing to send and nothing over there to delete for.
+  test('a file the receiver asks for is the only one sent', () async {
+    final FileItem skipped = await pick('skipped.txt');
+    final FileItem wanted = await pick('wanted.txt');
+    skipThere.add('skipped.txt');
+
+    expect(
+      await SendService().send(
+        peer: peer,
+        files: [skipped, wanted],
+        move: true,
+      ),
+      TransferStatus.done,
+    );
+
+    expect(uploaded, ['wanted.txt']);
+    expect(skipped.done, isTrue);
+    expect(skipped.stored, isFalse);
+    expect(await File(skipped.sourcePath!).exists(), isTrue);
+    expect(await File(wanted.sourcePath!).exists(), isFalse);
+    // The bar reaches the end: a file nobody wants is not a file missing.
+    expect(xvTransfers.single.bytesDone, xvTransfers.single.bytesTotal);
+    final List<String> lines = xvTransfers.single.events
+        .map(formatTransferEvent)
+        .toList();
+    expect(
+      lines.where((String l) => l.contains('skipped.txt')),
       contains(contains('Kept at the other end')),
     );
   });

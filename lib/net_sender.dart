@@ -178,8 +178,12 @@ class SendService {
       }
       if (_cancelled) return transfer.status;
 
-      final String? sessionId = await _prepare(peer, transfer.files);
-      if (sessionId == null) return transfer.status;
+      final ({String id, Set<String> skip})? prepared = await _prepare(
+        peer,
+        transfer.files,
+      );
+      if (prepared == null) return transfer.status;
+      final String sessionId = prepared.id;
       await _trustAfterConsent(peer);
       if (_cancelled) return transfer.status;
       _sessionId = sessionId;
@@ -190,7 +194,12 @@ class SendService {
       // The archive is the app's own file and is deleted by the app whatever
       // happens; only the picked files it was made of are fingerprinted, and
       // that was done while they were read into it.
-      await _sendOneByOne(peer, transfer, fingerprintSources: move && !asZip);
+      await _sendOneByOne(
+        peer,
+        transfer,
+        fingerprintSources: move && !asZip,
+        skip: prepared.skip,
+      );
       if (_cancelled) return transfer.status;
 
       final bool finished = await _finishRemote(peer, transfer, sessionId);
@@ -226,7 +235,9 @@ class SendService {
         // fingerprints say which files it holds — one that could not be read
         // was left out of both.
         final List<FileItem> delivered = asZip
-            ? (transfer.files.every((FileItem item) => item.done)
+            ? (transfer.files.every(
+                    (FileItem item) => item.done && item.stored,
+                  )
                   ? files
                         .where((FileItem item) => _sentSources.containsKey(item.id))
                         .toList()
@@ -528,7 +539,12 @@ class SendService {
   }
 
   // Ask permission first: nothing is streamed until the peer said yes.
-  Future<String?> _prepare(Device peer, List<FileItem> files) async {
+  // The session, and the files the receiver says not to send: it already holds
+  // those names and was told to keep what it has. Null is a prepare that failed.
+  Future<({String id, Set<String> skip})?> _prepare(
+    Device peer,
+    List<FileItem> files,
+  ) async {
     final HttpClientRequest req = await _client!
         .postUrl(_url(peer, 'prepare'))
         .timeout(connectTimeout);
@@ -568,7 +584,13 @@ class SendService {
         _fail(transfer, lw('No session in the answer'));
         return null;
       }
-      return id;
+      // Anything but a list of strings is a receiver that has nothing to say
+      // here — an older one, or one with no name of ours already taken.
+      final dynamic skip = decoded is Map ? decoded['skip'] : null;
+      return (
+        id: id,
+        skip: skip is List ? skip.whereType<String>().toSet() : <String>{},
+      );
     }
     final bool declined = resp.statusCode == HttpStatus.forbidden;
     final bool busy = resp.statusCode == HttpStatus.conflict;
@@ -591,12 +613,28 @@ class SendService {
     Device peer,
     TransferSession transfer, {
     required bool fingerprintSources,
+    Set<String> skip = const <String>{},
   }) async {
     int settled = 0;
     for (int i = 0; i < transfer.files.length; i++) {
       if (_cancelled) return;
       final FileItem item = transfer.files[i];
       transfer.currentIndex = i;
+
+      // The receiver has this name and keeps what it has: nothing to send, and
+      // nothing over there to delete an original for. Counted as done, because
+      // the transfer has nothing left to do about this file — the bar would
+      // otherwise stop short of the end for a file that is not missing.
+      if (skip.contains(item.id)) {
+        item.done = true;
+        item.failed = false;
+        item.stored = false;
+        transfer.log('Kept at the other end', file: item.relativePath);
+        settled += item.size;
+        transfer.noteProgress(settled);
+        transfersChanged();
+        continue;
+      }
 
       _FileResult result = _FileResult.retry;
       // A failed checksum is almost always a fluke, so retry quietly before

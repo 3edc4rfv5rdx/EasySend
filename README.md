@@ -31,7 +31,9 @@ no internet: the two devices talk to each other and nothing else.
   trusted sender is asked too — without the trust question, because trust says who may
   send, not whose files may be written over. Replacing renames over the old file in one
   step and only after the checksum matches; keeping writes nothing and tells the sender so,
-  which is what stops a move from deleting an original whose only copy is here.
+  which is what stops a move from deleting an original whose only copy is here. It also
+  answers the sender's prepare with the list of files it does not want, so they never
+  travel at all.
 - **Ask once, then trust** — an unknown sender has to be confirmed on the receiving
   device. "Always trust" binds that answer to the sender's id, and trusted devices are
   listed in the settings, revocable one by one. A device that let your files in is
