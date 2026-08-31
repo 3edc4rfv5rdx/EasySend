@@ -242,7 +242,7 @@ log must not carry "Copied to the clipboard", and the existing file must be
 unchanged. Then the same case in `copies` mode, where the arriving text *is*
 pasted, so the fix cannot be a blanket refusal.
 
-## 3. P2 — "Replace" or "Keep" over a name a folder holds refuses the whole transfer with HTTP 400
+## 3. P2 [FIXED 34e80d8] — "Replace" or "Keep" over a name a folder holds refuses the whole transfer with HTTP 400
 
 **Verdict: real, probed** against the live server (output below).
 
