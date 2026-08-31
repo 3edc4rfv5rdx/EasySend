@@ -317,7 +317,7 @@ the file must arrive under a free name with the directory untouched. A second
 case with a symlink at the destination, which must still never be written
 through.
 
-## 4. P2 — A ZIP batch the receiver kept its own copy of still empties the picked list
+## 4. P2 [FIXED 9b9e825] — A ZIP batch the receiver kept its own copy of still empties the picked list
 
 **Verdict: real**, read off the source; not probed — it needs a peer that
 answers `stored: false` to a ZIP send, which is a test to write rather than a
