@@ -609,9 +609,20 @@ class ScreenWake {
   bool _transfer = false;
   bool _openApp = false;
   bool _held = false;
+  // One at a time, and what is wanted is read when the work runs rather than
+  // when it was asked for. Two owners can change their minds in the same turn,
+  // and the second call would otherwise read a `_held` the first had not
+  // reached yet, take the early way out below, and leave the lock in the state
+  // nobody asked for.
+  final SerialQueue _queue = SerialQueue('screen wake');
 
   // What the lock is actually doing, for a test to read.
   bool get held => _held;
+
+  // The platform call itself. Replaced in tests, which have no plugin to talk
+  // to and still have to see a refusal that is not merely its absence.
+  @visibleForTesting
+  Future<void> Function({required bool enable}) toggle = WakelockPlus.toggle;
 
   Future<void> forTransfer(bool on) {
     _transfer = on;
@@ -623,15 +634,30 @@ class ScreenWake {
     return _apply();
   }
 
-  Future<void> _apply() async {
+  Future<void> _apply() => _queue.add(_applyNow);
+
+  Future<void> _applyNow() async {
     final bool wanted = _transfer || _openApp;
     if (wanted == _held) return;
-    _held = wanted;
     try {
-      await WakelockPlus.toggle(enable: wanted);
-    } catch (e) {
-      myPrint('wakelock failed: $e');
+      await toggle(enable: wanted);
+    } on PlatformException catch (e) {
+      // The lock did not move. What is remembered has to be what happened, or
+      // every later call for the same state takes the early way out above and
+      // nothing ever tries again: a release that failed would leave the screen
+      // awake for the rest of the run with both owners believing they had let
+      // go, and an acquire that failed would leave a transfer running under the
+      // lock-screen timeout (SPEC 7). Anything else thrown here is caught and
+      // logged by the queue, and leaves the state alone for the same reason.
+      //
+      // A platform with no wakelock at all arrives here too — the absent plugin
+      // answers with a channel-error — and that is the right answer for it: it
+      // is not holding anything either. Nothing off Android ever asks: the two
+      // callers are both behind a platform check.
+      myPrint('wakelock refused: ${e.message}');
+      return;
     }
+    _held = wanted;
   }
 }
 
