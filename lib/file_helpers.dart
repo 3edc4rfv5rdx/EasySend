@@ -805,9 +805,12 @@ Future<bool> copyArrivedClipboard(FileItem file) async {
   if (path == null) return false;
   try {
     final File arrived = File(path);
+    final int length = await arrived.length();
     // A file that is only named like a clipboard copy: it stays on disk as the
-    // plain file it is, and nothing is read into memory for it.
-    if (await arrived.length() > maxClipboardBytes) return false;
+    // plain file it is, and nothing is read into memory for it. An empty one is
+    // refused for the opposite reason — pasting it would wipe whatever the user
+    // has in the clipboard and put nothing in its place.
+    if (length == 0 || length > maxClipboardBytes) return false;
     final String text = utf8.decode(
       await arrived.readAsBytes(),
       allowMalformed: true,
