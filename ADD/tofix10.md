@@ -437,7 +437,7 @@ over a batch containing it, and assert that it is marked delivered and leaves th
 list. A pack that skips a file in the current attempt must still leave that one
 behind.
 
-## 6. P3 — The screen lock records the state it wanted before the call that may refuse it
+## 6. P3 [FIXED 4d99c25] — The screen lock records the state it wanted before the call that may refuse it
 
 **Verdict: real**, read off the source; not probed — the failing platform call
 cannot be produced from this desktop, and the claim is about the assignment

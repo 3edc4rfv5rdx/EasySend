@@ -4,6 +4,7 @@
 > F is the same thing done better; E is behaviour that was wrong, whatever the size of the fix.
 
 ## Unreleased
+- E: A screen lock the system refused is tried again next time instead of being remembered as taken, so a failed release no longer keeps the screen on for the rest of the run.
 - E: A file that failed an earlier send leaves the selected list when it travels inside an archive, instead of staying there and going a second time.
 - E: A ZIP send whose archive the far end already had and kept leaves the whole batch in the selected list instead of clearing it.
 - E: A folder wearing the name of an arriving file no longer refuses the whole transfer: it is not counted among the names asked about, and the file lands beside it.
