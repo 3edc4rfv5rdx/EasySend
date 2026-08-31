@@ -866,6 +866,36 @@ Future<bool> clipboardAlreadyPicked(
   return false;
 }
 
+// Texts a press is in the middle of saving. The duplicate check above reads the
+// selection, and until a press has got as far as adding its item there is
+// nothing in there to recognise: a second press meanwhile would write an
+// identical file, send it twice and leave it in the folder for good, which is
+// the very thing that check exists to prevent. The button shows nothing while
+// it works, so a second press is the natural thing to do.
+final Set<String> _clipboardBeingPicked = <String>{};
+
+// Whether this press may go on and save the text. False means the same text is
+// already in the selection or already on its way there, which is one clipboard
+// either way and gets the one answer: duplicates skipped.
+//
+// The claim is what makes this right; taking it before the first await is only
+// thrift, saving the second press a disk read it would answer the same way.
+Future<bool> claimClipboardText(
+  String text,
+  Iterable<FileItem> selected,
+) async {
+  if (!_clipboardBeingPicked.add(text)) return false;
+  if (await clipboardAlreadyPicked(text, selected)) {
+    _clipboardBeingPicked.remove(text);
+    return false;
+  }
+  return true;
+}
+
+// Let the text go once it is in the selection — or once the press has failed,
+// so that a save nobody could write is not locked out for the rest of the run.
+void releaseClipboardText(String text) => _clipboardBeingPicked.remove(text);
+
 // Text on its way out: the clipboard as a file the send can pick up. Returns
 // the path, or null when there is nowhere to write it.
 //

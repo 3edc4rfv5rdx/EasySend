@@ -832,27 +832,37 @@ class _HomeScreenState extends State<HomeScreen>
       okInfoBarOrange(lw('The clipboard is not text'));
       return;
     }
-    // The same text twice is the button pressed twice, not two clipboards.
-    if (await clipboardAlreadyPicked(text, _selected)) {
+    // The same text twice is the button pressed twice, not two clipboards —
+    // and that holds for a second press while the first is still working, which
+    // is what the claim is for: nothing is on screen until the row appears, so
+    // pressing again is the natural thing to do.
+    if (!await claimClipboardText(text, _selected)) {
       if (mounted) okInfoBarOrange('${lw('Duplicates skipped')}: 1');
       return;
     }
-    final String? path = await writeClipboardFile(text, DateTime.now());
-    if (path == null) {
-      if (mounted) okInfoBarRed(lw('The clipboard could not be saved'));
-      return;
+    try {
+      final String? path = await writeClipboardFile(text, DateTime.now());
+      if (path == null) {
+        if (mounted) okInfoBarRed(lw('The clipboard could not be saved'));
+        return;
+      }
+      // Not through _addPaths: a picked file travels under its own name, and
+      // this one has to travel under its folder as well — that folder is what
+      // tells the receiver it is a clipboard and not a text file somebody sent.
+      final CollectedFiles collected = await collectFiles([path]);
+      if (!mounted) return;
+      if (collected.items.isEmpty) {
+        okInfoBarRed(lw('The clipboard could not be saved'));
+        return;
+      }
+      final FileItem saved = collected.items.first;
+      await _admit([saved.renamed(clipboardSendPath(saved.name))]);
+    } finally {
+      // After the item is in the selection, where the ordinary duplicate check
+      // can see it, and after a failure too, so a press that could not be saved
+      // is not locked out for the rest of the run.
+      releaseClipboardText(text);
     }
-    // Not through _addPaths: a picked file travels under its own name, and this
-    // one has to travel under its folder as well — that folder is what tells
-    // the receiver it is a clipboard and not a text file somebody sent.
-    final CollectedFiles collected = await collectFiles([path]);
-    if (!mounted) return;
-    if (collected.items.isEmpty) {
-      okInfoBarRed(lw('The clipboard could not be saved'));
-      return;
-    }
-    final FileItem saved = collected.items.first;
-    await _admit([saved.renamed(clipboardSendPath(saved.name))]);
   }
 
   Future<void> _addPaths(List<String> paths) async {

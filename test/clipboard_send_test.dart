@@ -232,6 +232,38 @@ void main() {
       expect(await clipboardAlreadyPicked('ссылка', [first]), isTrue);
     });
 
+    // The button shows nothing until the row appears, so a second press before
+    // the first has finished is the natural thing to do — and the selection it
+    // would be checked against is still empty at that moment.
+    test('a press that overtakes the first is the same clipboard', () async {
+      final List<FileItem> selection = [];
+      final List<bool> allowed = await Future.wait([
+        claimClipboardText('ссылка', selection),
+        claimClipboardText('ссылка', selection),
+      ]);
+
+      expect(allowed, [true, false]);
+
+      // Different text pressed in the same turn is a clipboard of its own.
+      expect(await claimClipboardText('другая', selection), isTrue);
+
+      // And letting go puts the text back within reach: a press that could not
+      // be saved must not lock it out for the rest of the run.
+      releaseClipboardText('ссылка');
+      expect(await claimClipboardText('ссылка', selection), isTrue);
+      releaseClipboardText('ссылка');
+      releaseClipboardText('другая');
+    });
+
+    // The claim is only worth anything if the button actually takes it, and
+    // gives it back however the press ended.
+    test('the Clipboard button claims the text and lets it go', () async {
+      final String home = await File('lib/home_screen.dart').readAsString();
+      expect(home, contains('if (!await claimClipboardText(text, _selected))'));
+      expect(home, contains('releaseClipboardText(text);'));
+      expect(home, contains('} finally {'));
+    });
+
     test('other text is a clipboard of its own', () async {
       final FileItem first = await picked('ссылка');
       expect(await clipboardAlreadyPicked('другая ссылка', [first]), isFalse);
