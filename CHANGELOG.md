@@ -4,6 +4,7 @@
 > F is the same thing done better; E is behaviour that was wrong, whatever the size of the fix.
 
 ## Unreleased
+- F: The launcher icon is drawn in pure white on #013895, the same blue the other apps use, instead of cream on #0138A3.
 
 ## v0.6.260831+134
 - E: A second Clipboard press before the first has finished says duplicates skipped instead of adding the same text a second time.

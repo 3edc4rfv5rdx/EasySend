@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Draw the EasySend app icon and write the masters into assets/.
 
-Two phones with a blue triangle between them, on cream. Everything is geometry
+Two phones with a blue triangle between them, in white. Everything is geometry
 drawn at 4x and downsampled, so no edge carries the artefacts a recoloured
 bitmap would. Run it after changing anything here:
 
@@ -19,8 +19,8 @@ from PIL import Image, ImageDraw
 SS = 4  # supersampling factor
 SIZE = 1024
 
-CREAM = (255, 247, 223)  # #FFF7DF, the mark
-BLUE = (1, 56, 163)  # #0138A3, the ground; adaptive_icon_background in pubspec
+WHITE = (255, 255, 255)  # #FFFFFF, the mark
+BLUE = (1, 56, 149)  # #013895, the ground; adaptive_icon_background in pubspec
 
 # The mark: an outlined device and a page walking out through its right wall.
 # One picture, no arrow — an arrow out of a frame is the sign every system uses
@@ -77,7 +77,7 @@ def document(d, x, y, w, h, fill, flap):
     d.polygon([(cx + (px - cx) * k, cy + (py - cy) * k) for px, py in corners], fill=flap)
 
 
-def drawing(background, scale=1.0, ink=CREAM, center=False):
+def drawing(background, scale=1.0, ink=WHITE, center=False):
     """The launcher mark: a device in outline and a page stepping out through a
     gap in its right wall. The page sits in the middle of the icon and the
     device to the left of it — the page is the subject, the device is where it

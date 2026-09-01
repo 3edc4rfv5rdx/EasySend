@@ -4,7 +4,7 @@ publish_to: 'none'
 
 # The build number lives in two places that must stay in sync: `version:` here
 # and progVersion / buildNumber in lib/globals.dart.
-version: 0.6.260831+134
+version: 0.6.260901+136
 
 environment:
   sdk: ^3.11.5
@@ -66,6 +66,6 @@ flutter_launcher_icons:
   # round mask, so no inset is added on top of it. The background below is the
   # same blue the square is painted with.
   image_path: "assets/icon_small.png"
-  adaptive_icon_background: "#0138A3"
+  adaptive_icon_background: "#013895"
   adaptive_icon_foreground: "assets/icon_fg.png"
   adaptive_icon_foreground_inset: 0
