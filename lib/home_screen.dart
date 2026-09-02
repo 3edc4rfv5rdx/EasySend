@@ -1255,6 +1255,11 @@ class _HomeScreenState extends State<HomeScreen>
         ),
         actions: [
           IconButton(
+            icon: const Icon(Icons.language),
+            tooltip: lw('Share by link'),
+            onPressed: () => showWebShareDialog(_selected, zipWanted: _zip),
+          ),
+          IconButton(
             icon: const Icon(Icons.settings),
             tooltip: lw('Settings'),
             onPressed: () async {

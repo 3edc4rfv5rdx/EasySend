@@ -146,6 +146,11 @@ class EasySendApplication : Application() {
             // deliverPickedFiles instead of as this call's result.
             "pickFiles" -> result.success(activity?.pickFiles() ?: false)
 
+            // The installed package itself, so a phone that has no EasySend can
+            // be handed one over HTTP. Readable by its own app, whatever the
+            // storage permissions are.
+            "apkPath" -> result.success(applicationInfo.sourceDir)
+
             "openFile" -> result.success(
                 activity?.openFile(call.argument<String>("path")) ?: false,
             )

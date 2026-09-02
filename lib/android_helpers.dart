@@ -131,6 +131,25 @@ Future<bool> finishActivityAndTask({bool? android}) async {
   }
 }
 
+/// Where this very build sits on disk, so it can be handed to a device that
+/// does not have it yet.
+///
+/// Android keeps the installed package readable by the app it belongs to, so
+/// nothing is copied anywhere and what goes out is always exactly what is
+/// running here. Null off Android, where there is no APK to give.
+Future<String?> installedApkPath({bool? android}) async {
+  if (!(android ?? Platform.isAndroid)) return null;
+  try {
+    return await _serviceChannel.invokeMethod<String>('apkPath');
+  } on PlatformException catch (e) {
+    myPrint('the package path is unavailable: ${e.message}');
+    return null;
+  } on MissingPluginException catch (e) {
+    myPrint('the package path call did not arrive: ${e.message}');
+    return null;
+  }
+}
+
 void _completePick(List<String> paths) {
   final Completer<List<String>>? completer = _pickCompleter;
   _pickCompleter = null;
@@ -599,15 +618,18 @@ class AndroidService {
 
 final AndroidService androidService = AndroidService();
 
-// Two things want the screen awake and there is one lock for both: a running
-// transfer, whose lock-screen timeout must not fire in the middle of it, and
-// the app being open with "Keep the screen on" set. Held while either wants it
-// and released when neither does — two owners toggling the lock directly would
-// take turns undoing each other, and the transfer would lose it the moment the
-// app was closed.
+// Three things want the screen awake and there is one lock for all of them: a
+// running transfer, whose lock-screen timeout must not fire in the middle of
+// it; the app being open with "Keep the screen on" set; and the share dialog,
+// which serves a browser for as long as it stands open — and, with background
+// receiving off, would lose its listener the moment the screen took the app
+// away. Held while any of them wants it and released when none does — owners
+// toggling the lock directly would take turns undoing each other, and the
+// transfer would lose it the moment the app was closed.
 class ScreenWake {
   bool _transfer = false;
   bool _openApp = false;
+  bool _webShare = false;
   bool _held = false;
   // One at a time, and what is wanted is read when the work runs rather than
   // when it was asked for. Two owners can change their minds in the same turn,
@@ -634,10 +656,15 @@ class ScreenWake {
     return _apply();
   }
 
+  Future<void> forWebShare(bool on) {
+    _webShare = on;
+    return _apply();
+  }
+
   Future<void> _apply() => _queue.add(_applyNow);
 
   Future<void> _applyNow() async {
-    final bool wanted = _transfer || _openApp;
+    final bool wanted = _transfer || _openApp || _webShare;
     if (wanted == _held) return;
     try {
       await toggle(enable: wanted);

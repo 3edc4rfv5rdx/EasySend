@@ -4,8 +4,8 @@ import 'package:easysend/android_helpers.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-// One lock, two owners. What has to hold: either reason alone keeps the screen
-// awake, the one that lets go does not take it from the other, and only the
+// One lock, three owners. What has to hold: any reason alone keeps the screen
+// awake, the one that lets go does not take it from the others, and only the
 // last of them releases it. There is no plugin behind it here — an absent one
 // answers with a channel-error, which the class reads as a lock that did not
 // move — so the tests about the rule hand it a toggle that works, and the two
@@ -32,6 +32,29 @@ void main() {
     await wake.forOpenApp(true);
     expect(wake.held, isTrue);
     await wake.forOpenApp(false);
+    expect(wake.held, isFalse);
+  });
+
+  // The share dialog serves a browser while it stands open, and a screen going
+  // dark backgrounds the app: with background receiving off that takes the
+  // listener down mid-download.
+  test('the share dialog alone holds the screen', () async {
+    final ScreenWake wake = working();
+    await wake.forWebShare(true);
+    expect(wake.held, isTrue);
+    await wake.forWebShare(false);
+    expect(wake.held, isFalse);
+  });
+
+  test('closing the share dialog does not take it from a transfer', () async {
+    final ScreenWake wake = working();
+    await wake.forWebShare(true);
+    await wake.forTransfer(true);
+
+    await wake.forWebShare(false);
+
+    expect(wake.held, isTrue);
+    await wake.forTransfer(false);
     expect(wake.held, isFalse);
   });
 

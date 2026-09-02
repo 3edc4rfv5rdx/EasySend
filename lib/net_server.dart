@@ -12,6 +12,7 @@ import 'dart:io';
 
 import 'package:archive/archive.dart';
 import 'package:flutter/foundation.dart' show visibleForTesting;
+import 'package:path/path.dart' as p;
 import 'package:uuid/uuid.dart';
 
 import 'android_helpers.dart';
@@ -206,6 +207,17 @@ class ReceiveServer {
   @visibleForTesting
   Future<bool> Function(FileItem file) copyClipboard = copyArrivedClipboard;
 
+  // What a browser is being offered right now, or null when nothing is. Set by
+  // the share dialog and cleared when it closes, so the routes below exist only
+  // while that window is on screen: the rest of the time the server answers a
+  // browser with the same 404 it answers anything else it does not serve.
+  //
+  // Deliberately not part of the receive session state: a browser downloading
+  // from here takes no receive slot, holds no folder and cannot be what
+  // _preparing and _current are about. Nothing in this class reads it except
+  // the two routes.
+  List<WebShareEntry>? webOffer;
+
   // Set when this process cannot truthfully advertise itself as a receiver.
   ReceiveReadinessFailure? readinessFailure;
   String? readinessError;
@@ -368,6 +380,15 @@ class ReceiveServer {
           'platform': xvPlatform,
           'version': progVersion,
         });
+      }
+      if (req.method == 'GET' && path.isNotEmpty) {
+        if (path == webShareIndexPath) return await _webIndex(req);
+        // The number is an index into the offer, never a path: nothing the
+        // browser sends is joined to a directory, so there is no traversal to
+        // defend against. Anything that is not a bare number — the API's own
+        // routes included — is simply not one of these.
+        final int? index = int.tryParse(path.substring(1));
+        if (index != null) return await _webFile(req, index);
       }
       if (req.method == 'POST') {
         switch (path) {
@@ -1351,6 +1372,51 @@ class ReceiveServer {
     }
   }
 
+  // The list of what is on offer, as a page a browser can show. No offer is
+  // not an error worth explaining to a stranger on the network: it is the
+  // ordinary 404 of a route that is not there.
+  Future<void> _webIndex(HttpRequest req) async {
+    final List<WebShareEntry>? offer = webOffer;
+    if (offer == null || offer.isEmpty) {
+      return _status(req, HttpStatus.notFound);
+    }
+    req.response.statusCode = HttpStatus.ok;
+    req.response.headers.contentType = ContentType.html;
+    req.response.write(webShareIndexHtml(offer));
+    return req.response.close();
+  }
+
+  Future<void> _webFile(HttpRequest req, int? index) async {
+    final List<WebShareEntry>? offer = webOffer;
+    if (offer == null || index == null || index < 0 || index >= offer.length) {
+      return _status(req, HttpStatus.notFound);
+    }
+    final WebShareEntry entry = offer[index];
+    final File file = File(entry.path);
+    final FileStat stat = await file.stat();
+    // The offer was made when the dialog opened. A card can be pulled and a
+    // file deleted while the page stands on the other device's screen.
+    if (stat.type != FileSystemEntityType.file) {
+      return _status(req, HttpStatus.notFound);
+    }
+    req.response.statusCode = HttpStatus.ok;
+    req.response.headers.contentType = webShareContentType(entry.name);
+    req.response.headers.contentLength = stat.size;
+    // dart:io has no constant for this one.
+    req.response.headers.set(
+      'content-disposition',
+      webShareDisposition(entry.name),
+    );
+    try {
+      await req.response.addStream(file.openRead());
+    } catch (e) {
+      // The browser went away, or the file did. The headers are long gone, so
+      // there is no status left to answer with — only the log.
+      myPrint('web share aborted: $e');
+    }
+    return req.response.close();
+  }
+
   Future<void> _json(
     HttpRequest req,
     Map<String, dynamic> body, {
@@ -1366,6 +1432,68 @@ class ReceiveServer {
     req.response.statusCode = status;
     await req.response.close();
   }
+}
+
+// The address to type into a browser on the other device. Scheme and all: a
+// bare host:port reads as something to search for rather than something to
+// open, and the whole point is that the person holding the other phone knows
+// what to do with it without being told. There is only ever one port in it —
+// the share routes live on the receive server, not on a listener of their own.
+String webShareUrl(String address, int port) => 'http://$address:$port';
+
+// An .apk goes out as the type Android's package installer is registered for,
+// so tapping the finished download opens the installer instead of a question
+// about an unknown file. Everything else is a download and nothing more — a
+// browser has no business rendering what it was handed here.
+ContentType webShareContentType(String name) =>
+    p.extension(name).toLowerCase() == '.apk'
+    ? ContentType('application', 'vnd.android.package-archive')
+    : ContentType('application', 'octet-stream');
+
+// The name the browser saves under, spelled twice: the plain form carries
+// nothing but ASCII, so a Russian name would arrive as the route number alone,
+// and filename* is what every current browser reads instead.
+String webShareDisposition(String name) {
+  final String base = p.basename(name);
+  final String ascii = base
+      .replaceAll(RegExp(r'[^\x20-\x7E]'), '_')
+      .replaceAll('"', '_')
+      .replaceAll(r'\', '_');
+  return 'attachment; filename="$ascii"; '
+      "filename*=UTF-8''${Uri.encodeComponent(base)}";
+}
+
+String _escapeHtml(String text) => text
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;');
+
+// The only page in the whole app, written out by hand: it is a list of links,
+// it is read on a device that has nothing installed yet, and it must not
+// depend on a single thing the network cannot deliver — no styles, no scripts,
+// no fonts from anywhere.
+String webShareIndexHtml(List<WebShareEntry> entries) {
+  final StringBuffer out = StringBuffer();
+  out.writeln('<!doctype html>');
+  out.writeln('<html><head><meta charset="utf-8">');
+  out.writeln(
+    '<meta name="viewport" content="width=device-width, initial-scale=1">',
+  );
+  out.writeln('<title>EasySend</title>');
+  out.writeln(
+    '<style>body{font-family:sans-serif;font-size:18px;margin:16px}'
+    'li{margin:0 0 14px}.size{color:#666;font-size:15px}</style>',
+  );
+  out.writeln('</head><body><h2>EasySend</h2><ul>');
+  for (int i = 0; i < entries.length; i++) {
+    final WebShareEntry entry = entries[i];
+    out.writeln(
+      '<li><a href="/$i">${_escapeHtml(entry.name)}</a>'
+      ' <span class="size">${formatBytes(entry.size)}</span></li>',
+    );
+  }
+  out.writeln('</ul></body></html>');
+  return out.toString();
 }
 
 final ReceiveServer receiveServer = ReceiveServer();

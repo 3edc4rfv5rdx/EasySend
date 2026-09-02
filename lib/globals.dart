@@ -20,8 +20,8 @@ final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey =
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 const String prgName = 'easysend';
-const String progVersion = '0.6.260901';
-const int buildNumber = 136;
+const String progVersion = '0.7.260902';
+const int buildNumber = 142;
 const String progAuthor = 'Eugen';
 
 const String langFile = 'assets/locales.json';
@@ -37,6 +37,13 @@ const int defaultPort = 15353;
 const int discoveryPort = 15353;
 const String discoveryMulticastGroup = '239.255.53.53';
 const String apiPrefix = '/api/v1';
+// Where the receive server answers a plain browser instead of another copy of
+// the app: a device that does not have EasySend yet has nothing else to knock
+// with. The root, because the whole address is typed by hand off the sharing
+// device's screen and a trailing path is one more thing to get wrong; the
+// transfer protocol lives under apiPrefix and has never used it. The files
+// themselves are '/0', '/1' and so on — their number in the offer.
+const String webShareIndexPath = '/';
 // Announce every 5 s, forget a silent device after 20 s.
 const int announceIntervalSec = 5;
 const int deviceTimeoutSec = 20;

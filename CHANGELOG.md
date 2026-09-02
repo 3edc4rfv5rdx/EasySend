@@ -4,6 +4,7 @@
 > F is the same thing done better; E is behaviour that was wrong, whatever the size of the fix.
 
 ## Unreleased
+- N: A globe button shares the program itself, or the selected files, over a plain link: the other device scans the QR or types the shown address into a browser and downloads. Works while the dialog is open, and the screen stays on for as long as it is.
 - I: The generated launcher resources are regenerated from the redrawn icon masters.
 - F: The launcher icon is drawn in pure white on #013895, the same blue the other apps use, instead of cream on #0138A3.
 

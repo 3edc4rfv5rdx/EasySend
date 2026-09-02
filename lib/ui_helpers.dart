@@ -4,7 +4,9 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
+import 'package:qr/qr.dart';
 
+import 'android_helpers.dart';
 import 'globals.dart';
 import 'net_server.dart';
 
@@ -324,8 +326,8 @@ Future<(bool, bool, ConflictMode)> showAcceptDialog({
   final Timer timer = Timer(const Duration(seconds: acceptTimeoutSec), close);
   cancelled?.then((_) => close());
   try {
-    final (bool, bool, ConflictMode)? result =
-        await showFlatDialog<(bool, bool, ConflictMode)>(
+    final (bool, bool, ConflictMode)?
+    result = await showFlatDialog<(bool, bool, ConflictMode)>(
       context: context,
       barrierDismissible: false,
       builder: (BuildContext dialogContext) {
@@ -374,14 +376,12 @@ Future<(bool, bool, ConflictMode)> showAcceptDialog({
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          for (final ConflictMode choice
-                              in ConflictMode.values)
+                          for (final ConflictMode choice in ConflictMode.values)
                             RadioListTile<ConflictMode>(
                               dense: true,
                               contentPadding: EdgeInsets.zero,
                               visualDensity: const VisualDensity(vertical: -4),
-                              controlAffinity:
-                                  ListTileControlAffinity.leading,
+                              controlAffinity: ListTileControlAffinity.leading,
                               value: choice,
                               activeColor: clAccent,
                               title: Text(
@@ -542,6 +542,345 @@ Future<bool> showRefusedNamesDialog(List<RefusedPick> refused) async {
   );
   scroll.dispose();
   return answer ?? false;
+}
+
+// A QR of the share address, drawn module by module. The matrix comes from the
+// qr package — Reed-Solomon and mask selection are not something to write by
+// hand — and the drawing is a hundred rectangles.
+//
+// Black on white whatever the theme is: a scanner reads contrast, and a dark
+// palette that swapped these would be a picture no camera can follow. That is
+// also why the quiet zone is inside the widget rather than left to whoever
+// places it — four modules of white all round is part of the code, not padding.
+class QrView extends StatelessWidget {
+  final QrImage code;
+  final double side;
+
+  const QrView(this.code, {this.side = 220, super.key});
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: side,
+    height: side,
+    color: const Color(0xFFFFFFFF),
+    child: CustomPaint(painter: _QrPainter(code)),
+  );
+}
+
+class _QrPainter extends CustomPainter {
+  static const int quietModules = 4;
+  final QrImage code;
+
+  const _QrPainter(this.code);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final int count = code.moduleCount;
+    final double module = size.width / (count + quietModules * 2);
+    final Paint dark = Paint()..color = const Color(0xFF000000);
+    for (int row = 0; row < count; row++) {
+      for (int col = 0; col < count; col++) {
+        if (!code.isDark(row, col)) continue;
+        // Half a pixel of overlap: at fractional module widths the seams
+        // between neighbouring squares otherwise show as light hairlines, and
+        // a scanner reads those as module boundaries that are not there.
+        canvas.drawRect(
+          Rect.fromLTWH(
+            (col + quietModules) * module,
+            (row + quietModules) * module,
+            module + 0.5,
+            module + 0.5,
+          ),
+          dark,
+        );
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(_QrPainter old) => old.code != code;
+}
+
+// The share address as a matrix, or null when it will not fit one — nothing
+// this app puts in it ever comes close, but the answer is the caller's to make
+// rather than an exception in the middle of a dialog.
+QrImage? qrFor(String text) {
+  try {
+    return QrImage(QrCode(payload: QrPayload.fromString(text)));
+  } catch (e) {
+    myPrint('cannot build a QR of $text: $e');
+    return null;
+  }
+}
+
+// What a browser is offered while the share dialog stands open. Two answers
+// rather than one: the device that needs a copy is not always the same
+// architecture as the one handing it over, and a v7a build picked with File
+// goes out exactly the same way this build does.
+enum WebShareKind { program, files }
+
+// The way a device with no EasySend on it gets one: this build serves itself
+// over the receive server, and the other end types the address into a browser.
+// The offer lives only as long as this dialog — closed, and the route is a 404
+// again.
+Future<void> showWebShareDialog(
+  List<FileItem> selected, {
+  bool zipWanted = false,
+}) async {
+  final List<WebShareEntry> files = [
+    for (final FileItem file in selected)
+      if (file.sourcePath != null)
+        (name: file.relativePath, path: file.sourcePath!, size: file.size),
+  ];
+  WebShareEntry? program;
+  final String? apkPath = await installedApkPath();
+  if (apkPath != null) {
+    final FileStat stat = await File(apkPath).stat();
+    if (stat.type == FileSystemEntityType.file) {
+      program = (
+        // Named the way a release artifact is, so the other end can see which
+        // build it is about to install without opening anything.
+        name: 'EasySend-$progVersion+$buildNumber.apk',
+        path: apkPath,
+        size: stat.size,
+      );
+    }
+  }
+  if (program == null && files.isEmpty) {
+    okInfo(lw('Nothing selected'));
+    return;
+  }
+
+  // Nothing to share from: the routes live on the receive server, so a server
+  // that is not listening has no address to give. The reason is the one the
+  // banner already says — and a listener that is simply not up yet, with no
+  // failure recorded, is the same 'setup did not finish' as any other.
+  final int? port = receiveServer.boundPort;
+  final ReceiveReadinessFailure? failure = receiveServer.readinessFailure;
+  if (port == null || failure != null) {
+    okErr(
+      receiveBannerText(
+        failure ?? ReceiveReadinessFailure.transition,
+        port ?? currentPort,
+      ),
+    );
+    return;
+  }
+  // Built once, not inside the builder: the dialog rebuilds whenever the choice
+  // above changes, and a QR matrix is Reed-Solomon work rather than a colour.
+  final List<({String url, QrImage? code})> targets = [];
+  for (final String address in await localAddresses()) {
+    final String url = webShareUrl(address, port);
+    targets.add((url: url, code: qrFor(url)));
+  }
+
+  // Files win the default whenever there are any: picking them was a deliberate
+  // act that just happened, and giving away the program is the rarer errand.
+  WebShareKind kind = files.isNotEmpty
+      ? WebShareKind.files
+      : WebShareKind.program;
+  void publish() {
+    final List<WebShareEntry> entries = kind == WebShareKind.program
+        ? [program!]
+        : files;
+    receiveServer.webOffer = entries.isEmpty ? null : entries;
+  }
+
+  publish();
+  // The screen stays on for as long as this window does. Not a comfort: with
+  // background receiving off, the screen going dark backgrounds the app and
+  // takes the listener down with it, and the download on the other device dies
+  // halfway. Off Android nobody asks, as everywhere else this lock is used.
+  if (Platform.isAndroid) unawaited(screenWake.forWebShare(true));
+  try {
+    await showFlatDialog<void>(
+      builder: (BuildContext dialogContext) => StatefulBuilder(
+        builder: (BuildContext context, StateSetter setDialogState) => AlertDialog(
+          backgroundColor: clFill,
+          shape: dialogShape,
+          // Wider than a stock dialog: the QR is the point of this one, and
+          // 40 px of inset on each side of a phone is room the code could
+          // be using instead.
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 24,
+          ),
+          title: Row(
+            children: [
+              Icon(Icons.language, color: clAccent),
+              const SizedBox(width: 8),
+              Expanded(child: Text(lw('Share by link'), style: tsLarge)),
+            ],
+          ),
+          // Scrolls: the QR is 220 px, and a desktop on two networks gets
+          // two of them plus the choice above. Full width, or the dialog
+          // would shrink to the widest line of text and waste the inset
+          // just saved.
+          content: SizedBox(
+            width: double.maxFinite,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // What is on offer, named before it is listed: without this
+                  // line the choice below is two nouns with nothing to say what
+                  // the dialog intends to do with them.
+                  Text('${lw('Sharing')}:', style: tsNormal),
+                  // With one thing to give there is nothing to choose, and a
+                  // group of one radio button only asks a question the user
+                  // cannot answer differently.
+                  if (program != null && files.isNotEmpty)
+                    RadioGroup<WebShareKind>(
+                      groupValue: kind,
+                      onChanged: (WebShareKind? picked) => setDialogState(() {
+                        kind = picked ?? kind;
+                        publish();
+                      }),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // Files first, because they are both the default and
+                          // the everyday errand; handing over the program is
+                          // the rare one and sits under it.
+                          RadioListTile<WebShareKind>(
+                            dense: true,
+                            contentPadding: EdgeInsets.zero,
+                            visualDensity: const VisualDensity(vertical: -4),
+                            controlAffinity: ListTileControlAffinity.leading,
+                            value: WebShareKind.files,
+                            activeColor: clAccent,
+                            title: Text(
+                              '${lw('Selected files')}: ${files.length}',
+                              style: tsNormal,
+                            ),
+                          ),
+                          RadioListTile<WebShareKind>(
+                            dense: true,
+                            contentPadding: EdgeInsets.zero,
+                            visualDensity: const VisualDensity(vertical: -4),
+                            controlAffinity: ListTileControlAffinity.leading,
+                            value: WebShareKind.program,
+                            activeColor: clAccent,
+                            // The build's own file name rather than a word for
+                            // it: it says both what this is and which version
+                            // the other device is about to be handed.
+                            title: Text(program.name, style: tsNormal),
+                          ),
+                        ],
+                      ),
+                    )
+                  else
+                    Text(
+                      kind == WebShareKind.program
+                          ? program!.name
+                          : '${lw('Selected files')}: ${files.length}',
+                      style: tsNormal,
+                    ),
+                  const SizedBox(height: 12),
+                  if (targets.isEmpty)
+                    Text(lw('No address on this network'), style: tsNormal)
+                  else ...[
+                    Text(
+                      lw('Scan this or type it on the other device'),
+                      style: tsNormal,
+                    ),
+                    const SizedBox(height: 8),
+                    // The code and the address it holds, one under the other:
+                    // a camera reads the first, and a device whose camera does
+                    // not read QR still has a browser and a keyboard. Two
+                    // interfaces mean two of these rather than one code that
+                    // may be for the network the other device is not on.
+                    for (final ({String url, QrImage? code}) target in targets)
+                      Center(
+                        child: Column(
+                          children: [
+                            if (target.code != null)
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 6),
+                                child: QrView(target.code!),
+                              ),
+                            // Selectable so a desktop can copy it into a chat
+                            // instead of reading it out loud.
+                            SelectableText(
+                              target.url,
+                              style: TextStyle(
+                                fontSize: fsLarge,
+                                fontWeight: fwBold,
+                                color: clText,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                          ],
+                        ),
+                      ),
+                  ],
+                  const SizedBox(height: 12),
+                  Text(lw('Works while this window is open'), style: tsNormal),
+                ],
+              ),
+            ),
+          ),
+          // One row of my own rather than the stock action bar: that one
+          // sizes each child to itself and stacks them the moment they do
+          // not fit, which put the ZIP notice above the button instead of
+          // beside it.
+          actions: [
+            SizedBox(
+              width: double.maxFinite,
+              child: Row(
+                children: [
+                  // The ZIP latch belongs to sending and is read nowhere
+                  // near here. Said out loud rather than left to be
+                  // noticed: the button stays lit across the whole screen,
+                  // and a batch that goes out as separate files after it
+                  // was pressed would look like a fault. Filled, because a
+                  // coloured word on the dialog's own surface reads as
+                  // decoration; two short lines keep it beside the button.
+                  if (zipWanted)
+                    Container(
+                      constraints: const BoxConstraints(maxWidth: 170),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: clWarning,
+                        borderRadius: BorderRadius.circular(btnRadius),
+                      ),
+                      // Black rather than onColor(): the ground here is
+                      // the warning colour in every theme, and it is a
+                      // light one, so the ink is not a question.
+                      child: Text(
+                        lw('ZIP does not apply here'),
+                        style: const TextStyle(
+                          fontSize: fsNormal,
+                          color: Color(0xFF000000),
+                        ),
+                      ),
+                    ),
+                  const Spacer(),
+                  TextButton(
+                    onPressed: () => Navigator.pop(dialogContext),
+                    style: dialogButtonStyle,
+                    // Close, not Ok: the button ends the sharing rather
+                    // than agreeing to anything.
+                    child: Text(lw('Close')),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  } finally {
+    // Every way out lands here: the button, the barrier and the system back
+    // gesture. Nothing else in the app touches this field, so leaving it set
+    // would keep the route alive for the rest of the run.
+    receiveServer.webOffer = null;
+    if (Platform.isAndroid) unawaited(screenWake.forWebShare(false));
+  }
 }
 
 // Single-field prompt, used for the device name, the port and manual IPs.

@@ -436,3 +436,9 @@ class TransferSession {
   bool get isRunning =>
       status == TransferStatus.pending || status == TransferStatus.active;
 }
+
+// One line of what a browser is being offered. Its own type rather than a
+// FileItem: what the browser downloads is a plain file on disk, with no
+// transfer, no id and no place in a session — and the installed APK, which is
+// the whole point of the feature, is not a picked file at all.
+typedef WebShareEntry = ({String name, String path, int size});
