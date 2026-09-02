@@ -619,13 +619,33 @@ QrImage? qrFor(String text) {
 // goes out exactly the same way this build does.
 enum WebShareKind { program, files }
 
-// The way a device with no EasySend on it gets one: this build serves itself
-// over the receive server, and the other end types the address into a browser.
-// The offer lives only as long as this dialog — closed, and the route is a 404
-// again.
-Future<void> showWebShareDialog(
+// One address of this device, and the same address as a matrix.
+typedef WebShareTarget = ({String url, QrImage? code});
+
+// Everything the share dialog needs, worked out before it opens: what can be
+// given away, and where from. Gathered apart from the window because gathering
+// it is platform work — a stat of the installed package, the list of network
+// interfaces — while the window itself is only widgets, and the two are worth
+// testing by different means.
+class WebShareOffer {
+  final List<WebShareEntry> files;
+  final WebShareEntry? program;
+  final List<WebShareTarget> targets;
+
+  const WebShareOffer({
+    required this.files,
+    required this.program,
+    required this.targets,
+  });
+}
+
+// What the dialog will be about, or null when there is nothing to be about —
+// in which case the reason has already been said on screen.
+Future<WebShareOffer?> prepareWebShare(
   List<FileItem> selected, {
-  bool zipWanted = false,
+  // Where the installed package is. A platform call with no answer anywhere but
+  // Android, so a test that needs the two-way choice hands a file in instead.
+  @visibleForTesting Future<String?> Function()? apkPathOf,
 }) async {
   final List<WebShareEntry> files = [
     for (final FileItem file in selected)
@@ -633,7 +653,7 @@ Future<void> showWebShareDialog(
         (name: file.relativePath, path: file.sourcePath!, size: file.size),
   ];
   WebShareEntry? program;
-  final String? apkPath = await installedApkPath();
+  final String? apkPath = await (apkPathOf ?? () => installedApkPath())();
   if (apkPath != null) {
     final FileStat stat = await File(apkPath).stat();
     if (stat.type == FileSystemEntityType.file) {
@@ -648,7 +668,7 @@ Future<void> showWebShareDialog(
   }
   if (program == null && files.isEmpty) {
     okInfo(lw('Nothing selected'));
-    return;
+    return null;
   }
 
   // Nothing to share from: the routes live on the receive server, so a server
@@ -664,15 +684,44 @@ Future<void> showWebShareDialog(
         port ?? currentPort,
       ),
     );
-    return;
+    return null;
   }
   // Built once, not inside the builder: the dialog rebuilds whenever the choice
   // above changes, and a QR matrix is Reed-Solomon work rather than a colour.
-  final List<({String url, QrImage? code})> targets = [];
+  final List<WebShareTarget> targets = [];
   for (final String address in await localAddresses()) {
     final String url = webShareUrl(address, port);
     targets.add((url: url, code: qrFor(url)));
   }
+  return WebShareOffer(files: files, program: program, targets: targets);
+}
+
+// The way a device with no EasySend on it gets one: this build serves itself
+// over the receive server, and the other end scans or types the address. The
+// offer lives only as long as this dialog — closed, and the route is a 404
+// again.
+Future<void> showWebShareDialog(
+  List<FileItem> selected, {
+  bool zipWanted = false,
+  @visibleForTesting Future<String?> Function()? apkPathOf,
+}) async {
+  final WebShareOffer? offer = await prepareWebShare(
+    selected,
+    apkPathOf: apkPathOf,
+  );
+  if (offer == null) return;
+  return showWebShareOffer(offer, zipWanted: zipWanted);
+}
+
+// The window itself: no platform work of its own, so a test can put one on
+// screen without a network or a package to stat.
+Future<void> showWebShareOffer(
+  WebShareOffer offer, {
+  bool zipWanted = false,
+}) async {
+  final List<WebShareEntry> files = offer.files;
+  final WebShareEntry? program = offer.program;
+  final List<WebShareTarget> targets = offer.targets;
 
   // Files win the default whenever there are any: picking them was a deliberate
   // act that just happened, and giving away the program is the rarer errand.

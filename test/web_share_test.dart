@@ -173,6 +173,68 @@ void main() {
     expect(webShareUrl('192.168.88.7', 15353), 'http://192.168.88.7:15353');
   });
 
+  // What the dialog is handed before it opens. Gathering it is platform work —
+  // a stat of the installed package, a walk of the interfaces — so it is
+  // checked here, where the clock is real, and the window that shows it is
+  // checked in web_share_dialog_test.dart.
+  group('prepare', () {
+    // It reads the app's own receiver, not the one these route tests bind, so
+    // that one is brought up and down here.
+    setUp(() async => expect(await receiveServer.start(), isTrue));
+    tearDown(() => receiveServer.stop());
+
+    String apkFile() {
+      final File file = File(p.join(sandbox.path, 'installed.apk'))
+        ..writeAsBytesSync(<int>[1, 2]);
+      return file.path;
+    }
+
+    FileItem picked(String name) {
+      final File file = File(p.join(sandbox.path, name))
+        ..writeAsBytesSync(<int>[1]);
+      return FileItem(
+        id: name,
+        relativePath: name,
+        sourcePath: file.path,
+        size: 1,
+      );
+    }
+
+    // What it refuses to offer, and what it says instead, is checked in
+    // web_share_dialog_test.dart: those answers go on screen, and a screen
+    // needs a binding that would take this file's real HttpClient away.
+    test(
+      'the offer names the picked files and the installed package',
+      () async {
+        final WebShareOffer? offer = await prepareWebShare([
+          picked('one.txt'),
+          picked('two.txt'),
+        ], apkPathOf: () async => apkFile());
+
+        expect(offer, isNotNull);
+        expect(
+          offer!.files.map((WebShareEntry e) => e.name),
+          containsAll(<String>['one.txt', 'two.txt']),
+        );
+        expect(offer.program?.name, 'EasySend-$progVersion+$buildNumber.apk');
+        // The size is the installed file's, read now rather than assumed.
+        expect(offer.program?.size, 2);
+      },
+    );
+
+    // The path comes from the platform and the file behind it can be gone —
+    // an uninstall in flight, a build replaced under us.
+    test('a package that is not on disk is not offered', () async {
+      final WebShareOffer? offer = await prepareWebShare([
+        picked('one.txt'),
+      ], apkPathOf: () async => p.join(sandbox.path, 'missing.apk'));
+
+      expect(offer, isNotNull);
+      expect(offer!.program, isNull);
+      expect(offer.files.single.name, 'one.txt');
+    });
+  });
+
   // The address is also shown as a QR, and a matrix that failed to build would
   // be swallowed by the dialog as a missing picture rather than an error.
   test('the address becomes a QR of a workable size', () {
