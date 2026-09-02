@@ -4,6 +4,7 @@
 > F is the same thing done better; E is behaviour that was wrong, whatever the size of the fix.
 
 ## Unreleased
+- I: The call that finds the installed package is pinned on both sides, so a name mistyped in Dart or in Kotlin fails a test instead of quietly leaving the share dialog with nothing to give.
 - F: The screen setting says what it now does — while idle and no longer than 30 min.
 - F: The open app holds the screen awake for half an hour at most, then lets Android's own timeout take over again — a phone left face up stops burning, and coming back to the app arms it anew. A running transfer is not affected.
 - I: The share dialog is tested: gathering what to give away is split from the window that shows it, so the offer it publishes, the choice, the ZIP notice and both refusals are checked.

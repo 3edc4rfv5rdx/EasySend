@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:easysend/android_helpers.dart';
 import 'package:easysend/globals.dart';
 import 'package:flutter/services.dart';
@@ -11,11 +13,15 @@ void main() {
   final List<String> calls = [];
   final List<MethodCall> invocations = [];
   Object? failWith;
+  // What the platform answers. True suits every call that only reports whether
+  // it worked; the one that fetches a path replaces it.
+  Object? answerWith;
 
   setUp(() {
     calls.clear();
     invocations.clear();
     failWith = null;
+    answerWith = true;
     xvTransfers = [];
     xdef['Program language'] = 'en';
     xdef['Receive in background'] = 'true';
@@ -25,7 +31,7 @@ void main() {
           invocations.add(call);
           final Object? failure = failWith;
           if (failure != null) throw failure;
-          return true;
+          return answerWith;
         });
   });
 
@@ -139,15 +145,18 @@ void main() {
     Map<Object?, Object?> lastArguments() =>
         invocations.last.arguments as Map<Object?, Object?>;
 
-    test('an idle listener offers a localized exit that acts by itself', () async {
-      xdef['Ask before exit'] = 'false';
-      await AndroidService(android: true).sync();
+    test(
+      'an idle listener offers a localized exit that acts by itself',
+      () async {
+        xdef['Ask before exit'] = 'false';
+        await AndroidService(android: true).sync();
 
-      expect(lastArguments()['stopLabel'], lw('Stop'));
-      expect(lastArguments()['exitLabel'], lw('Exit'));
-      // Nothing to ask, so the button does not have to open the app first.
-      expect(lastArguments()['exitNeedsApp'], isFalse);
-    });
+        expect(lastArguments()['stopLabel'], lw('Stop'));
+        expect(lastArguments()['exitLabel'], lw('Exit'));
+        // Nothing to ask, so the button does not have to open the app first.
+        expect(lastArguments()['exitNeedsApp'], isFalse);
+      },
+    );
 
     test('a running transfer makes the exit go through the app', () async {
       xvTransfers = [
@@ -165,12 +174,15 @@ void main() {
       expect(lastArguments()['exitNeedsApp'], isTrue);
     });
 
-    test('asking before exit makes an idle exit go through the app too', () async {
-      xdef['Ask before exit'] = 'true';
-      await AndroidService(android: true).sync();
+    test(
+      'asking before exit makes an idle exit go through the app too',
+      () async {
+        xdef['Ask before exit'] = 'true';
+        await AndroidService(android: true).sync();
 
-      expect(lastArguments()['exitNeedsApp'], isTrue);
-    });
+        expect(lastArguments()['exitNeedsApp'], isTrue);
+      },
+    );
 
     test('the labels follow the interface language', () async {
       xdef['Program language'] = 'ru';
@@ -224,21 +236,24 @@ void main() {
   });
 
   group('a service Android took away is put back', () {
-    test('an identical idle notification is posted again on reassert', () async {
-      final AndroidService service = AndroidService(android: true);
+    test(
+      'an identical idle notification is posted again on reassert',
+      () async {
+        final AndroidService service = AndroidService(android: true);
 
-      await service.sync();
-      expect(calls, ['start']);
+        await service.sync();
+        expect(calls, ['start']);
 
-      // The rate limit refuses this: the idle text never changes.
-      await service.sync();
-      expect(calls, ['start']);
+        // The rate limit refuses this: the idle text never changes.
+        await service.sync();
+        expect(calls, ['start']);
 
-      // Leaving the screen, or coming back to it, has to post it regardless —
-      // the service may be gone without Dart having been told.
-      await service.reassert();
-      expect(calls, ['start', 'start']);
-    });
+        // Leaving the screen, or coming back to it, has to post it regardless —
+        // the service may be gone without Dart having been told.
+        await service.reassert();
+        expect(calls, ['start', 'start']);
+      },
+    );
 
     test('a destroyed service is remembered as down', () async {
       final AndroidService service = AndroidService(android: true);
@@ -270,5 +285,51 @@ void main() {
       expect(await finishActivityAndTask(android: true), isFalse);
       expect(calls, ['exitApp', 'exitApp']);
     });
+  });
+
+  // Where the installed package sits, for handing this build to a device that
+  // has none (SPEC 5.8). The name of the call is written twice — here in Dart
+  // and again in Kotlin — and nothing but this pins the two together: mistyped
+  // or dropped on either side, the share dialog would quietly have nothing to
+  // give instead of failing.
+  group('the installed package', () {
+    test('its path is asked for by name and handed back whole', () async {
+      answerWith = '/data/app/a.a.easysend-1/base.apk';
+      expect(
+        await installedApkPath(android: true),
+        '/data/app/a.a.easysend-1/base.apk',
+      );
+      expect(calls, ['apkPath']);
+    });
+
+    // Both mean the same to the caller: there is no package to offer, and the
+    // dialog falls back to the files that were picked.
+    test('a refused or missing channel answers nothing', () async {
+      failWith = PlatformException(code: 'easysend');
+      expect(await installedApkPath(android: true), isNull);
+
+      failWith = MissingPluginException('no implementation');
+      expect(await installedApkPath(android: true), isNull);
+      expect(calls, ['apkPath', 'apkPath']);
+    });
+
+    test('off Android it is not asked at all', () async {
+      expect(await installedApkPath(android: false), isNull);
+      expect(calls, isEmpty);
+    });
+
+    test(
+      'the Kotlin side answers that same name with the package it runs from',
+      () async {
+        final String application = await File(
+          'android/app/src/main/kotlin/a/a/easysend/EasySendApplication.kt',
+        ).readAsString();
+
+        expect(application, contains('"apkPath" ->'));
+        // Whatever is installed right now, read from the platform rather than
+        // built out of a path this side believes in.
+        expect(application, contains('applicationInfo.sourceDir'));
+      },
+    );
   });
 }
