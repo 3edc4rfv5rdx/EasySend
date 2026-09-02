@@ -391,8 +391,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
             activeThumbColor: clAccent,
             value: xdef['Keep the screen on'] == 'true',
             title: Text(lw('Keep the screen on'), style: tsNormal),
+            // The number lives in the code, not in the locale file: a limit
+            // written into three translations is a limit that drifts from the
+            // one the fuse actually uses.
             subtitle: Text(
-              lw('A transfer always keeps it on'),
+              '${lw('While idle and no longer than')} '
+              '$screenWakeFuseMin ${lw('min')}',
               style: tsSmall,
             ),
             onChanged: (v) async {
