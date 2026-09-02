@@ -4,6 +4,7 @@
 > F is the same thing done better; E is behaviour that was wrong, whatever the size of the fix.
 
 ## Unreleased
+- F: The open app holds the screen awake for half an hour at most, then lets Android's own timeout take over again — a phone left face up stops burning, and coming back to the app arms it anew. A running transfer is not affected.
 - I: The share dialog is tested: gathering what to give away is split from the window that shows it, so the offer it publishes, the choice, the ZIP notice and both refusals are checked.
 - I: SPEC records what sharing by link gives up: no resume, and no consent question for whoever opens the address.
 - N: A globe button shares the program itself, or the selected files, over a plain link: the other device scans the QR or types the shown address into a browser and downloads. Works while the dialog is open, and the screen stays on for as long as it is.

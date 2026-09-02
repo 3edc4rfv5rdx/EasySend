@@ -442,9 +442,7 @@ class AndroidService {
     _transferMode = false;
     _lastText = '';
     await screenWake.forTransfer(false);
-    final String message = lw(
-      'Background receiving is unavailable',
-    );
+    final String message = lw('Background receiving is unavailable');
     myPrint(message);
     okInfoBarOrange(message);
     androidServiceStateTick.changed();
@@ -613,7 +611,6 @@ class AndroidService {
       myPrint('stopping service unavailable: ${e.message}');
     }
   }
-
 }
 
 final AndroidService androidService = AndroidService();
@@ -651,9 +648,31 @@ class ScreenWake {
     return _apply();
   }
 
+  // How long the open app is allowed to hold the screen. A fuse rather than a
+  // policy: it does not turn anything off, it stops preventing Android from
+  // doing so, so a phone being looked at still sleeps by the system's own
+  // inactivity timeout — which any touch resets — while one left face up on a
+  // table stops burning. Overridden by tests, which cannot wait half an hour.
+  @visibleForTesting
+  Duration openAppLimit = const Duration(minutes: screenWakeFuseMin);
+  Timer? _openAppFuse;
+
+  // Every return to the app asks for this again, so the fuse is re-armed by
+  // picking the phone up: the setting keeps meaning what it says for as long as
+  // anyone is actually there.
   Future<void> forOpenApp(bool on) {
+    _openAppFuse?.cancel();
+    _openAppFuse = on ? Timer(openAppLimit, _openAppFuseBlown) : null;
     _openApp = on;
     return _apply();
+  }
+
+  void _openAppFuseBlown() {
+    _openAppFuse = null;
+    _openApp = false;
+    // Only this owner lets go. A transfer holds the screen on its own account
+    // and is not what was forgotten.
+    unawaited(_apply());
   }
 
   Future<void> forWebShare(bool on) {

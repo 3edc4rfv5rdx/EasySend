@@ -76,6 +76,10 @@ const int exitCancelTimeoutSec = 3;
 // socket has to be borrowed for it. Shorter still: this is one round of
 // datagrams, and the silence timeout on the other side is the fallback.
 const int farewellTimeoutSec = 2;
+// How long the open app may hold the screen awake before the fuse gives it
+// back. Long enough that nobody watching a screen ever meets it, short enough
+// that a phone left face up on a table does not spend the night lit.
+const int screenWakeFuseMin = 30;
 // Valid protocol progress refreshes this receiver-side inactivity deadline.
 const int receiveSessionTimeoutSec = 60;
 // A camera folder holds thousands of files, and a folder is picked whole.
@@ -185,8 +189,7 @@ bool exitKeepsReceiving({
   required bool mayKeepReceiving,
   required bool receiveInBackground,
   required bool backgroundReady,
-}) =>
-    android && mayKeepReceiving && receiveInBackground && backgroundReady;
+}) => android && mayKeepReceiving && receiveInBackground && backgroundReady;
 
 // What pressing ✕ — or Exit on the notification — comes to in the end.
 enum ExitPlan {
