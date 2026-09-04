@@ -4,6 +4,7 @@
 > F is the same thing done better; E is behaviour that was wrong, whatever the size of the fix.
 
 ## Unreleased
+- I: Every artifact carries one name — easysend-<version>-<build>-<abi>.apk and the AppImage beside it — and the tag it goes out under is v<version>-<build>. The date in the version grows to four digits of year, so the next build is 0.7.20260903 rather than 0.7.260903.
 - I: The call that finds the installed package is pinned on both sides, so a name mistyped in Dart or in Kotlin fails a test instead of quietly leaving the share dialog with nothing to give.
 - F: The screen setting says what it now does — while idle and no longer than 30 min.
 - F: The open app holds the screen awake for half an hour at most, then lets Android's own timeout take over again — a phone left face up stops burning, and coming back to the app arms it anew. A running transfer is not affected.

@@ -26,7 +26,9 @@ if [[ -z "$FULL_VER" ]]; then
     exit 1
 fi
 
-TAG="v$FULL_VER"
+# The pubspec spells the build with a +; the tag, like every artifact name here,
+# spells it with a dash.
+TAG="v${FULL_VER/+/-}"
 echo "Tag: $TAG"
 
 if git tag --list "$TAG" | grep -q "^${TAG}$"; then

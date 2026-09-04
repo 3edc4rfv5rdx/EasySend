@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Build the Linux release and pack it into one runnable file:
-# build/linux/EasySend-<version>-x86_64.AppImage
+# build/linux/<project>-<version>-<build>-x86_64.AppImage
 #
 # A Flutter desktop app cannot be linked statically — the engine is a shared
 # library and GTK has to come from the system — so the AppImage carries the
@@ -118,7 +118,7 @@ APPRUN
 chmod +x "$APPDIR/AppRun"
 
 # ---------- pack ----------
-IMAGE="$OUT_DIR/$PROJ_TITLE-$VERSION-$BUILD-x86_64.AppImage"
+IMAGE="$OUT_DIR/$PROJ_NAME-$VERSION-$BUILD-x86_64.AppImage"
 rm -f "$IMAGE"
 # Extract-and-run: appimagetool is itself an AppImage, and FUSE is not always
 # there to mount it.
@@ -126,7 +126,7 @@ APPIMAGE_EXTRACT_AND_RUN=1 ARCH=x86_64 "$APPIMAGETOOL" "$APPDIR" "$IMAGE"
 
 # Three images are enough to fall back on; each one is some 40 MB.
 KEEP=3
-ls -t "$OUT_DIR/$PROJ_TITLE"-*-x86_64.AppImage 2>/dev/null | tail -n +$((KEEP + 1)) | while read -r old; do
+ls -t "$OUT_DIR/$PROJ_NAME"-*-x86_64.AppImage 2>/dev/null | tail -n +$((KEEP + 1)) | while read -r old; do
     echo "Removing older image: $(basename "$old")"
     rm -f "$old"
 done
@@ -136,4 +136,4 @@ echo "Version: $VERSION+$BUILD"
 echo "Image:   $(du -sh "$IMAGE" | cut -f1)  $IMAGE"
 echo "Run:     ./$IMAGE"
 echo "Kept:"
-ls -1t "$OUT_DIR/$PROJ_TITLE"-*-x86_64.AppImage 2>/dev/null | sed 's/^/  /'
+ls -1t "$OUT_DIR/$PROJ_NAME"-*-x86_64.AppImage 2>/dev/null | sed 's/^/  /'

@@ -7,8 +7,6 @@ ROOT="$(git rev-parse --show-toplevel)"
 # the display title from the Android label, and 10/14 name their output after
 # the title. Copy the script to another Flutter project as it is.
 PROJ_NAME=$(grep -oP '^name:\s*\K\S+' "$ROOT/pubspec.yaml") || { echo "No name: in pubspec.yaml" >&2; exit 1; }
-PROJ_TITLE=$(grep -oP 'android:label="\K[^"]+' "$ROOT/android/app/src/main/AndroidManifest.xml" 2>/dev/null || true)
-[ -n "$PROJ_TITLE" ] || PROJ_TITLE="$PROJ_NAME"
 
 APK_DIR="$ROOT/build/app/outputs/flutter-apk"
 APPIMAGE_DIR="$ROOT/build/linux"
@@ -33,14 +31,16 @@ fi
 echo "Tag: $TAG"
 
 # ------------------------------------------------------------
-# Parse tag: v0.7.260115+26  ->  VERSION=0.7.260115  BUILD=26
+# Parse tag: v0.7.20260115-26  ->  VERSION=0.7.20260115  BUILD=26
+# Matched whole rather than cut at the dash: a tag from the older +build spelling
+# would otherwise parse into nonsense instead of stopping here.
 # ------------------------------------------------------------
 CLEAN_TAG="${TAG#v}"
-VERSION="${CLEAN_TAG%%+*}"
-BUILD="${CLEAN_TAG##*+}"
-
-if [[ -z "$VERSION" || -z "$BUILD" ]]; then
-    echo "ERROR: Failed to parse tag: $TAG"
+if [[ "$CLEAN_TAG" =~ ^([0-9]+\.[0-9]+\.[0-9]{6,8})-([0-9]+)$ ]]; then
+    VERSION="${BASH_REMATCH[1]}"
+    BUILD="${BASH_REMATCH[2]}"
+else
+    echo "ERROR: Failed to parse tag: $TAG (expected v<major>.<minor>.<date>-<build>)"
     exit 1
 fi
 
@@ -81,14 +81,14 @@ cat "$NOTES_FILE"
 echo "--------------------------------------------------"
 
 # ------------------------------------------------------------
-# Real APK file names on disk (EasySend-*, named by 10-MakeRelease.sh)
+# Real APK file names on disk (easysend-*, named by 10-MakeRelease.sh)
 # ------------------------------------------------------------
-SRC_APK_MAIN="${PROJ_TITLE}-${VERSION}-${BUILD}-universal.apk"
-SRC_APK_ARM64="${PROJ_TITLE}-${VERSION}-${BUILD}-arm64-v8a.apk"
-SRC_APK_ARM32="${PROJ_TITLE}-${VERSION}-${BUILD}-armeabi-v7a.apk"
+SRC_APK_MAIN="${PROJ_NAME}-${VERSION}-${BUILD}-universal.apk"
+SRC_APK_ARM64="${PROJ_NAME}-${VERSION}-${BUILD}-arm64-v8a.apk"
+SRC_APK_ARM32="${PROJ_NAME}-${VERSION}-${BUILD}-armeabi-v7a.apk"
 
 # The Linux build of the same number, packed by 14-MakeAppImage.sh.
-SRC_APPIMAGE="${PROJ_TITLE}-${VERSION}-${BUILD}-x86_64.AppImage"
+SRC_APPIMAGE="${PROJ_NAME}-${VERSION}-${BUILD}-x86_64.AppImage"
 
 # ------------------------------------------------------------
 # SHA256 files we will generate locally
@@ -97,7 +97,7 @@ SRC_SHA_MAIN="${SRC_APK_MAIN}.sha256"
 SRC_SHA_ARM64="${SRC_APK_ARM64}.sha256"
 
 # ------------------------------------------------------------
-# Target file names in GitHub Release (EasySend-*)
+# Target file names in GitHub Release (easysend-*)
 # ------------------------------------------------------------
 DST_APK_MAIN="$SRC_APK_MAIN"
 DST_SHA_MAIN="$SRC_SHA_MAIN"
@@ -107,7 +107,7 @@ DST_SHA_ARM64="$SRC_SHA_ARM64"
 
 DST_APK_ARM32="$SRC_APK_ARM32"
 
-DST_APPIMAGE="${PROJ_TITLE}-${VERSION}-${BUILD}-x86_64.AppImage"
+DST_APPIMAGE="${PROJ_NAME}-${VERSION}-${BUILD}-x86_64.AppImage"
 
 # ------------------------------------------------------------
 # Check APK existence

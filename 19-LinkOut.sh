@@ -3,9 +3,9 @@
 # Put the files of the newest build into OUT/ as links under their own
 # names, and sweep everything else out of that folder:
 #
-#   OUT/EasySend-<version>-<build>-x86_64.AppImage
-#   OUT/EasySend-<version>-<build>-arm64-v8a.apk
-#   OUT/EasySend-<version>-<build>-armeabi-v7a.apk
+#   OUT/easysend-<version>-<build>-x86_64.AppImage
+#   OUT/easysend-<version>-<build>-arm64-v8a.apk
+#   OUT/easysend-<version>-<build>-armeabi-v7a.apk
 #
 # One place to copy the build from, instead of paths deep inside build/.
 # The links are hard ones: the entry here is the file itself, so copying it
@@ -23,10 +23,12 @@ if [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
 fi
 
 MISSING=""
-# An array, not a string of names: the artifact name comes from the Android
-# label, and a label with a space in it — "Easy Send" — turned the membership
-# test below into a match on halves of two different names. The file just linked
-# then failed to recognise itself and the sweep deleted it.
+# An array, not a string of names. The artifact name used to come from the
+# Android label, and a label with a space in it — "Easy Send" — turned the
+# membership test below into a match on halves of two different names: the file
+# just linked then failed to recognise itself and the sweep deleted it. The name
+# comes out of pubspec.yaml now and carries no spaces, but a list of names is
+# still a list, not one string with separators in it.
 LINKED=()
 
 link_latest() { # link_latest <candidate files...>

@@ -18,6 +18,9 @@ cd "$(dirname "$0")"
 # the display title from the Android label. Copy the script to another Flutter
 # project as it is.
 PROJ_NAME=$(grep -oP '^name:\s*\K\S+' pubspec.yaml) || { echo "No name: in pubspec.yaml" >&2; exit 1; }
+# The display title is read for one thing only: sweeping away artifacts that
+# earlier builds named after it. What an artifact is called now is PROJ_NAME,
+# lowercase, the same name every project here puts in front of a version.
 PROJ_TITLE=$(grep -oP 'android:label="\K[^"]+' android/app/src/main/AndroidManifest.xml 2>/dev/null || true)
 [ -n "$PROJ_TITLE" ] || PROJ_TITLE="$PROJ_NAME"
 
@@ -31,7 +34,10 @@ compute_next_version() {
     local current="$1"
     local date_part="$2"
     local bump="${3:-}"
-    if [[ ! "$current" =~ ^([0-9]+)\.([0-9]+)\.([0-9]{6})\+([0-9]+)$ ]]; then
+    # Six or eight digits of date going in, eight coming out: the version used to
+    # carry yymmdd and now carries yyyymmdd, like every other project here, and a
+    # pubspec still holding the older one has to parse or no build would run again.
+    if [[ ! "$current" =~ ^([0-9]+)\.([0-9]+)\.([0-9]{6,8})\+([0-9]+)$ ]]; then
         echo "Malformed version: $current" >&2
         return 1
     fi
@@ -102,7 +108,7 @@ if [ -n "$RELEASED_LINE" ] &&
    unreleased_has_feature; then
     BUMP=minor
 fi
-FULL_VER=$(compute_next_version "$CURRENT_FULL" "$(date +%y%m%d)" "$BUMP")
+FULL_VER=$(compute_next_version "$CURRENT_FULL" "$(date +%Y%m%d)" "$BUMP")
 VERSION=${FULL_VER%+*}
 BUILD=${FULL_VER##*+}
 
@@ -171,14 +177,14 @@ flutter build apk --release --split-per-abi --target-platform android-arm64,andr
 
 # ---------- collect ----------
 # Flutter always writes app-<abi>-release.apk; rename to
-# <title>-<version>-<build>-<arch>.apk, the same shape the AppImage already has,
+# <project>-<version>-<build>-<arch>.apk, the same shape the AppImage already has,
 # so every artifact of this project sorts and reads alike once it leaves the
 # build directory. The fat APK carries both ABIs and so is named for that rather
 # than for one of them. Everything here is a release build, which is why the
 # word is not in the name.
 for abi in "" "-arm64-v8a" "-armeabi-v7a" "-x86_64"; do
     SOURCE_ARTIFACTS+=("$APK_PATH/app${abi}-release.apk")
-    FINAL_ARTIFACTS+=("$APK_PATH/$PROJ_TITLE-$VERSION-$BUILD${abi:--universal}.apk")
+    FINAL_ARTIFACTS+=("$APK_PATH/$PROJ_NAME-$VERSION-$BUILD${abi:--universal}.apk")
 done
 
 # Refuse a partial set and never replace an artifact from an earlier run.
@@ -223,12 +229,13 @@ rm -f "$APK_PATH/"*.sha1
 # the four APKs. The app-* files from before the rename go with them.
 KEEP=3
 rm -f "$APK_PATH/"app-*.apk
-# Artifacts from the previous naming (<title>-<abi>-release-<version>-<build>)
-# match none of the patterns below, so they would never be pruned and would sit
-# here for good.
+# Artifacts from the two earlier namings — <title>-<abi>-release-<version>-<build>
+# and the title-cased <Title>-<version>-<build>-<abi> — match none of the patterns
+# below, so they would never be pruned and would sit here for good.
 rm -f "$APK_PATH/$PROJ_TITLE"*-release-*.apk
+[ "$PROJ_TITLE" = "$PROJ_NAME" ] || rm -f "$APK_PATH/$PROJ_TITLE-"*.apk
 for abi in "-universal" "-arm64-v8a" "-armeabi-v7a" "-x86_64"; do
-    ls -t "$APK_PATH/$PROJ_TITLE-"*"$abi.apk" 2>/dev/null | tail -n +$((KEEP + 1)) | while read -r old; do
+    ls -t "$APK_PATH/$PROJ_NAME-"*"$abi.apk" 2>/dev/null | tail -n +$((KEEP + 1)) | while read -r old; do
         echo "Removing older APK: $(basename "$old")"
         rm -f "$old"
     done
