@@ -48,10 +48,13 @@ run() { # run <script> <fatal|optional>
 
 # The icons come first, and only redraw themselves when they are older than the
 # drawing — otherwise the build would spend its five minutes on an APK carrying
-# yesterday's launcher icon. Run through bash: that step has no execute bit.
+# yesterday's launcher icon. Run through bash rather than through run(), which
+# wants an execute bit this step does not have — so its failure has to be caught
+# here. Fatal: a generator that died is exactly the case this step exists to
+# prevent, and going on would ship the stale icon it was meant to replace.
 echo
 echo "=== 02-MakeIcons.sh ==="
-bash 02-MakeIcons.sh
+bash 02-MakeIcons.sh || { echo ">>> 02-MakeIcons.sh failed"; exit 1; }
 
 run 10-MakeRelease.sh fatal
 run 11-EmulRELEASE.sh optional

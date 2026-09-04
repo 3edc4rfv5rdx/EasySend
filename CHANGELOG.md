@@ -1,9 +1,12 @@
 # CHANGELOG
-> N=new feature, E=error fix, F=fine-tune, I=infrastructure
-> N moves the version line: the app can do something it could not before.
-> F is the same thing done better; E is behaviour that was wrong, whatever the size of the fix.
+> Newest entries on top.
+> N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure
 
 ## Unreleased
+- I: One CHANGELOG legend across every project here — N/E/F/R/I, newest on top, the type letter always followed by a colon
+- I: The waiting-feature check reads both "- N:" and "- N ", so a changelog entry moves the version line whichever way it was written
+- E: A failed 02-MakeIcons.sh stops 00-MakeAll.sh instead of letting the run go on and ship the stale icon the step exists to replace
+- I: Drop the unread GLOB_FILE from 13-MakeLinux.sh and 14-MakeAppImage.sh
 - I: 14-MakeAppImage.sh sweeps away the images from the title-cased naming, which its prune pattern no longer matched
 - E: 22-RelUpload.sh looks for the tag the way 20-MakeTag.sh writes it, with a dash rather than a plus, so a release upload finds it instead of stopping at "Tag not found"
 - I: Every artifact carries one name — easysend-<version>-<build>-<abi>.apk and the AppImage beside it — and the tag it goes out under is v<version>-<build>. The date in the version grows to four digits of year, so the next build is 0.7.20260903 rather than 0.7.260903.

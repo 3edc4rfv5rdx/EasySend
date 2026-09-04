@@ -56,7 +56,7 @@ unreleased_has_feature() {
     awk '
         /^## Unreleased$/ { inside = 1; next }
         /^## / { inside = 0 }
-        inside && /^- N:/ { found = 1 }
+        inside && /^- N[: ]/ { found = 1 }
         END { exit !found }
     ' CHANGELOG.md
 }

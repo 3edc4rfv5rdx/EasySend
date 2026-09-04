@@ -19,7 +19,6 @@ PROJ_NAME=$(grep -oP '^name:\s*\K\S+' pubspec.yaml) || { echo "No name: in pubsp
 PROJ_TITLE=$(grep -oP 'android:label="\K[^"]+' android/app/src/main/AndroidManifest.xml 2>/dev/null || true)
 [ -n "$PROJ_TITLE" ] || PROJ_TITLE="$PROJ_NAME"
 
-GLOB_FILE="lib/globals.dart"
 BUNDLE="build/linux/x64/release/bundle"
 APPDIR="build/linux/AppDir"
 OUT_DIR="build/linux"
