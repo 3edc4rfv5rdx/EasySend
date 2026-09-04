@@ -10,9 +10,13 @@ CHANGELOG_FILE="CHANGELOG.md"
 
 echo "=== Checking that the working tree is clean ==="
 
-if ! git diff --quiet || ! git diff --cached --quiet; then
-    echo "ERROR: You have uncommitted changes."
-    echo "Please commit or stash them before running this script."
+# --porcelain reports staged, unstaged AND untracked files; git diff --quiet misses untracked,
+# so a new (still untracked) source file could be bundled into the APK yet omitted from the tag.
+DIRTY="$(git status --porcelain)"
+if [[ -n "$DIRTY" ]]; then
+    echo "ERROR: You have uncommitted or untracked changes:"
+    echo "$DIRTY"
+    echo "Please commit, stash, or remove them before running this script."
     exit 1
 fi
 

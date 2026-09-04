@@ -3,6 +3,7 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure
 
 ## Unreleased
+- I: The tag step refuses an untracked file too, so nothing can go into the build without going into the tag
 
 ## v0.7.20260904-146
 - I: One CHANGELOG legend across every project here — N/E/F/R/I, newest on top, the type letter always followed by a colon
