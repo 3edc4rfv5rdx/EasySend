@@ -61,6 +61,9 @@ run 11-EmulRELEASE.sh optional
 run 12-PhoneRELEASE.sh optional
 # 14 builds the Linux release itself, so 13 would only do the same work twice.
 run 14-MakeAppImage.sh fatal
+# The arm64 build published to the update server, so the app's own updater can
+# offer it. Optional: a machine without the server is not a failed build.
+run 18-ToUpdate.sh optional
 # The two files of this build, linked into OUT/ under their own names. Its own
 # script, so the same step also works on a build that already exists.
 run 19-LinkOut.sh optional

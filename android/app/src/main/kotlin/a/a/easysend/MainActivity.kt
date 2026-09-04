@@ -8,6 +8,8 @@ import android.os.Bundle
 import android.provider.DocumentsContract
 import android.webkit.MimeTypeMap
 import androidx.core.content.FileProvider
+import dev.updater.Updater
+import dev.updater.UpdaterConfig
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import java.io.File
@@ -36,6 +38,12 @@ class MainActivity : FlutterActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Looks for a newer build on the home server and asks before it downloads
+        // anything. Silent when there is nothing newer or the server is not there.
+        Updater.checkOnStart(
+            this,
+            UpdaterConfig(appKey = "easysend"),
+        )
         consumeExitRequest(intent)
     }
 

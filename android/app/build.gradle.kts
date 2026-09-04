@@ -28,6 +28,19 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
+    // The shared in-app updater, compiled from ../../updater instead of pulled in
+    // as a module: one copy of those sources serves every project here. $rootDir
+    // is EasySend/android for a Flutter build, so the path climbs two levels.
+    //
+    // srcDir and not directories.add(): that mutable set arrived with AGP 9, and
+    // this project builds on AGP 8.11.
+    sourceSets {
+        getByName("main") {
+            kotlin.srcDir("$rootDir/../../updater/android/src")
+            res.srcDir("$rootDir/../../updater/android/res")
+        }
+    }
+
     defaultConfig {
         applicationId = "a.a.easysend"
         // 23 is what permission_handler needs for runtime permissions.
