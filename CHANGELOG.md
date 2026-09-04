@@ -3,6 +3,8 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure
 
 ## Unreleased
+
+## v0.7.20260904-146
 - I: One CHANGELOG legend across every project here — N/E/F/R/I, newest on top, the type letter always followed by a colon
 - I: The waiting-feature check reads both "- N:" and "- N ", so a changelog entry moves the version line whichever way it was written
 - E: A failed 02-MakeIcons.sh stops 00-MakeAll.sh instead of letting the run go on and ship the stale icon the step exists to replace
