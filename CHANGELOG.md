@@ -4,6 +4,8 @@
 > F is the same thing done better; E is behaviour that was wrong, whatever the size of the fix.
 
 ## Unreleased
+- I: 14-MakeAppImage.sh sweeps away the images from the title-cased naming, which its prune pattern no longer matched
+- E: 22-RelUpload.sh looks for the tag the way 20-MakeTag.sh writes it, with a dash rather than a plus, so a release upload finds it instead of stopping at "Tag not found"
 - I: Every artifact carries one name — easysend-<version>-<build>-<abi>.apk and the AppImage beside it — and the tag it goes out under is v<version>-<build>. The date in the version grows to four digits of year, so the next build is 0.7.20260903 rather than 0.7.260903.
 - I: The call that finds the installed package is pinned on both sides, so a name mistyped in Dart or in Kotlin fails a test instead of quietly leaving the share dialog with nothing to give.
 - F: The screen setting says what it now does — while idle and no longer than 30 min.

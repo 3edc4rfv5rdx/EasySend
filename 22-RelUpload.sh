@@ -3,9 +3,9 @@ set -e
 
 ROOT="$(git rev-parse --show-toplevel)"
 
-# Nothing below is EasySend-specific: the package name comes from pubspec.yaml,
-# the display title from the Android label, and 10/14 name their output after
-# the title. Copy the script to another Flutter project as it is.
+# Nothing below is project-specific: the name the release artifacts carry in
+# front of the version comes from pubspec.yaml. Copy the script to another
+# Flutter project as it is.
 PROJ_NAME=$(grep -oP '^name:\s*\K\S+' "$ROOT/pubspec.yaml") || { echo "No name: in pubspec.yaml" >&2; exit 1; }
 
 APK_DIR="$ROOT/build/app/outputs/flutter-apk"
@@ -21,7 +21,9 @@ if [[ -z "$FULL_VER" ]]; then
     exit 1
 fi
 
-TAG="v$FULL_VER"
+# The pubspec spells the build with a +; the tag, the way 20-MakeTag.sh wrote
+# it, spells it with a dash.
+TAG="v${FULL_VER/+/-}"
 
 if ! git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
     echo "ERROR: Tag $TAG not found. Run 21-PushTag.sh first."

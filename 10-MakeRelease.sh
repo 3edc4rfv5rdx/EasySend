@@ -14,7 +14,7 @@
 set -e
 cd "$(dirname "$0")"
 
-# Nothing below is EasySend-specific: the package name comes from pubspec.yaml,
+# Nothing below is project-specific: the package name comes from pubspec.yaml,
 # the display title from the Android label. Copy the script to another Flutter
 # project as it is.
 PROJ_NAME=$(grep -oP '^name:\s*\K\S+' pubspec.yaml) || { echo "No name: in pubspec.yaml" >&2; exit 1; }

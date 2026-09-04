@@ -12,7 +12,7 @@
 set -e
 cd "$(dirname "$0")"
 
-# Nothing below is EasySend-specific: the package name comes from pubspec.yaml,
+# Nothing below is project-specific: the package name comes from pubspec.yaml,
 # the display title from the Android label. Copy the script to another Flutter
 # project as it is.
 PROJ_NAME=$(grep -oP '^name:\s*\K\S+' pubspec.yaml) || { echo "No name: in pubspec.yaml" >&2; exit 1; }
@@ -126,6 +126,9 @@ APPIMAGE_EXTRACT_AND_RUN=1 ARCH=x86_64 "$APPIMAGETOOL" "$APPDIR" "$IMAGE"
 
 # Three images are enough to fall back on; each one is some 40 MB.
 KEEP=3
+# An image from the title-cased naming matches neither the name built above nor
+# the prune below, so it would sit here for good.
+[ "$PROJ_TITLE" = "$PROJ_NAME" ] || rm -f "$OUT_DIR/$PROJ_TITLE-"*-x86_64.AppImage
 ls -t "$OUT_DIR/$PROJ_NAME"-*-x86_64.AppImage 2>/dev/null | tail -n +$((KEEP + 1)) | while read -r old; do
     echo "Removing older image: $(basename "$old")"
     rm -f "$old"

@@ -6,9 +6,9 @@ set -e
 
 cd "$(dirname "$0")"
 
-# Nothing below is EasySend-specific: the package name comes from pubspec.yaml,
-# the display title from the Android label, and 10-MakeRelease.sh names the APKs
-# after the title. Copy the script to another Flutter project as it is.
+# Nothing below is project-specific: the name 10-MakeRelease.sh put in front of
+# the version comes from pubspec.yaml. Copy the script to another Flutter
+# project as it is.
 PROJ_NAME=$(grep -oP '^name:\s*\K\S+' pubspec.yaml) || { echo "No name: in pubspec.yaml" >&2; exit 1; }
 
 APK_DIR="build/app/outputs/flutter-apk"
