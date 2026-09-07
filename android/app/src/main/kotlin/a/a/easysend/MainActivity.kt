@@ -38,11 +38,12 @@ class MainActivity : FlutterActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // Looks for a newer build on the home server and asks before it downloads
-        // anything. Silent when there is nothing newer or the server is not there.
+        // Looks for a newer build in this app's own GitHub release and asks
+        // before it downloads anything. Silent when there is nothing newer or
+        // GitHub cannot be reached.
         Updater.checkOnStart(
             this,
-            UpdaterConfig(appKey = "easysend"),
+            UpdaterConfig(appKey = "easysend", repo = "EasySend"),
         )
         consumeExitRequest(intent)
     }
