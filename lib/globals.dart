@@ -21,7 +21,7 @@ final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 const String prgName = 'easysend';
 const String progVersion = '0.8.20260907';
-const int buildNumber = 149;
+const int buildNumber = 150;
 const String progAuthor = 'Eugen';
 
 const String langFile = 'assets/locales.json';
