@@ -8,6 +8,8 @@ import android.os.Bundle
 import android.provider.DocumentsContract
 import android.webkit.MimeTypeMap
 import androidx.core.content.FileProvider
+import dev.about.About
+import dev.about.AboutConfig
 import dev.updater.Updater
 import dev.updater.UpdaterConfig
 import io.flutter.embedding.android.FlutterActivity
@@ -50,15 +52,25 @@ class MainActivity : FlutterActivity() {
     }
 
     /**
-     * The check behind the About dialog's button.
+     * The About screen, drawn by the shared module — the same dialog every
+     * project here shows, with the update check on it.
      *
-     * It skips the six-hour interval and, unlike the one at start-up, answers
-     * even when there is nothing new — the updater draws every one of those
-     * dialogs itself, so the Dart side is told nothing beyond that a check
-     * started.
+     * The name, the version and the GitHub address the module works out for
+     * itself; what it cannot know is the build date and whatever else this app
+     * wants on screen, and those come from Dart with their labels already
+     * translated.
      */
-    internal fun checkForUpdate(): Boolean {
-        Updater.checkNow(this, updaterConfig)
+    internal fun showAbout(buildDate: String, extra: List<List<String>>): Boolean {
+        About.show(
+            this,
+            AboutConfig(
+                updater = updaterConfig,
+                buildDate = buildDate,
+                extra = extra.mapNotNull { row ->
+                    if (row.size == 2) row[0] to row[1] else null
+                },
+            ),
+        )
         return true
     }
 

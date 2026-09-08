@@ -38,6 +38,10 @@ android {
         getByName("main") {
             kotlin.srcDir("$rootDir/../../updater/android/src")
             res.srcDir("$rootDir/../../updater/android/res")
+            // The shared About dialog, on the same terms. No res dir: its strings
+            // are in AboutStrings.kt, where a release build's resource shrinker
+            // cannot drop them.
+            kotlin.srcDir("$rootDir/../../about/android/src")
         }
     }
 

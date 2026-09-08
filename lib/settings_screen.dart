@@ -71,82 +71,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  // One line per fact instead of a single run-on string: the version, the
-  // build and the device id are what gets quoted when something goes wrong.
+  /// The About screen, drawn by the shared module — the same dialog every
+  /// project here shows, with the update check on it. What it cannot work out
+  /// for itself is the build date and the three rows below it, and those go
+  /// over with their labels already translated.
   Future<void> _showAbout() async {
-    // The updater is Android's alone — the desktop builds are not installed
-    // from a release manifest — so on the others the dialog has the one button.
-    final bool canUpdate = Platform.isAndroid;
-    await showFlatDialog<void>(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: clFill,
-        shape: dialogShape,
-        title: Row(
-          children: [
-            Icon(Icons.info_outline, color: clAccent),
-            const SizedBox(width: 8),
-            Text('EasySend', style: tsLarge),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _aboutRow(lw('Version'), progVersion),
-            // The build number is the version's last component, so what is
-            // worth a line of its own is the day it was built.
-            _aboutRow(lw('Build date'), buildDate),
-            _aboutRow(lw('Author'), progAuthor),
-            _aboutRow(lw('Platform'), xvPlatform),
-            _aboutRow(lw('Device id'), xvDeviceId),
-          ],
-        ),
-        // Ok keeps the right, where every dialog here has it, and the update
-        // button is pushed to the far left: the two are pressed for opposite
-        // reasons and a stray tap on the wrong one starts a download. Spreading
-        // them apart takes a second button, so with Ok alone the row is simply
-        // aligned as usual.
-        actionsAlignment: canUpdate
-            ? MainAxisAlignment.spaceBetween
-            : MainAxisAlignment.end,
-        actions: [
-          // The updater checks by itself every six hours and stays silent when
-          // there is nothing new; this asks it now and makes it answer either
-          // way.
-          if (canUpdate)
-            TextButton(
-              onPressed: () async {
-                // Closed first: the updater's own dialog is a platform one and
-                // would come up over this, which has nothing left to show.
-                Navigator.pop(context);
-                await checkForUpdate();
-              },
-              style: dialogButtonStyle,
-              // One word: the pair has to fit on one line beside Ok, and a
-              // longer label pushed the two buttons into a column of their own.
-              child: Text(lw('Update')),
-            ),
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            style: dialogButtonStyle,
-            child: Text(lw('Ok')),
-          ),
-        ],
-      ),
+    await showAbout(
+      buildDate: buildDate,
+      extra: [
+        (lw('Author'), progAuthor),
+        (lw('Platform'), xvPlatform),
+        (lw('Device id'), xvDeviceId),
+      ],
     );
   }
-
-  Widget _aboutRow(String label, String value) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 3),
-    child: Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(width: 110, child: Text('$label:', style: tsSmall)),
-        Expanded(child: Text(value, style: tsNormal)),
-      ],
-    ),
-  );
 
   Future<void> _apply(VoidCallback change) async {
     setState(change);

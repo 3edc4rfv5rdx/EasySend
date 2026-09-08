@@ -3,6 +3,7 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure
 
 ## Unreleased
+- R: The About screen is the shared module's now — one dialog for every project here, with the version, build date, GitHub page, mailbox and the update check on it
 
 ## v0.9.155 (2026-09-08)
 - I: 20-MakeTag.sh writes the build date after the tag in the CHANGELOG heading, for the reader only — the release notes are still found by the tag

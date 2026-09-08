@@ -150,21 +150,31 @@ Future<String?> installedApkPath({bool? android}) async {
   }
 }
 
-/// Asks the updater to look for a newer build now, without waiting out its
-/// six-hour interval.
+/// Puts up the About screen, the one the shared module draws for every project
+/// here — version, build date, GitHub page, mailbox, and the update check.
 ///
-/// The native side shows the answer itself — the offer to install, "up to
-/// date", or a network error — so nothing comes back but whether the check
-/// could be started: false off Android and when no screen is attached.
-Future<bool> checkForUpdate({bool? android}) async {
+/// [extra] is what only this side knows, labels already translated; the module
+/// reads the name and the version off the installed package. Nothing comes back
+/// but whether there was a screen to draw on: false off Android too.
+Future<bool> showAbout({
+  required String buildDate,
+  List<(String, String)> extra = const [],
+  bool? android,
+}) async {
   if (!(android ?? Platform.isAndroid)) return false;
   try {
-    return await _serviceChannel.invokeMethod<bool>('checkForUpdate') ?? false;
+    return await _serviceChannel.invokeMethod<bool>('showAbout', {
+          'buildDate': buildDate,
+          'extra': [
+            for (final (String label, String value) in extra) [label, value],
+          ],
+        }) ??
+        false;
   } on PlatformException catch (e) {
-    myPrint('the update check failed: ${e.message}');
+    myPrint('the About screen failed: ${e.message}');
     return false;
   } on MissingPluginException catch (e) {
-    myPrint('the update check is unavailable: ${e.message}');
+    myPrint('the About screen is unavailable: ${e.message}');
     return false;
   }
 }

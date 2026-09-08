@@ -6,7 +6,7 @@ publish_to: 'none'
 # + because Flutter reads the version code from there. It lives in two files
 # that must stay in sync: here and progVersion / buildNumber in lib/globals.dart.
 # The day of the build is not part of it; it is buildDate in the same file.
-version: 0.9.155+155
+version: 0.9.156+156
 
 environment:
   sdk: ^3.11.5
