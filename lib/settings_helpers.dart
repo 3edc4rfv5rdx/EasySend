@@ -83,6 +83,7 @@ String? _validSetting(String key, dynamic value) {
     case 'Ask before exit':
     case 'Keep the screen on':
     case 'Ask about existing files':
+    case 'Show in the gallery':
     case '.First start':
     case '.External id fallback':
       return value == 'true' || value == 'false' ? value : null;

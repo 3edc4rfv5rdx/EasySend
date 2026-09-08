@@ -452,6 +452,54 @@ const Set<String> alreadyCompressedTypes = {
   '.docx', '.xlsx', '.pptx', '.odt', '.ods', '.odp', '.epub',
 };
 
+// The kinds of file a gallery shows, by the only thing the receiving end has to
+// go on.
+//
+// Deliberately its own set rather than a slice of alreadyCompressedTypes, which
+// looks close enough to share: that one answers what an archiver may as well
+// store as it is, and holds documents and archives no gallery has a use for.
+// The two must be free to disagree, and '.bmp' is where they already do — a
+// gallery shows it, an archiver still gets a third off it.
+const Set<String> galleryMediaTypes = {
+  '.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.heic', '.heif', '.avif',
+  '.mp4', '.mov', '.mkv', '.avi', '.m4v', '.webm', '.3gp',
+};
+
+// Where the pictures and videos of a finished transfer actually landed, for the
+// media scan to register.
+//
+// Only files this transfer wrote itself. A file kept because its name was taken
+// already belongs to the user — it carries no destination of its own (see the
+// finish path in net_server) — and one that never arrived has nothing to scan.
+List<String> receivedMediaPaths(Iterable<FileItem> files) {
+  final List<String> paths = <String>[];
+  for (final FileItem file in files) {
+    final String? destination = file.destinationPath;
+    if (!file.done || destination == null || destination.isEmpty) continue;
+    if (galleryMediaTypes.contains(p.extension(destination).toLowerCase())) {
+      paths.add(destination);
+    }
+  }
+  return paths;
+}
+
+// Let a gallery see the pictures and videos that just arrived. Android only:
+// nothing else has a media index to tell.
+//
+// Best-effort by design. The files are on disk whichever way this goes, and a
+// scan that fails must not cost a transfer its outcome.
+Future<void> scanReceivedMedia(Iterable<FileItem> files, {bool? android}) async {
+  if (!(android ?? Platform.isAndroid)) return;
+  if (xdef['Show in the gallery'] != 'true') return;
+  final List<String> paths = receivedMediaPaths(files);
+  if (paths.isEmpty) return;
+  try {
+    await _androidChannel.invokeMethod<bool>('scanMedia', {'paths': paths});
+  } catch (e) {
+    myPrint('cannot add the received files to the gallery: $e');
+  }
+}
+
 // Whether a file goes into the archive as it is instead of being compressed.
 // Two reasons, and either is enough: it is a kind of file that will not get
 // smaller, or it is large enough that compressing it would have to be done in

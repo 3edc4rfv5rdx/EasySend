@@ -20,8 +20,8 @@ final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey =
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 const String prgName = 'easysend';
-const String progVersion = '0.8.20260907';
-const int buildNumber = 150;
+const String progVersion = '0.9.20260908';
+const int buildNumber = 151;
 const String progAuthor = 'Eugen';
 
 const String langFile = 'assets/locales.json';
@@ -370,6 +370,7 @@ Map<String, dynamic> defaultSettings() => {
   'Ask before exit': 'true',
   'Keep the screen on': 'true',
   'Ask about existing files': 'true',
+  'Show in the gallery': 'false',
   '.Device id': '',
   '.First start': 'true',
   '.Prog version': progVersion,

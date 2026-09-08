@@ -1191,6 +1191,9 @@ class ReceiveServer {
           transfer.log('Copied to the clipboard', file: clip.relativePath);
         }
       }
+      // Everything that arrived is published by now, so this is the one moment
+      // the whole batch can be handed to the media index at once.
+      await scanReceivedMedia(transfer.files);
       final String copiedLine = copied
           ? ' — ${lw('Copied to the clipboard')}'
           : '';
@@ -1274,6 +1277,9 @@ class ReceiveServer {
     }
     if (active != null) await active;
     session.transfer.status = status;
+    // A cancelled transfer still leaves behind every file that was verified
+    // before it stopped, and those are as much arrived as any other.
+    await scanReceivedMedia(session.transfer.files);
     await _cleanupParts(session);
     // Only if it is still this session's slot: a prepare that arrived while
     // this abort was awaiting owns it now.

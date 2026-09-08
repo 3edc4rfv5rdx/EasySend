@@ -50,6 +50,27 @@ void main() {
     expect(defaultSettings()['Keep the screen on'], 'true');
   });
 
+  // The one written out above, for every switch there is and every one there
+  // will be. A key the loader's own list forgot is not refused loudly: it is
+  // replaced by its default, and the option quietly goes back to what it was
+  // on the next start. Written against defaultSettings() rather than a list of
+  // names, so a switch added later is covered the day it is added.
+  test('every switch survives a save and a load', () async {
+    final Map<String, String> flipped = {
+      for (final MapEntry<String, dynamic> e in defaultSettings().entries)
+        if (e.value == 'true' || e.value == 'false')
+          e.key: e.value == 'true' ? 'false' : 'true',
+    };
+    expect(flipped, isNotEmpty);
+    await settings.writeAsString(json.encode({'settings': flipped}));
+
+    await loadSettings();
+
+    for (final MapEntry<String, String> e in flipped.entries) {
+      expect(xdef[e.key], e.value, reason: '${e.key} did not survive a load');
+    }
+  });
+
   test(
     'drops malformed and duplicate devices without losing valid one',
     () async {

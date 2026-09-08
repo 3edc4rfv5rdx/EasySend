@@ -3,10 +3,9 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure
 
 ## Unreleased
+- N: Received pictures and videos can be shown in the gallery — a switch in the settings, off by default; the files stay in the receive folder and only the media index is told about them
 
 ## v0.8.20260907-150
-
-## v0.8.20260907-149
 - N: The app checks its own GitHub release for a newer build on start and offers it, the same updater the other projects here use — one manifest names every ABI split, so the phone takes arm64 and an armeabi-v7a box takes v7a, wherever either of them is
 - I: 23-ToUpdate.sh writes that manifest into the release, run by hand after 22-RelUpload.sh
 - E: The version line looks only at release tags, so a tag like "duplex" can no longer answer which line the last release went out on

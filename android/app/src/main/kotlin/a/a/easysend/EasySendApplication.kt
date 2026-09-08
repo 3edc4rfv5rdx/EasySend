@@ -4,6 +4,7 @@ import android.app.ActivityManager
 import android.app.Application
 import android.content.Context
 import android.content.Intent
+import android.media.MediaScannerConnection
 import android.net.wifi.WifiManager
 import android.os.Build
 import io.flutter.embedding.engine.FlutterEngine
@@ -159,6 +160,11 @@ class EasySendApplication : Application() {
                 activity?.openFolder(call.argument<String>("path")) ?: false,
             )
 
+            "scanMedia" -> {
+                scanMedia(call.argument<List<String>>("paths") ?: emptyList())
+                result.success(true)
+            }
+
             "acquireMulticast" -> {
                 acquireMulticast()
                 result.success(true)
@@ -171,6 +177,27 @@ class EasySendApplication : Application() {
 
             else -> result.notImplemented()
         }
+    }
+
+    /**
+     * Registers received pictures and videos with the media store, so a gallery
+     * shows them.
+     *
+     * Nothing is copied and nothing moves: the files stay in the receive folder
+     * and the scan only tells MediaStore that they are there. Written through
+     * the File API, they leave the index unaware of them, which is why a
+     * received photo is otherwise reachable from a file manager alone.
+     *
+     * The application context on purpose. A transfer can finish with no
+     * Activity alive at all — that is what background receiving is for — and a
+     * scan that needed a screen would be skipped in exactly the case the files
+     * arrived unwatched.
+     */
+    private fun scanMedia(paths: List<String>) {
+        if (paths.isEmpty()) return
+        // The types are left to the scanner: it reads them off the extension,
+        // which is all this side knows about the file anyway.
+        MediaScannerConnection.scanFile(this, paths.toTypedArray(), null, null)
     }
 
     /**

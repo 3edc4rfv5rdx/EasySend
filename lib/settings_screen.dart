@@ -333,6 +333,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           onChanged: (v) => _apply(() => xdef['Ask about existing files'] = '$v'),
         ),
+        if (Platform.isAndroid)
+          SwitchListTile(
+            dense: true,
+            visualDensity: const VisualDensity(vertical: -2),
+            secondary: Icon(Icons.photo_library_outlined, color: clText),
+            activeThumbColor: clAccent,
+            value: xdef['Show in the gallery'] == 'true',
+            title: Text(lw('Show in the gallery'), style: tsNormal),
+            // What turning it off does not do is worth a line: the files stay
+            // where they are either way, and the ones already registered stay
+            // in the gallery too.
+            subtitle: Text(lw('Pictures received from now on'), style: tsSmall),
+            onChanged: (v) => _apply(() => xdef['Show in the gallery'] = '$v'),
+          ),
         sectionTitle(lw('Application')),
         _tile(
           icon: Icons.language,
