@@ -3,6 +3,8 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure
 
 ## Unreleased
+
+## v0.9.155 (2026-09-08)
 - I: 20-MakeTag.sh writes the build date after the tag in the CHANGELOG heading, for the reader only — the release notes are still found by the tag
 - N: The About screen shows the build date on a line of its own, where the version used to carry it
 - I: The version is major.minor.build — the date left it — so the tag is v0.9.155 and an artifact easysend-0.9.155-arm64-v8a.apk, each number written once
