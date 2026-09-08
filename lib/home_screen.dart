@@ -250,6 +250,28 @@ IconData deviceRowIcon({required bool phone, required bool online}) {
   return phone ? Icons.phonelink_off : Icons.desktop_access_disabled;
 }
 
+// The devices the home list shows, in the order it shows them: reachable first,
+// then by name.
+//
+// An unreachable device earns its row only when this screen is the one place it
+// can be reached from. The settings screen lists the trusted ones, so a trusted
+// row that is away is a second copy of something already on the phone — four of
+// them on a list of four was the whole of what the list said. A device added by
+// hand is not in that list: its address was typed in, the crossing-out button
+// here is the only way to be rid of it, and hiding it would lose it altogether.
+//
+// A device carrying a transfer right now keeps its row whatever it looks like,
+// the same exemption forgetStaleDevices makes: the target must not vanish from
+// under a send in flight.
+List<Device> homeDeviceRows(Iterable<Device> devices) =>
+    devices
+        .where((Device d) => d.online || d.manual || deviceIsBusy(d.id))
+        .toList()
+      ..sort((Device a, Device b) {
+        if (a.online != b.online) return a.online ? -1 : 1;
+        return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+      });
+
 // The icon of a transfer row: which way it went, and whether what went was a
 // clipboard. Only a transfer that is nothing but clipboard files says so — one
 // that merely carries one among a batch of files is a batch of files, and the
@@ -1592,12 +1614,7 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Widget _buildDeviceList() {
-    // Reachable devices first, then the remembered ones that are away.
-    final List<Device> devices = List<Device>.of(xvDevices)
-      ..sort((a, b) {
-        if (a.online != b.online) return a.online ? -1 : 1;
-        return a.name.toLowerCase().compareTo(b.name.toLowerCase());
-      });
+    final List<Device> devices = homeDeviceRows(xvDevices);
 
     if (devices.isEmpty) {
       return SliverToBoxAdapter(

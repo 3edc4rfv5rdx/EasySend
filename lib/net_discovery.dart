@@ -70,11 +70,7 @@ void forgetStaleDevices() {
   final int before = xvDevices.length;
   xvDevices.removeWhere((Device d) {
     if (d.manual || d.trusted) return false;
-    if (xvTransfers.any(
-      (TransferSession t) => t.isRunning && t.peerId == d.id,
-    )) {
-      return false;
-    }
+    if (deviceIsBusy(d.id)) return false;
     final DateTime? seen = d.lastSeen;
     return seen == null || now.difference(seen).inSeconds > deviceDropSec;
   });

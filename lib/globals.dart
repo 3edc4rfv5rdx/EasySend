@@ -21,7 +21,7 @@ final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 const String prgName = 'easysend';
 const String progVersion = '0.9.20260908';
-const int buildNumber = 151;
+const int buildNumber = 152;
 const String progAuthor = 'Eugen';
 
 const String langFile = 'assets/locales.json';
@@ -423,6 +423,14 @@ void serverStateChanged() => serverTick.value++;
 // Transfers in both directions. Finished ones stay until restart so the user
 // can open what arrived; no history is kept between runs.
 List<TransferSession> xvTransfers = [];
+
+// Whether a transfer is running with this device right now.
+//
+// Asked by everything that would otherwise take the row away from under a
+// transfer in flight: the staleness sweep that drops silent devices, and the
+// home list that hides the ones the settings screen already shows.
+bool deviceIsBusy(String id) =>
+    xvTransfers.any((TransferSession t) => t.isRunning && t.peerId == id);
 
 // This device is sending right now.
 //
