@@ -3,25 +3,35 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  Future<ProcessResult> compute(String version, String date) => Process.run(
+  Future<ProcessResult> compute(String version) => Process.run(
     'bash',
-    ['10-MakeRelease.sh', '--compute', version, date],
+    ['10-MakeRelease.sh', '--compute', version],
     workingDirectory: Directory.current.path,
   );
 
   test(
     'preserves the authoritative major/minor line and increments build',
     () async {
-      final result = await compute('0.2.260810+64', '260811');
+      final result = await compute('0.2.64+64');
       expect(result.exitCode, 0);
-      expect((result.stdout as String).trim(), '0.2.260811+65');
+      expect((result.stdout as String).trim(), '0.2.65+65');
     },
   );
 
   test('supports an intentional major/minor change', () async {
-    final result = await compute('3.7.260810+9', '260811');
+    final result = await compute('3.7.9+9');
     expect(result.exitCode, 0);
-    expect((result.stdout as String).trim(), '3.7.260811+10');
+    expect((result.stdout as String).trim(), '3.7.10+10');
+  });
+
+  // The third component used to be the build date; it is the build number now,
+  // and the date moved to buildDate in globals.dart. A pubspec still holding
+  // the old spelling has to keep parsing, or the first build after the change
+  // would be the one that cannot run.
+  test('a version still carrying the old date parses and drops it', () async {
+    final result = await compute('0.2.260810+64');
+    expect(result.exitCode, 0);
+    expect((result.stdout as String).trim(), '0.2.65+65');
   });
 
   // The line is the one part of a version decided by hand, and the changelog
@@ -30,17 +40,16 @@ void main() {
     final result = await Process.run('bash', [
       '10-MakeRelease.sh',
       '--compute',
-      '0.2.260810+64',
-      '260811',
+      '0.2.64+64',
       'minor',
     ], workingDirectory: Directory.current.path);
 
     expect(result.exitCode, 0);
-    expect((result.stdout as String).trim(), '0.3.260811+65');
+    expect((result.stdout as String).trim(), '0.3.65+65');
   });
 
   test('rejects malformed input before mutation', () async {
-    final result = await compute('not-a-version', '260811');
+    final result = await compute('not-a-version');
     expect(result.exitCode, isNot(0));
     expect(result.stderr, contains('Malformed version'));
   });
@@ -51,7 +60,7 @@ void main() {
   group('the line follows the changelog by itself', () {
     Future<String> dryRun(
       String changelog, {
-      String version = '0.2.260811+72',
+      String version = '0.2.72+72',
     }) async {
       final Directory root = await Directory.systemTemp.createTemp(
         'easysend-line-',
@@ -73,7 +82,7 @@ void main() {
       final File git = File('${bin.path}/git');
       await git.writeAsString(
         '#!/usr/bin/env bash\n'
-        '[ "\$1" = "tag" ] && echo "v0.2.260811+72"\nexit 0\n',
+        '[ "\$1" = "tag" ] && echo "v0.2.72"\nexit 0\n',
       );
       await Process.run('chmod', ['+x', git.path]);
 
@@ -104,7 +113,7 @@ void main() {
     test('a feature already released does not move it again', () async {
       expect(
         await dryRun(
-          '## Unreleased\n- E: a fix\n\n## v0.2.260811+72\n- N: an old one\n',
+          '## Unreleased\n- E: a fix\n\n## v0.2.72\n- N: an old one\n',
         ),
         startsWith('0.2.'),
       );
@@ -126,7 +135,7 @@ void main() {
       expect(
         await dryRun(
           '## Unreleased\n- N: something new\n',
-          version: '0.3.260812+80',
+          version: '0.3.80+80',
         ),
         startsWith('0.3.'),
       );
@@ -135,7 +144,7 @@ void main() {
     // Nothing waiting at all is the ordinary state right after a release.
     test('an empty Unreleased leaves the line alone', () async {
       expect(
-        await dryRun('## Unreleased\n\n## v0.2.260811+72\n- N: an old one\n'),
+        await dryRun('## Unreleased\n\n## v0.2.72\n- N: an old one\n'),
         startsWith('0.2.'),
       );
     });
@@ -146,7 +155,7 @@ void main() {
     // out here would make this test fail on the release after next. What the
     // line does belongs to the group above; here it only has to be well formed.
     final RegExpMatch? current = RegExp(
-      r'^version:\s*\d+\.\d+\.\d{6}\+(\d+)\s*$',
+      r'^version:\s*\d+\.\d+\.\d+\+(\d+)\s*$',
       multiLine: true,
     ).firstMatch(await File('pubspec.yaml').readAsString());
     expect(current, isNotNull, reason: 'pubspec.yaml carries no version line');
@@ -161,7 +170,7 @@ void main() {
     expect(result.exitCode, 0, reason: '${result.stderr}');
     expect(
       (result.stdout as String).trim(),
-      matches(RegExp('^\\d+\\.\\d+\\.\\d{6}\\+$nextBuild\$')),
+      matches(RegExp('^\\d+\\.\\d+\\.$nextBuild\\+$nextBuild\$')),
     );
   });
 }

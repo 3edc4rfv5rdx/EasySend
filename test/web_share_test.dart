@@ -216,7 +216,7 @@ void main() {
           offer!.files.map((WebShareEntry e) => e.name),
           containsAll(<String>['one.txt', 'two.txt']),
         );
-        expect(offer.program?.name, 'EasySend-$progVersion+$buildNumber.apk');
+        expect(offer.program?.name, 'EasySend-$progVersion.apk');
         // The size is the installed file's, read now rather than assumed.
         expect(offer.program?.size, 2);
       },

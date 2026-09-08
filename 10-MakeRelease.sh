@@ -32,12 +32,14 @@ APK_PATH="build/app/outputs/flutter-apk"
 # a bump; who asks, and on what grounds, is decided further down.
 compute_next_version() {
     local current="$1"
-    local date_part="$2"
-    local bump="${3:-}"
-    # Six or eight digits of date going in, eight coming out: the version used to
-    # carry yymmdd and now carries yyyymmdd, like every other project here, and a
-    # pubspec still holding the older one has to parse or no build would run again.
-    if [[ ! "$current" =~ ^([0-9]+)\.([0-9]+)\.([0-9]{6,8})\+([0-9]+)$ ]]; then
+    local bump="${2:-}"
+    # The third component is the build number, the same one that follows the +:
+    # a pubspec has to spell the build both ways, so the two are kept equal
+    # rather than left to drift. The date the third component used to carry is
+    # not lost, it moved to buildDate in globals.dart, where the About screen
+    # reads it; a version still holding it here parses all the same and simply
+    # has it dropped, or the first build after the change would refuse to run.
+    if [[ ! "$current" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)\+([0-9]+)$ ]]; then
         echo "Malformed version: $current" >&2
         return 1
     fi
@@ -45,7 +47,7 @@ compute_next_version() {
     local minor="${BASH_REMATCH[2]}"
     [ "$bump" = "minor" ] && minor=$((minor + 1))
     local next_build=$((BASH_REMATCH[4] + 1))
-    echo "$major.$minor.$date_part+$next_build"
+    echo "$major.$minor.$next_build+$next_build"
 }
 
 # Whether anything waiting for release is a new feature. The changelog already
@@ -83,7 +85,7 @@ if [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
 fi
 
 if [ "$1" = "--compute" ]; then
-    compute_next_version "$2" "$3" "${4:-}"
+    compute_next_version "$2" "${3:-}"
     exit
 fi
 
@@ -91,7 +93,7 @@ fi
 CURRENT_FULL=$(sed -n 's/^version: //p' "$PUB_FILE")
 CURRENT_VERSION=${CURRENT_FULL%+*}
 CURRENT_BUILD=${CURRENT_FULL##*+}
-# major.minor on its own: the date is the rest of it.
+# major.minor on its own: the build number is the rest of it.
 CURRENT_VERSION_LINE=${CURRENT_VERSION%.*}
 GLOBAL_VERSION=$(sed -n "s/^const String progVersion = '\([^']*\)';/\1/p" "$GLOB_FILE")
 GLOBAL_BUILD=$(sed -n 's/^const int buildNumber = \([0-9]*\);/\1/p' "$GLOB_FILE")
@@ -110,9 +112,13 @@ if [ -n "$RELEASED_LINE" ] &&
    unreleased_has_feature; then
     BUMP=minor
 fi
-FULL_VER=$(compute_next_version "$CURRENT_FULL" "$(date +%Y%m%d)" "$BUMP")
+FULL_VER=$(compute_next_version "$CURRENT_FULL" "$BUMP")
 VERSION=${FULL_VER%+*}
 BUILD=${FULL_VER##*+}
+# The day this build was made, for the About screen. It is written into
+# globals.dart only, because nothing but a human reading that screen has any use
+# for it: the tag, the artifact names and the update manifest all go by version.
+BUILD_DATE=$(date +%Y-%m-%d)
 
 if [ "$1" = "--dry-run" ]; then
     echo "$FULL_VER"
@@ -159,8 +165,10 @@ trap cleanup_release EXIT
 sed -i "s/^version: .*$/version: $FULL_VER/" "$PUB_FILE"
 sed -i "s/const String progVersion = '[0-9.]\+';/const String progVersion = '$VERSION';/" "$GLOB_FILE"
 sed -i "s/const int buildNumber = [0-9]\+;/const int buildNumber = $BUILD;/" "$GLOB_FILE"
+sed -i "s/const String buildDate = '[0-9-]*';/const String buildDate = '$BUILD_DATE';/" "$GLOB_FILE"
 
 echo "Version: $VERSION"
+echo "Date:    $BUILD_DATE"
 echo ">>> Build: $BUILD <<<"
 
 # ---------- build ----------
@@ -179,14 +187,14 @@ flutter build apk --release --split-per-abi --target-platform android-arm64,andr
 
 # ---------- collect ----------
 # Flutter always writes app-<abi>-release.apk; rename to
-# <project>-<version>-<build>-<arch>.apk, the same shape the AppImage already has,
+# <project>-<version>-<arch>.apk, the same shape the AppImage already has,
 # so every artifact of this project sorts and reads alike once it leaves the
 # build directory. The fat APK carries both ABIs and so is named for that rather
 # than for one of them. Everything here is a release build, which is why the
 # word is not in the name.
 for abi in "" "-arm64-v8a" "-armeabi-v7a" "-x86_64"; do
     SOURCE_ARTIFACTS+=("$APK_PATH/app${abi}-release.apk")
-    FINAL_ARTIFACTS+=("$APK_PATH/$PROJ_NAME-$VERSION-$BUILD${abi:--universal}.apk")
+    FINAL_ARTIFACTS+=("$APK_PATH/$PROJ_NAME-$VERSION${abi:--universal}.apk")
 done
 
 # Refuse a partial set and never replace an artifact from an earlier run.

@@ -3,15 +3,15 @@
 # Put the files of the newest build into OUT/ as links under their own
 # names, and sweep everything else out of that folder:
 #
-#   OUT/easysend-<version>-<build>-x86_64.AppImage
-#   OUT/easysend-<version>-<build>-arm64-v8a.apk
-#   OUT/easysend-<version>-<build>-armeabi-v7a.apk
+#   OUT/easysend-<version>-x86_64.AppImage
+#   OUT/easysend-<version>-arm64-v8a.apk
+#   OUT/easysend-<version>-armeabi-v7a.apk
 #
 # One place to copy the build from, instead of paths deep inside build/.
 # The links are hard ones: the entry here is the file itself, so copying it
 # elsewhere copies a build and not a dangling path, and the pruning of old APKs
-# inside build/ leaves it whole. The name carries the version and the build
-# number, so the listing says which build it is. Nothing is built here:
+# inside build/ leaves it whole. The version ends in the build number, so the
+# listing says which build it is. Nothing is built here:
 # 00-MakeAll.sh runs the same steps after a build, and this is for picking up a
 # build that already exists.
 #

@@ -21,9 +21,9 @@ if [[ -z "$FULL_VER" ]]; then
     exit 1
 fi
 
-# The pubspec spells the build with a +; the tag, the way 20-MakeTag.sh wrote
-# it, spells it with a dash.
-TAG="v${FULL_VER/+/-}"
+# The version alone, the way 20-MakeTag.sh wrote it: its third component is
+# already the build number the pubspec repeats after the +.
+TAG="v${FULL_VER%%+*}"
 
 if ! git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
     echo "ERROR: Tag $TAG not found. Run 21-PushTag.sh first."
@@ -33,21 +33,20 @@ fi
 echo "Tag: $TAG"
 
 # ------------------------------------------------------------
-# Parse tag: v0.7.20260115-26  ->  VERSION=0.7.20260115  BUILD=26
-# Matched whole rather than cut at the dash: a tag from the older +build spelling
-# would otherwise parse into nonsense instead of stopping here.
+# Parse tag: v0.9.154  ->  VERSION=0.9.154
+# Matched whole rather than trusted: a tag from either older spelling — the
+# +build one or the <date>-<build> one — stops here instead of parsing into
+# artifact names that were never built.
 # ------------------------------------------------------------
 CLEAN_TAG="${TAG#v}"
-if [[ "$CLEAN_TAG" =~ ^([0-9]+\.[0-9]+\.[0-9]{6,8})-([0-9]+)$ ]]; then
+if [[ "$CLEAN_TAG" =~ ^([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
     VERSION="${BASH_REMATCH[1]}"
-    BUILD="${BASH_REMATCH[2]}"
 else
-    echo "ERROR: Failed to parse tag: $TAG (expected v<major>.<minor>.<date>-<build>)"
+    echo "ERROR: Failed to parse tag: $TAG (expected v<major>.<minor>.<build>)"
     exit 1
 fi
 
 echo "Version: $VERSION"
-echo "Build:   $BUILD"
 
 # ------------------------------------------------------------
 # Function: extract_changelog
@@ -59,8 +58,10 @@ extract_changelog() {
     local tag="$2"
     local out_file="$3"
 
+    # The heading is the tag, and since 20-MakeTag.sh also puts the build date
+    # after it, the tag followed by a space counts as the same heading.
     awk -v ver="## $tag" '
-    $0 == ver { capture=1; next }
+    $0 == ver || index($0, ver " ") == 1 { capture=1; next }
     capture && /^## / { capture=0 }
     capture { print }
     ' "$changelog" > "$out_file"
@@ -85,12 +86,12 @@ echo "--------------------------------------------------"
 # ------------------------------------------------------------
 # Real APK file names on disk (easysend-*, named by 10-MakeRelease.sh)
 # ------------------------------------------------------------
-SRC_APK_MAIN="${PROJ_NAME}-${VERSION}-${BUILD}-universal.apk"
-SRC_APK_ARM64="${PROJ_NAME}-${VERSION}-${BUILD}-arm64-v8a.apk"
-SRC_APK_ARM32="${PROJ_NAME}-${VERSION}-${BUILD}-armeabi-v7a.apk"
+SRC_APK_MAIN="${PROJ_NAME}-${VERSION}-universal.apk"
+SRC_APK_ARM64="${PROJ_NAME}-${VERSION}-arm64-v8a.apk"
+SRC_APK_ARM32="${PROJ_NAME}-${VERSION}-armeabi-v7a.apk"
 
 # The Linux build of the same number, packed by 14-MakeAppImage.sh.
-SRC_APPIMAGE="${PROJ_NAME}-${VERSION}-${BUILD}-x86_64.AppImage"
+SRC_APPIMAGE="${PROJ_NAME}-${VERSION}-x86_64.AppImage"
 
 # ------------------------------------------------------------
 # SHA256 files we will generate locally
@@ -109,7 +110,7 @@ DST_SHA_ARM64="$SRC_SHA_ARM64"
 
 DST_APK_ARM32="$SRC_APK_ARM32"
 
-DST_APPIMAGE="${PROJ_NAME}-${VERSION}-${BUILD}-x86_64.AppImage"
+DST_APPIMAGE="${PROJ_NAME}-${VERSION}-x86_64.AppImage"
 
 # ------------------------------------------------------------
 # Check APK existence
@@ -158,7 +159,7 @@ for pair in "${FILES[@]}"; do
     SRC="${pair%%#*}"
     if [[ ! -f "$SRC" ]]; then
         echo "ERROR: File not found: $SRC"
-        [[ "$SRC" == *.AppImage ]] && echo "Run ./14-MakeAppImage.sh for build $BUILD first."
+        [[ "$SRC" == *.AppImage ]] && echo "Run ./14-MakeAppImage.sh for $VERSION first."
         exit 1
     fi
     echo "OK: $(basename "$SRC")"

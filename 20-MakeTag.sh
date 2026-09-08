@@ -6,6 +6,7 @@ cd "$(dirname "$0")"
 # Pushing is a separate step: 21-PushTag.sh
 
 PUB_FILE="pubspec.yaml"
+GLOB_FILE="lib/globals.dart"
 CHANGELOG_FILE="CHANGELOG.md"
 
 echo "=== Checking that the working tree is clean ==="
@@ -30,9 +31,9 @@ if [[ -z "$FULL_VER" ]]; then
     exit 1
 fi
 
-# The pubspec spells the build with a +; the tag, like every artifact name here,
-# spells it with a dash.
-TAG="v${FULL_VER/+/-}"
+# The build number is the version's own third component, so the +build the
+# pubspec repeats it in has nothing to add to a tag name.
+TAG="v${FULL_VER%%+*}"
 echo "Tag: $TAG"
 
 if git tag --list "$TAG" | grep -q "^${TAG}$"; then
@@ -45,7 +46,17 @@ if [[ ! -f "$CHANGELOG_FILE" ]]; then
     exit 1
 fi
 
-if grep -q "^## ${TAG}$" "$CHANGELOG_FILE"; then
+# The day the build was made, written into globals.dart by 10-MakeRelease.sh.
+# It goes into the heading for the reader alone — the tag is what identifies a
+# release everywhere else — so a project without that constant is not an error,
+# and today's date stands in.
+BUILD_DATE=$(sed -n "s/^const String buildDate = '\([0-9-]*\)';/\1/p" "$GLOB_FILE" 2>/dev/null)
+[ -n "$BUILD_DATE" ] || BUILD_DATE=$(date +%F)
+HEADING="## $TAG ($BUILD_DATE)"
+
+# The tag alone or the tag followed by the date: an older section, stamped
+# before the date was written here, must still count as this release's.
+if grep -qE "^## ${TAG}( |$)" "$CHANGELOG_FILE"; then
     echo "Changelog already has a section for $TAG. Skipping update."
 else
     echo "=== Inserting $TAG section right after Unreleased ==="
@@ -53,18 +64,18 @@ else
 
     # Keep an empty Unreleased on top for the next cycle and put the released
     # notes under the version heading below it.
-    awk -v tag="$TAG" '
+    awk -v heading="$HEADING" '
         /^## Unreleased$/ && !done {
             print $0
             print ""
-            print "## " tag
+            print heading
             done=1
             next
         }
         { print }
     ' "$CHANGELOG_FILE" > "$UPDATED"
 
-    if ! grep -q "^## ${TAG}$" "$UPDATED"; then
+    if ! grep -qE "^## ${TAG}( |$)" "$UPDATED"; then
         echo "ERROR: No '## Unreleased' section found; changelog not stamped."
         rm -f "$UPDATED"
         exit 1

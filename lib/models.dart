@@ -261,7 +261,7 @@ String? trimmedLogLine(TransferSession transfer) {
 String transferLogText(TransferSession transfer) {
   final String? trimmed = trimmedLogLine(transfer);
   return [
-    '$prgName $progVersion+$buildNumber $xvPlatform',
+    '$prgName $progVersion $xvPlatform',
     ...transferLogHeader(transfer),
     '',
     ...transfer.events.map(formatTransferEvent),

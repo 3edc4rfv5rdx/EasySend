@@ -13,7 +13,7 @@ import 'package:flutter_test/flutter_test.dart';
 // gathering does is checked in web_share_test.dart, where the clock is real.
 void main() {
   const String url = 'http://192.168.88.7:15353';
-  final String apkName = 'EasySend-$progVersion+$buildNumber.apk';
+  final String apkName = 'EasySend-$progVersion.apk';
 
   Future<void> pumpHost(WidgetTester tester) => tester.pumpWidget(
     MaterialApp(navigatorKey: navigatorKey, home: const SizedBox.shrink()),

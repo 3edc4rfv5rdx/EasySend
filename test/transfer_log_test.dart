@@ -146,7 +146,7 @@ void main() {
     transfer.log('Received', file: 'file0.bin');
 
     final List<String> lines = transferLogText(transfer).split('\n');
-    expect(lines.first, '$prgName $progVersion+$buildNumber linux');
+    expect(lines.first, '$prgName $progVersion linux');
     expect(lines, containsAll(transferLogHeader(transfer)));
     expect(lines.last, formatTransferEvent(transfer.events.single));
     expect(transferLogHeader(transfer).last, contains('Connection refused'));

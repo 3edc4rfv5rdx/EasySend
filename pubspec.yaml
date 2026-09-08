@@ -2,9 +2,11 @@ name: easysend
 description: "Simple file transfer between devices over a local network"
 publish_to: 'none'
 
-# The build number lives in two places that must stay in sync: `version:` here
-# and progVersion / buildNumber in lib/globals.dart.
-version: 0.9.20260908+153
+# The version ends in the build number, which `version:` then repeats after the
+# + because Flutter reads the version code from there. It lives in two files
+# that must stay in sync: here and progVersion / buildNumber in lib/globals.dart.
+# The day of the build is not part of it; it is buildDate in the same file.
+version: 0.9.155+155
 
 environment:
   sdk: ^3.11.5

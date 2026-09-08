@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Build the Linux release and pack it into one runnable file:
-# build/linux/<project>-<version>-<build>-x86_64.AppImage
+# build/linux/<project>-<version>-x86_64.AppImage
 #
 # A Flutter desktop app cannot be linked statically — the engine is a shared
 # library and GTK has to come from the system — so the AppImage carries the
@@ -82,7 +82,6 @@ flutter build linux --release
 
 # ---------- AppDir ----------
 VERSION=$(grep -oP '^version:\s*\K[0-9.]+' pubspec.yaml)
-BUILD=$(grep -oP '^version:\s*[0-9.]+\+\K[0-9]+' pubspec.yaml)
 
 rm -rf "$APPDIR"
 mkdir -p "$APPDIR/usr/bin" "$APPDIR/usr/share/applications" \
@@ -117,7 +116,7 @@ APPRUN
 chmod +x "$APPDIR/AppRun"
 
 # ---------- pack ----------
-IMAGE="$OUT_DIR/$PROJ_NAME-$VERSION-$BUILD-x86_64.AppImage"
+IMAGE="$OUT_DIR/$PROJ_NAME-$VERSION-x86_64.AppImage"
 rm -f "$IMAGE"
 # Extract-and-run: appimagetool is itself an AppImage, and FUSE is not always
 # there to mount it.
@@ -134,7 +133,7 @@ ls -t "$OUT_DIR/$PROJ_NAME"-*-x86_64.AppImage 2>/dev/null | tail -n +$((KEEP + 1
 done
 
 echo
-echo "Version: $VERSION+$BUILD"
+echo "Version: $VERSION"
 echo "Image:   $(du -sh "$IMAGE" | cut -f1)  $IMAGE"
 echo "Run:     ./$IMAGE"
 echo "Kept:"

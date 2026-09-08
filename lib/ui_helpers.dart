@@ -660,7 +660,7 @@ Future<WebShareOffer?> prepareWebShare(
       program = (
         // Named the way a release artifact is, so the other end can see which
         // build it is about to install without opening anything.
-        name: 'EasySend-$progVersion+$buildNumber.apk',
+        name: 'EasySend-$progVersion.apk',
         path: apkPath,
         size: stat.size,
       );

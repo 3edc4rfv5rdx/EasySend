@@ -74,6 +74,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   // One line per fact instead of a single run-on string: the version, the
   // build and the device id are what gets quoted when something goes wrong.
   Future<void> _showAbout() async {
+    // The updater is Android's alone — the desktop builds are not installed
+    // from a release manifest — so on the others the dialog has the one button.
+    final bool canUpdate = Platform.isAndroid;
     await showFlatDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
@@ -91,18 +94,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _aboutRow(lw('Version'), progVersion),
-            _aboutRow(lw('Build'), '$buildNumber'),
+            // The build number is the version's last component, so what is
+            // worth a line of its own is the day it was built.
+            _aboutRow(lw('Build date'), buildDate),
             _aboutRow(lw('Author'), progAuthor),
             _aboutRow(lw('Platform'), xvPlatform),
             _aboutRow(lw('Device id'), xvDeviceId),
           ],
         ),
+        // Ok keeps the right, where every dialog here has it, and the update
+        // button is pushed to the far left: the two are pressed for opposite
+        // reasons and a stray tap on the wrong one starts a download. Spreading
+        // them apart takes a second button, so with Ok alone the row is simply
+        // aligned as usual.
+        actionsAlignment: canUpdate
+            ? MainAxisAlignment.spaceBetween
+            : MainAxisAlignment.end,
         actions: [
           // The updater checks by itself every six hours and stays silent when
           // there is nothing new; this asks it now and makes it answer either
-          // way. Android only — the desktop builds are not installed from a
-          // release manifest.
-          if (Platform.isAndroid)
+          // way.
+          if (canUpdate)
             TextButton(
               onPressed: () async {
                 // Closed first: the updater's own dialog is a platform one and
@@ -111,7 +123,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 await checkForUpdate();
               },
               style: dialogButtonStyle,
-              child: Text(lw('Check for updates')),
+              // One word: the pair has to fit on one line beside Ok, and a
+              // longer label pushed the two buttons into a column of their own.
+              child: Text(lw('Update')),
             ),
           TextButton(
             onPressed: () => Navigator.pop(context),

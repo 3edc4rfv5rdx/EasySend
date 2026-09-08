@@ -7,7 +7,8 @@ void main() {
   const String pubspec = 'name: test_app\nversion: 0.2.260811+72\n';
   const String globals =
       "const String progVersion = '0.2.260811';\n"
-      'const int buildNumber = 72;\n';
+      'const int buildNumber = 72;\n'
+      "const String buildDate = '2026-01-01';\n";
 
   Future<Directory> fixture() async {
     final Directory root = await Directory.systemTemp.createTemp(
@@ -71,7 +72,7 @@ esac
       'mv': r'''#!/usr/bin/env bash
 if [ "$RELEASE_FAKE_RENAME_FAIL" = "true" ]; then
   case "$2" in
-    build/app/outputs/flutter-apk/TestApp-*-x86_64.apk) exit 9 ;;
+    build/app/outputs/flutter-apk/test_app-*-x86_64.apk) exit 9 ;;
   esac
 fi
 /bin/mv "$@"
@@ -142,7 +143,7 @@ fi
         Directory(
           p.join(root.path, 'build', 'app', 'outputs', 'flutter-apk'),
         ).listSync().map((entry) => p.basename(entry.path)).where((name) {
-          return name.startsWith('TestApp') && name.endsWith('.apk');
+          return name.startsWith('test_app') && name.endsWith('.apk');
         }).toList();
     expect(finals, isEmpty);
   }
@@ -217,11 +218,6 @@ fi
   test('an existing destination is never overwritten', () async {
     final Directory root = await fixture();
     addTearDown(() => root.delete(recursive: true));
-    final DateTime now = DateTime.now();
-    final String date =
-        '${(now.year % 100).toString().padLeft(2, '0')}'
-        '${now.month.toString().padLeft(2, '0')}'
-        '${now.day.toString().padLeft(2, '0')}';
     final File existing = File(
       p.join(
         root.path,
@@ -229,7 +225,7 @@ fi
         'app',
         'outputs',
         'flutter-apk',
-        'TestApp-0.2.$date-73-universal.apk',
+        'test_app-0.2.73-universal.apk',
       ),
     );
     await existing.writeAsString('old exact artifact');
@@ -277,20 +273,28 @@ fi
       p.join(root.path, 'pubspec.yaml'),
     ).readAsString();
     final RegExpMatch version = RegExp(
-      r'version: (0\.2\.\d{6})\+73',
+      r'version: (0\.2\.73)\+73',
     ).firstMatch(updatedPub)!;
     final String updatedGlobals = await File(
       p.join(root.path, 'lib', 'globals.dart'),
     ).readAsString();
     expect(updatedGlobals, contains("progVersion = '${version.group(1)}'"));
     expect(updatedGlobals, contains('buildNumber = 73'));
+    // The date left the version and lives here now, so the run has to have
+    // written today's over the one the fixture came with.
+    final DateTime now = DateTime.now();
+    final String today =
+        '${now.year}-'
+        '${now.month.toString().padLeft(2, '0')}-'
+        '${now.day.toString().padLeft(2, '0')}';
+    expect(updatedGlobals, contains("buildDate = '$today'"));
 
     final List<FileSystemEntity> finals =
         Directory(
           p.join(root.path, 'build', 'app', 'outputs', 'flutter-apk'),
         ).listSync().where((entry) {
           final String name = p.basename(entry.path);
-          return name.startsWith('TestApp') && name.endsWith('.apk');
+          return name.startsWith('test_app') && name.endsWith('.apk');
         }).toList();
     // One renamed APK per source artifact, the 32-bit one included.
     expect(finals, hasLength(sourceArtifacts.length));

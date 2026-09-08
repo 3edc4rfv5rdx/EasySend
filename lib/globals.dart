@@ -20,8 +20,15 @@ final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey =
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 const String prgName = 'easysend';
-const String progVersion = '0.9.20260908';
-const int buildNumber = 153;
+// The version ends in the build number rather than a date: one number, and the
+// day it was built is a fact of its own below. All three are written by
+// 10-MakeRelease.sh, which is why they are spelled out here and not computed.
+const String progVersion = '0.9.155';
+// The same number the version ends in, spelled out because a pubspec has to
+// carry it after the + as well and 10-MakeRelease.sh refuses to build when the
+// two files disagree. Nothing on screen shows it: the version already does.
+const int buildNumber = 155;
+const String buildDate = '2026-09-08';
 const String progAuthor = 'Eugen';
 
 const String langFile = 'assets/locales.json';
