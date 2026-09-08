@@ -3,6 +3,7 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure
 
 ## Unreleased
+- N: The About dialog has a "Check for updates" button, so a new build can be looked for at once instead of waiting out the updater's six-hour interval; it answers even when there is nothing newer
 - F: The home list drops unreachable trusted devices — the settings screen already lists them; one added by hand stays, and so does the peer of a running transfer
 - N: Received pictures and videos can be shown in the gallery — a switch in the settings, off by default; the files stay in the receive folder and only the media index is told about them
 

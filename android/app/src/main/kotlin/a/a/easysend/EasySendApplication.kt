@@ -147,6 +147,11 @@ class EasySendApplication : Application() {
             // deliverPickedFiles instead of as this call's result.
             "pickFiles" -> result.success(activity?.pickFiles() ?: false)
 
+            // The About dialog's update button. The updater needs a screen to
+            // draw its own dialogs on and reports what it found there, so all
+            // that comes back is whether there was an Activity to start it.
+            "checkForUpdate" -> result.success(activity?.checkForUpdate() ?: false)
+
             // The installed package itself, so a phone that has no EasySend can
             // be handed one over HTTP. Readable by its own app, whatever the
             // storage permissions are.

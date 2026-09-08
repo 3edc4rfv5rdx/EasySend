@@ -98,6 +98,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ],
         ),
         actions: [
+          // The updater checks by itself every six hours and stays silent when
+          // there is nothing new; this asks it now and makes it answer either
+          // way. Android only — the desktop builds are not installed from a
+          // release manifest.
+          if (Platform.isAndroid)
+            TextButton(
+              onPressed: () async {
+                // Closed first: the updater's own dialog is a platform one and
+                // would come up over this, which has nothing left to show.
+                Navigator.pop(context);
+                await checkForUpdate();
+              },
+              style: dialogButtonStyle,
+              child: Text(lw('Check for updates')),
+            ),
           TextButton(
             onPressed: () => Navigator.pop(context),
             style: dialogButtonStyle,

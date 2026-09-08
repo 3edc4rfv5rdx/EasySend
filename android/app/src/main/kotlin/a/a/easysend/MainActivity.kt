@@ -36,16 +36,30 @@ class MainActivity : FlutterActivity() {
         private val copySlot = java.util.concurrent.atomic.AtomicInteger()
     }
 
+    // One description of this app's release for both checks: the silent one at
+    // start-up and the one behind the About dialog's button.
+    private val updaterConfig = UpdaterConfig(appKey = "easysend", repo = "EasySend")
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // Looks for a newer build in this app's own GitHub release and asks
         // before it downloads anything. Silent when there is nothing newer or
         // GitHub cannot be reached.
-        Updater.checkOnStart(
-            this,
-            UpdaterConfig(appKey = "easysend", repo = "EasySend"),
-        )
+        Updater.checkOnStart(this, updaterConfig)
         consumeExitRequest(intent)
+    }
+
+    /**
+     * The check behind the About dialog's button.
+     *
+     * It skips the six-hour interval and, unlike the one at start-up, answers
+     * even when there is nothing new — the updater draws every one of those
+     * dialogs itself, so the Dart side is told nothing beyond that a check
+     * started.
+     */
+    internal fun checkForUpdate(): Boolean {
+        Updater.checkNow(this, updaterConfig)
+        return true
     }
 
     // singleTop: an app that is already open is handed the Intent here instead

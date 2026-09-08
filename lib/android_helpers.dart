@@ -150,6 +150,25 @@ Future<String?> installedApkPath({bool? android}) async {
   }
 }
 
+/// Asks the updater to look for a newer build now, without waiting out its
+/// six-hour interval.
+///
+/// The native side shows the answer itself — the offer to install, "up to
+/// date", or a network error — so nothing comes back but whether the check
+/// could be started: false off Android and when no screen is attached.
+Future<bool> checkForUpdate({bool? android}) async {
+  if (!(android ?? Platform.isAndroid)) return false;
+  try {
+    return await _serviceChannel.invokeMethod<bool>('checkForUpdate') ?? false;
+  } on PlatformException catch (e) {
+    myPrint('the update check failed: ${e.message}');
+    return false;
+  } on MissingPluginException catch (e) {
+    myPrint('the update check is unavailable: ${e.message}');
+    return false;
+  }
+}
+
 void _completePick(List<String> paths) {
   final Completer<List<String>>? completer = _pickCompleter;
   _pickCompleter = null;
