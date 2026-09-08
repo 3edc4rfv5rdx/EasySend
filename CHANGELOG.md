@@ -3,6 +3,7 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure
 
 ## Unreleased
+- F: The About screen drops the author, the platform and the device id — the version, the build date and the two addresses are what a report needs, and the rest pushed the buttons off a short screen
 - R: The About screen is the shared module's now — one dialog for every project here, with the version, build date, GitHub page, mailbox and the update check on it
 
 ## v0.9.155 (2026-09-08)

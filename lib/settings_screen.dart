@@ -72,18 +72,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   /// The About screen, drawn by the shared module — the same dialog every
-  /// project here shows, with the update check on it. What it cannot work out
-  /// for itself is the build date and the three rows below it, and those go
-  /// over with their labels already translated.
+  /// project here shows, with the update check on it. Only the build date goes
+  /// over: the name, the version and the addresses it works out for itself.
   Future<void> _showAbout() async {
-    await showAbout(
-      buildDate: buildDate,
-      extra: [
-        (lw('Author'), progAuthor),
-        (lw('Platform'), xvPlatform),
-        (lw('Device id'), xvDeviceId),
-      ],
-    );
+    await showAbout(buildDate: buildDate);
   }
 
   Future<void> _apply(VoidCallback change) async {
