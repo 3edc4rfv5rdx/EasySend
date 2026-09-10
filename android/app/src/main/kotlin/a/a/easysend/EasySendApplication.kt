@@ -7,6 +7,7 @@ import android.content.Intent
 import android.media.MediaScannerConnection
 import android.net.wifi.WifiManager
 import android.os.Build
+import dev.updater.Updater
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
@@ -82,6 +83,17 @@ class EasySendApplication : Application() {
 
     private fun handle(call: MethodCall, result: MethodChannel.Result) {
         when (call.method) {
+            // The start-up update check is ../updater's own flag, kept in the
+            // module's preferences rather than in this app's settings file, so
+            // the switch in Dart reads and writes it through here. It governs
+            // the check at launch alone: the About dialog's button still works.
+            "updateCheckEnabled" -> result.success(Updater.isEnabled(this))
+
+            "setUpdateCheckEnabled" -> {
+                Updater.setEnabled(this, call.argument<Boolean>("enabled") ?: true)
+                result.success(true)
+            }
+
             "start", "update" -> {
                 val intent = Intent(this, TransferService::class.java).apply {
                     action = if (call.method == "start") {

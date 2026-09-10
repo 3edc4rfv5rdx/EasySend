@@ -16,11 +16,20 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   List<String> _addresses = [];
+  // The updater's own flag, not one of ours in xdef: it is fetched once when
+  // the screen opens and written straight back through the same channel.
+  bool _updateCheck = true;
 
   @override
   void initState() {
     super.initState();
     _loadAddresses();
+    _loadUpdateCheck();
+  }
+
+  Future<void> _loadUpdateCheck() async {
+    final bool on = await updateCheckEnabled();
+    if (mounted) setState(() => _updateCheck = on);
   }
 
   Future<void> _loadAddresses() async {
@@ -356,6 +365,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           onChanged: (v) => _apply(() => xdef['Ask before exit'] = '$v'),
         ),
+        if (Platform.isAndroid)
+          SwitchListTile(
+            dense: true,
+            visualDensity: const VisualDensity(vertical: -2),
+            secondary: Icon(Icons.system_update_outlined, color: clText),
+            activeThumbColor: clAccent,
+            value: _updateCheck,
+            title: Text(lw('Check for updates'), style: tsNormal),
+            subtitle: Text(
+              lw('At launch, from the GitHub release'),
+              style: tsSmall,
+            ),
+            onChanged: (v) async {
+              setState(() => _updateCheck = v);
+              await setUpdateCheckEnabled(v);
+            },
+          ),
         if (Platform.isAndroid)
           SwitchListTile(
             dense: true,

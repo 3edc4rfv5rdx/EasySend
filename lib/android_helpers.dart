@@ -179,6 +179,39 @@ Future<bool> showAbout({
   }
 }
 
+/// Whether the updater looks for a newer build at launch. The flag belongs to
+/// the shared module, not to this app's settings file, so it is asked for
+/// rather than read out of [xdef]. False off Android, where there is no
+/// updater to ask.
+Future<bool> updateCheckEnabled({bool? android}) async {
+  if (!(android ?? Platform.isAndroid)) return false;
+  try {
+    return await _serviceChannel.invokeMethod<bool>('updateCheckEnabled') ??
+        false;
+  } on PlatformException catch (e) {
+    myPrint('the update-check flag failed: ${e.message}');
+    return false;
+  } on MissingPluginException catch (e) {
+    myPrint('the update-check flag is unavailable: ${e.message}');
+    return false;
+  }
+}
+
+/// Turns that check on or off. Off stops the look at launch and nothing else —
+/// the About screen's own button still answers.
+Future<void> setUpdateCheckEnabled(bool enabled, {bool? android}) async {
+  if (!(android ?? Platform.isAndroid)) return;
+  try {
+    await _serviceChannel.invokeMethod<bool>('setUpdateCheckEnabled', {
+      'enabled': enabled,
+    });
+  } on PlatformException catch (e) {
+    myPrint('the update-check flag failed: ${e.message}');
+  } on MissingPluginException catch (e) {
+    myPrint('the update-check flag is unavailable: ${e.message}');
+  }
+}
+
 void _completePick(List<String> paths) {
   final Completer<List<String>>? completer = _pickCompleter;
   _pickCompleter = null;
