@@ -3,6 +3,7 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure
 
 ## Unreleased
+- I: The README catches up with the app: the About screen and the update check, sharing over a plain link, the gallery switch, the two shared modules compiled into the Android build, and the version that no longer carries a date
 - N: A "Check for updates" switch in Settings, on by default — ../updater's own flag, reached over the service channel, so it stops the look at launch and leaves the About screen's button alone
 - F: The About dialog's update button no longer promises an update that is not there: it opens as a check, asks the server as the card comes up, and turns into an inverted Update only when a newer build is published
 - F: The About screen drops the author, the platform and the device id — the version, the build date and the two addresses are what a report needs, and the rest pushed the buttons off a short screen

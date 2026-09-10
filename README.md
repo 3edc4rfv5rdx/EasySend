@@ -88,11 +88,30 @@ no internet: the two devices talk to each other and nothing else.
   *Keep the screen on* switch, on by default, holds it while the app is open as well.
   One lock with two owners: whichever lets go first does not take the screen from the
   other, and leaving the app never darkens a transfer in progress.
+- **Share over a plain link** — the globe button offers the program itself, or the files you
+  picked, over an ordinary HTTP address: the other device scans the QR or types the address into a
+  browser and downloads. It works while the dialog is open, and the screen stays lit for as long as
+  it is. Nothing resumes and nobody is asked for consent on the far end — that is the trade for
+  needing no app there at all.
+- **Received pictures in the gallery** — a switch in the settings, off by default. The files stay
+  where they landed; only the media index is told about them.
 - **Themes and languages** — five palettes (Light, Dark, Sand, Slate, Olive) plus System,
   and English, Russian and Ukrainian. Both are data, not code: add a palette to
   `assets/colors.json` or a locale to `assets/locales.json` and it shows up in the
   settings. `palette-preview.html` renders the home screen in every palette with WCAG
   contrast ratios beside each colour, so a theme can be judged without a build.
+
+## About and updates
+
+The **i** button in the Settings app bar opens the About screen the shared module draws for every
+project here: the version, the build date, the GitHub page, the mailbox, and a button that asks for
+a newer build there and then. Beyond that the Android build asks GitHub for the newest release of
+this repository at launch, at most every six hours, and offers the split built for the device's own
+ABI out of the `latest.json` that `23-ToUpdate.sh` uploads beside the APKs — the one thing the app
+ever sends outside the local network. The *Check for updates* switch in the settings turns that
+launch check off; the About screen's button stays. Both belong to the shared module and are reached
+over the service channel, so the flag means the same thing here as in the sibling apps. On Linux
+there is no updater and no About screen: the channel answers false.
 
 ## Where files land
 
@@ -122,7 +141,11 @@ it on public or guest Wi-Fi.
 
 ## Build
 
-Flutter, one codebase for Android and Linux. A Windows build may happen one day, but
+Flutter, one codebase for Android and Linux. Two folders beside this one are compiled into the
+Android build from source rather than pulled in as packages — `../updater` (the update check and
+its dialogs) and `../about` (the About screen, drawn in code so the resource shrinker cannot drop
+its strings); the `sourceSets` block in `android/app/build.gradle.kts` wires them, and one copy of
+each serves every project here. A Windows build may happen one day, but
 nothing is promised — it is not built, not tested and not shipped.
 
 The numbered scripts do the work:
@@ -139,7 +162,9 @@ The numbered scripts do the work:
 ./14-MakeAppImage.sh   # pack that release into one AppImage
 ```
 
-`20-MakeTag.sh`, `21-PushTag.sh` and `22-RelUpload.sh` tag a release and upload it.
+`20-MakeTag.sh`, `21-PushTag.sh` and `22-RelUpload.sh` tag a release and upload it; `23-ToUpdate.sh`
+writes the `latest.json` beside it that the in-app updater reads, and `99-CopyToAPKX.sh` copies the
+arm64 APK under an `.apkx` name, for messengers that mangle `.apk`.
 `tools/make_icon.py` draws the app icon as geometry and writes the masters into `assets/`.
 `bash 02-MakeIcons.sh` carries those masters into `android/.../res/` with
 `flutter_launcher_icons`, and only when the resources are older than them; it says what it
@@ -151,9 +176,10 @@ beside clang (`lld`); `13-MakeLinux.sh` checks for both and says what is missing
 
 ### Versions
 
-`major.minor.YYMMDD+build`. The date and the build number are stamped by
-`10-MakeRelease.sh` and never go backwards: Android refuses an update whose
-build number is not larger than the installed one.
+`major.minor.build` — the build number is the version's own last component, so nothing repeats it,
+and the build date it used to carry is kept for the About screen alone. `10-MakeRelease.sh` raises
+the number and it never goes backwards: Android refuses an update whose build number is not larger
+than the installed one. The tag is `v<version>`, and an artifact `easysend-<version>-<abi>.apk`.
 
 The line — `major.minor` — is decided by the changelog, and moves on its own: a
 release carrying an `N:` entry under `Unreleased` since the last tag takes the
