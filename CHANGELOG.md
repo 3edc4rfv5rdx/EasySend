@@ -3,6 +3,8 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure
 
 ## Unreleased
+
+## v0.10.160 (2026-09-15)
 - F: A refused name says which segment is at fault, and a trailing space or dot is now its own reason instead of "characters that cannot travel"
 - I: The README catches up with the app: the About screen and the update check, sharing over a plain link, the gallery switch, the two shared modules compiled into the Android build, and the version that no longer carries a date
 - N: A "Check for updates" switch in Settings, on by default — ../updater's own flag, reached over the service channel, so it stops the look at launch and leaves the About screen's button alone
