@@ -401,18 +401,25 @@ String? sanitizeRelPath(String raw) {
     // Reject lossy or non-portable names instead of silently mapping two
     // different manifest entries onto the same destination.
     if (_windowsForbidden.hasMatch(segment) ||
-        segment.endsWith('.') ||
-        segment.endsWith(' ') ||
+        endsBlank(segment) ||
         isComponentTooLong(segment)) {
       return null;
     }
-    final String base = segment.split('.').first.toLowerCase();
-    if (_reservedNames.contains(base)) return null;
+    if (isReservedName(segment)) return null;
     parts.add(segment);
     if (parts.length > maxPathDepth) return null;
   }
   return parts.isEmpty ? null : parts.join('/');
 }
+
+// Windows drops a trailing dot or space when it creates the file, so the name
+// that arrives is not the name in the manifest, and two entries that differ
+// only there would land on one file.
+bool endsBlank(String segment) => segment.endsWith('.') || segment.endsWith(' ');
+
+// A device name is taken whatever follows it, so 'con.txt' is reserved too.
+bool isReservedName(String segment) =>
+    _reservedNames.contains(segment.split('.').first.toLowerCase());
 
 // One name against both limits. Whichever end of the transfer is stricter for
 // this particular name is the one that decides.
@@ -527,12 +534,31 @@ PickProblem classifyRefusal(String raw, {int size = 0}) {
   if (size > maxDeclaredFileBytes) return PickProblem.tooLarge;
   if (isPathTooLong(raw)) return PickProblem.tooLong;
   if (raw.contains(r'\')) return PickProblem.backslash;
-  for (final String segment in raw.split('/')) {
-    if (_reservedNames.contains(segment.split('.').first.toLowerCase())) {
-      return PickProblem.reserved;
-    }
-  }
+  if (_blamed(raw, isReservedName) != null) return PickProblem.reserved;
+  if (_blamed(raw, endsBlank) != null) return PickProblem.trailingBlank;
   return PickProblem.notPortable;
+}
+
+// Which part of the path is the one to rename. A folder carries its own name
+// into every file under it, so one bad folder refuses a whole album and the
+// list alone does not say which of the names on it is at fault. Null when the
+// path as a whole is what broke, and nothing narrower can be pointed at.
+String? blamedSegment(String raw, PickProblem problem) => switch (problem) {
+  PickProblem.tooLarge || PickProblem.backslash => null,
+  PickProblem.tooLong => _blamed(raw, isComponentTooLong),
+  PickProblem.reserved => _blamed(raw, isReservedName),
+  PickProblem.trailingBlank => _blamed(raw, endsBlank),
+  PickProblem.notPortable => _blamed(raw, _windowsForbidden.hasMatch),
+};
+
+// The first segment a rule refuses, skipping the ones sanitizeRelPath drops
+// before it ever asks: they are not what the name was refused for.
+String? _blamed(String raw, bool Function(String segment) refuses) {
+  for (final String segment in raw.split('/')) {
+    if (segment.isEmpty || segment == '.' || segment == '..') continue;
+    if (refuses(segment)) return segment;
+  }
+  return null;
 }
 
 // The one refusal worth offering a repair for. Everything else on that list is

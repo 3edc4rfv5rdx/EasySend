@@ -69,6 +69,29 @@ void main() {
     expect(picked.refused[2].file.relativePath, r'report\draft.pdf');
   });
 
+  test('a trailing space or dot is its own refusal, not a stray character', () {
+    // Windows drops both when it creates the file, so the name that arrives is
+    // not the name that was sent.
+    expect(classifyRefusal('album /01.mp3'), PickProblem.trailingBlank);
+    expect(classifyRefusal('album./01.mp3'), PickProblem.trailingBlank);
+    expect(classifyRefusal('report .txt'), PickProblem.notPortable);
+    // Only the last character counts: a dot elsewhere is an ordinary one.
+    expect(sanitizeRelPath('.hidden/3 a.m..mp3'), '.hidden/3 a.m..mp3');
+  });
+
+  test('the segment to rename is the one named, not the whole path', () {
+    // One folder refuses every file under it, and the list of paths alone does
+    // not say which part of them is at fault.
+    expect(blamedSegment('album /01.mp3', PickProblem.trailingBlank), 'album ');
+    expect(blamedSegment('holiday/CON.txt', PickProblem.reserved), 'CON.txt');
+    expect(blamedSegment('a/b<c.txt', PickProblem.notPortable), 'b<c.txt');
+    // Nothing narrower to point at: the size and the repairable backslash are
+    // about the file itself, and '..' is the whole path being refused.
+    expect(blamedSegment('huge.bin', PickProblem.tooLarge), isNull);
+    expect(blamedSegment(r'a\b.txt', PickProblem.backslash), isNull);
+    expect(blamedSegment('../escape.txt', PickProblem.notPortable), isNull);
+  });
+
   test('a backslash is refused rather than turned into a folder', () {
     // It is an ordinary character in a POSIX name and a separator elsewhere,
     // so the same name cannot mean one thing at both ends.

@@ -175,7 +175,14 @@ enum ConflictMode {
 
 // Why a picked file cannot travel under its own name. Only the backslash is
 // worth offering a repair for; the rest are either impossible or unsafe.
-enum PickProblem { tooLong, backslash, reserved, notPortable, tooLarge }
+enum PickProblem {
+  tooLong,
+  backslash,
+  reserved,
+  trailingBlank,
+  notPortable,
+  tooLarge,
+}
 
 typedef RefusedPick = ({FileItem file, PickProblem problem});
 

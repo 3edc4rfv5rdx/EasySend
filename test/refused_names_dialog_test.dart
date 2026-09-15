@@ -31,9 +31,48 @@ void main() {
     expect(find.text(long), findsOneWidget);
     expect(find.text('a backslash in the name'), findsOneWidget);
     expect(find.text('a name Windows reserves'), findsOneWidget);
-    expect(find.text('the name is too long'), findsOneWidget);
+    // The path is a folder and a file, so the reason names the guilty half.
+    expect(
+      find.text(
+        'the name is too long: "${'a' * (maxPathComponentChars + 1)}.jpg"',
+      ),
+      findsOneWidget,
+    );
 
     await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(await answer, isFalse);
+  });
+
+  testWidgets('the folder to rename is named under the file it refused', (
+    WidgetTester tester,
+  ) async {
+    await pumpHost(tester);
+    final Future<bool> answer = showRefusedNamesDialog([
+      (file: item('album /01.mp3'), problem: PickProblem.trailingBlank),
+    ]);
+    await tester.pump();
+
+    // Quoted, or the trailing space this is about cannot be seen at all.
+    expect(find.text('a space or a dot at the end: "album "'), findsOneWidget);
+
+    await tester.tap(find.text('Ok'));
+    await tester.pumpAndSettle();
+    expect(await answer, isFalse);
+  });
+
+  testWidgets('a file refused for its own name does not repeat it', (
+    WidgetTester tester,
+  ) async {
+    await pumpHost(tester);
+    final Future<bool> answer = showRefusedNamesDialog([
+      (file: item('CON'), problem: PickProblem.reserved),
+    ]);
+    await tester.pump();
+
+    expect(find.text('a name Windows reserves'), findsOneWidget);
+
+    await tester.tap(find.text('Ok'));
     await tester.pumpAndSettle();
     expect(await answer, isFalse);
   });

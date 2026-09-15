@@ -452,9 +452,20 @@ String _refusalReason(PickProblem problem) => switch (problem) {
   PickProblem.tooLong => lw('the name is too long'),
   PickProblem.backslash => lw('a backslash in the name'),
   PickProblem.reserved => lw('a name Windows reserves'),
+  PickProblem.trailingBlank => lw('a space or a dot at the end'),
   PickProblem.notPortable => lw('characters that cannot travel'),
   PickProblem.tooLarge => lw('the file is too large'),
 };
+
+// The reason, and under it the one name to rename — quoted, because the space
+// this is most often about is invisible otherwise. A file refused for its own
+// name says nothing twice: the path above already shows it.
+String _refusalLine(RefusedPick item) {
+  final String reason = _refusalReason(item.problem);
+  final String? blamed = blamedSegment(item.file.relativePath, item.problem);
+  if (blamed == null || blamed == item.file.relativePath) return reason;
+  return '$reason: "$blamed"';
+}
 
 // Which picked files cannot be sent under their own names, and why — said when
 // they are picked rather than when a transfer dies halfway. Returns true when
@@ -503,7 +514,7 @@ Future<bool> showRefusedNamesDialog(List<RefusedPick> refused) async {
                           // in one folder often differ only at the end.
                           Text(item.file.relativePath, style: tsNormal),
                           Text(
-                            _refusalReason(item.problem),
+                            _refusalLine(item),
                             style: tsSmall.copyWith(color: clTextMuted),
                           ),
                         ],
