@@ -52,22 +52,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
         backgroundColor: clFill,
         shape: dialogShape,
         title: Text(lw('My IP'), style: tsLarge),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: _addresses.map((a) {
-            final String full = '$a:$currentPort';
-            return ListTile(
-              dense: true,
-              contentPadding: EdgeInsets.zero,
-              title: Text(full, style: tsNormal),
-              trailing: Icon(Icons.copy, size: 18, color: clTextMuted),
-              onTap: () async {
-                await Clipboard.setData(ClipboardData(text: full));
-                if (context.mounted) Navigator.pop(context);
-                okInfoBarGreen(lw('Copied'));
-              },
-            );
-          }).toList(),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: _addresses.map((a) {
+              final String full = '$a:$currentPort';
+              return ListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                title: Text(full, style: tsNormal),
+                trailing: Icon(Icons.copy, size: 18, color: clTextMuted),
+                onTap: () async {
+                  await Clipboard.setData(ClipboardData(text: full));
+                  if (context.mounted) Navigator.pop(context);
+                  okInfoBarGreen(lw('Copied'));
+                },
+              );
+            }).toList(),
+          ),
         ),
         actions: [
           TextButton(
@@ -173,17 +175,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
         content: RadioGroup<String>(
           groupValue: current,
           onChanged: (v) => Navigator.pop(context, v),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: options
-                .map(
-                  (o) => RadioListTile<String>(
-                    value: o,
-                    fillColor: WidgetStatePropertyAll<Color>(clText),
-                    title: Text(labelOf?.call(o) ?? lw(o), style: tsNormal),
-                  ),
-                )
-                .toList(),
+          // Scrolls: six themes are taller than a landscape phone.
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: options
+                  .map(
+                    (o) => RadioListTile<String>(
+                      value: o,
+                      fillColor: WidgetStatePropertyAll<Color>(clText),
+                      title: Text(labelOf?.call(o) ?? lw(o), style: tsNormal),
+                    ),
+                  )
+                  .toList(),
+            ),
           ),
         ),
       ),
@@ -215,7 +220,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       // initState and again only when the user asks for them.
       body: ListenableBuilder(
         listenable: devicesTick,
-        builder: (BuildContext context, Widget? _) => _body(),
+        builder: (BuildContext context, Widget? _) => sideSafe(_body()),
       ),
     );
   }

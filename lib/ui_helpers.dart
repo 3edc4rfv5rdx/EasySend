@@ -95,6 +95,12 @@ Future<T?> showFlatDialog<T>({
   );
 }
 
+// A screen body kept clear of a landscape phone's cutout and navigation bar,
+// which sit at the sides then. Top and bottom stay the Scaffold's business.
+Widget sideSafe(Widget child) {
+  return SafeArea(top: false, bottom: false, child: child);
+}
+
 // Section heading: a 2 px rule with the name laid into it, the trailing button
 // sitting in the line as well. A filled strip made every section shout; here
 // the structure is the line and the only coloured area left is Send.
@@ -344,72 +350,81 @@ Future<(bool, bool, ConflictMode)> showAcceptDialog({
                   Text(lw('Incoming files'), style: tsLarge),
                 ],
               ),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    senderName,
-                    style: TextStyle(
-                      fontSize: fsNormal,
-                      fontWeight: fwBold,
-                      color: clText,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '$fileCount — ${formatBytes(totalBytes)}',
-                    style: tsNormal,
-                  ),
-                  if (occupied > 0) ...[
-                    const SizedBox(height: 8),
+              // Scrolls: with the conflict choice and the trust box it is
+              // taller than a landscape phone.
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                     Text(
-                      '${lw('Such files are already here')}: $occupied',
+                      senderName,
+                      style: TextStyle(
+                        fontSize: fsNormal,
+                        fontWeight: fwBold,
+                        color: clText,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '$fileCount — ${formatBytes(totalBytes)}',
                       style: tsNormal,
                     ),
-                    // One under another rather than side by side: a translation
-                    // of any of these is longer than a phone dialog is wide.
-                    RadioGroup<ConflictMode>(
-                      groupValue: mode,
-                      onChanged: (ConflictMode? picked) =>
-                          setState(() => mode = picked ?? mode),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          for (final ConflictMode choice in ConflictMode.values)
-                            RadioListTile<ConflictMode>(
-                              dense: true,
-                              contentPadding: EdgeInsets.zero,
-                              visualDensity: const VisualDensity(vertical: -4),
-                              controlAffinity: ListTileControlAffinity.leading,
-                              value: choice,
-                              activeColor: clAccent,
-                              title: Text(
-                                conflictModeLabel(choice),
-                                style: tsSmall,
+                    if (occupied > 0) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        '${lw('Such files are already here')}: $occupied',
+                        style: tsNormal,
+                      ),
+                      // One under another rather than side by side: a
+                      // translation of any of these is longer than a phone
+                      // dialog is wide.
+                      RadioGroup<ConflictMode>(
+                        groupValue: mode,
+                        onChanged: (ConflictMode? picked) =>
+                            setState(() => mode = picked ?? mode),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            for (final ConflictMode choice
+                                in ConflictMode.values)
+                              RadioListTile<ConflictMode>(
+                                dense: true,
+                                contentPadding: EdgeInsets.zero,
+                                visualDensity: const VisualDensity(
+                                  vertical: -4,
+                                ),
+                                controlAffinity:
+                                    ListTileControlAffinity.leading,
+                                value: choice,
+                                activeColor: clAccent,
+                                title: Text(
+                                  conflictModeLabel(choice),
+                                  style: tsSmall,
+                                ),
                               ),
-                            ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
-                  if (askTrust) ...[
-                    const SizedBox(height: 8),
-                    CheckboxListTile(
-                      dense: true,
-                      contentPadding: EdgeInsets.zero,
-                      controlAffinity: ListTileControlAffinity.leading,
-                      value: trust,
-                      activeColor: clAccent,
-                      checkColor: onColor(clAccent),
-                      title: Text(
-                        lw('Always trust this device'),
-                        style: tsSmall,
+                    ],
+                    if (askTrust) ...[
+                      const SizedBox(height: 8),
+                      CheckboxListTile(
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        controlAffinity: ListTileControlAffinity.leading,
+                        value: trust,
+                        activeColor: clAccent,
+                        checkColor: onColor(clAccent),
+                        title: Text(
+                          lw('Always trust this device'),
+                          style: tsSmall,
+                        ),
+                        onChanged: (v) => setState(() => trust = v ?? false),
                       ),
-                      onChanged: (v) => setState(() => trust = v ?? false),
-                    ),
+                    ],
                   ],
-                ],
+                ),
               ),
               actions: [
                 TextButton(

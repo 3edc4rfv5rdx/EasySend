@@ -1298,18 +1298,20 @@ class _HomeScreenState extends State<HomeScreen>
       ),
       body: ListenableBuilder(
         listenable: _netTicks,
-        builder: (context, _) => CustomScrollView(
-          slivers: [
-            if (receiveServer.readinessFailure != null)
-              SliverToBoxAdapter(child: _buildReceiveBanner()),
-            SliverToBoxAdapter(child: _buildPickRow()),
-            SliverToBoxAdapter(child: _buildSelectedHeader()),
-            _buildSelectedList(),
-            SliverToBoxAdapter(child: _buildDevicesHeader()),
-            _buildDeviceList(),
-            SliverToBoxAdapter(child: _buildTransfersHeader()),
-            _buildTransferList(),
-          ],
+        builder: (context, _) => sideSafe(
+          CustomScrollView(
+            slivers: [
+              if (receiveServer.readinessFailure != null)
+                SliverToBoxAdapter(child: _buildReceiveBanner()),
+              SliverToBoxAdapter(child: _buildPickRow()),
+              SliverToBoxAdapter(child: _buildSelectedHeader()),
+              _buildSelectedList(),
+              SliverToBoxAdapter(child: _buildDevicesHeader()),
+              _buildDeviceList(),
+              SliverToBoxAdapter(child: _buildTransfersHeader()),
+              _buildTransferList(),
+            ],
+          ),
         ),
       ),
       bottomNavigationBar: ListenableBuilder(

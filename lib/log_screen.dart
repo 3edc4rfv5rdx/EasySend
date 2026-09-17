@@ -38,9 +38,14 @@ class TransferLogScreen extends StatelessWidget {
       // same tick the main screen does.
       body: ValueListenableBuilder<int>(
         valueListenable: transfersTick,
-        builder: (context, _, _) => Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [_header(), Expanded(child: _lines())],
+        builder: (context, _, _) => sideSafe(
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _header(),
+              Expanded(child: _lines()),
+            ],
+          ),
         ),
       ),
     );
