@@ -3,6 +3,8 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure
 
 ## Unreleased
+
+## v0.11.163 (2026-09-17)
 - F: In landscape the lists keep clear of the camera cutout and the side navigation bar
 - E: The theme, language, IP and incoming-files dialogs scroll instead of overflowing on a landscape phone
 - N: On Android the app turns with the screen instead of staying portrait
