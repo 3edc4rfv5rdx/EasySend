@@ -1,7 +1,6 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:window_manager/window_manager.dart';
 
 import 'android_helpers.dart';
@@ -30,12 +29,7 @@ Future<void> main() async {
   await initTranslations();
   await initNotifications();
 
-  if (Platform.isAndroid) {
-    await SystemChrome.setPreferredOrientations([
-      DeviceOrientation.portraitUp,
-      DeviceOrientation.portraitDown,
-    ]);
-  } else {
+  if (!Platform.isAndroid) {
     final bounds = parseWindowBounds(xdef['.Window bounds'] as String? ?? '');
     await windowManager.ensureInitialized();
     await windowManager.waitUntilReadyToShow(

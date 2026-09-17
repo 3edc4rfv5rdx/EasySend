@@ -3,6 +3,7 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure
 
 ## Unreleased
+- N: On Android the app turns with the screen instead of staying portrait
 
 ## v0.10.161 (2026-09-16)
 - E: A build published just after the app last looked is offered on the next launch instead of up to six hours later
