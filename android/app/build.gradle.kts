@@ -28,7 +28,7 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    // The shared in-app updater, compiled from ../../updater instead of pulled in
+    // The shared in-app updater, compiled from ../../shared/updater instead of pulled in
     // as a module: one copy of those sources serves every project here. $rootDir
     // is EasySend/android for a Flutter build, so the path climbs two levels.
     //
@@ -36,12 +36,12 @@ android {
     // this project builds on AGP 8.11.
     sourceSets {
         getByName("main") {
-            kotlin.srcDir("$rootDir/../../updater/android/src")
-            res.srcDir("$rootDir/../../updater/android/res")
+            kotlin.srcDir("$rootDir/../../shared/updater/android/src")
+            res.srcDir("$rootDir/../../shared/updater/android/res")
             // The shared About dialog, on the same terms. No res dir: its strings
             // are in AboutStrings.kt, where a release build's resource shrinker
             // cannot drop them.
-            kotlin.srcDir("$rootDir/../../about/android/src")
+            kotlin.srcDir("$rootDir/../../shared/about/android/src")
         }
     }
 

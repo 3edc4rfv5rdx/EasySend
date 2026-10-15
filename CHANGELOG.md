@@ -3,6 +3,7 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure
 
 ## Unreleased
+- I: The shared modules are compiled from ../shared, the one repository that holds updater, about and backups
 
 ## v0.11.163 (2026-09-17)
 - F: In landscape the lists keep clear of the camera cutout and the side navigation bar

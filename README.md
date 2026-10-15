@@ -141,9 +141,9 @@ it on public or guest Wi-Fi.
 
 ## Build
 
-Flutter, one codebase for Android and Linux. Two folders beside this one are compiled into the
-Android build from source rather than pulled in as packages — `../updater` (the update check and
-its dialogs) and `../about` (the About screen, drawn in code so the resource shrinker cannot drop
+Flutter, one codebase for Android and Linux. Two shared modules are compiled into the
+Android build from source rather than pulled in as packages — `../shared/updater` (the update check and
+its dialogs) and `../shared/about` (the About screen, drawn in code so the resource shrinker cannot drop
 its strings); the `sourceSets` block in `android/app/build.gradle.kts` wires them, and one copy of
 each serves every project here. A Windows build may happen one day, but
 nothing is promised — it is not built, not tested and not shipped.
