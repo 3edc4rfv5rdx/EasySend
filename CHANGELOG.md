@@ -3,6 +3,7 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure
 
 ## Unreleased
+- F: Transfer speed and time left sit beside the percent instead of in the line under the bar
 - I: The shared modules are compiled from ../shared, the one repository that holds updater, about and backups
 
 ## v0.11.163 (2026-09-17)

@@ -1799,6 +1799,17 @@ class _HomeScreenState extends State<HomeScreen>
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
+                          // Speed and time left sit beside the percent: the
+                          // three numbers that answer "how long" read together.
+                          if (t.isRunning && !t.packing) ...[
+                            const SizedBox(width: 8),
+                            Text(
+                              eta == null
+                                  ? formatSpeed(t.speed)
+                                  : '${formatSpeed(t.speed)} — ${formatDuration(eta)}',
+                              style: tsNormal,
+                            ),
+                          ],
                           const SizedBox(width: 8),
                           Text(formatPercent(t.progress), style: tsNormal),
                         ],
@@ -1882,7 +1893,7 @@ class _HomeScreenState extends State<HomeScreen>
             // The bar already says red; the line under it says the same, so the
             // reason is not read as an ordinary status.
             Text(
-              _transferSubtitle(t, currentFile, eta),
+              _transferSubtitle(t, currentFile),
               style: t.status == TransferStatus.failed
                   ? tsSmall.copyWith(color: clError, fontWeight: fwBold)
                   : tsSmall,
@@ -1966,7 +1977,7 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
-  String _transferSubtitle(TransferSession t, FileItem? currentFile, int? eta) {
+  String _transferSubtitle(TransferSession t, FileItem? currentFile) {
     switch (t.status) {
       case TransferStatus.done:
         return '${lw('Done')}: ${t.doneCount} — ${formatBytes(t.bytesTotal)}';
@@ -1996,9 +2007,7 @@ class _HomeScreenState extends State<HomeScreen>
         }
         final String name = currentFile?.name ?? '';
         final String counter = '${t.currentIndex + 1}/${t.files.length}';
-        final String speed = formatSpeed(t.speed);
-        final String left = eta == null ? '' : ' — ${formatDuration(eta)}';
-        return '$name  $counter  $speed$left';
+        return '$name  $counter';
     }
   }
 
