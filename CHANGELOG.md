@@ -3,6 +3,7 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure
 
 ## Unreleased
+- F: The About and update dialogs take the colour theme's accent instead of a fixed colour
 
 ## v0.11.164 (2026-10-16)
 - F: Transfer speed and time left sit beside the percent instead of in the line under the bar

@@ -7,6 +7,7 @@ import android.content.Intent
 import android.media.MediaScannerConnection
 import android.net.wifi.WifiManager
 import android.os.Build
+import dev.about.About
 import dev.updater.Updater
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodCall
@@ -169,6 +170,16 @@ class EasySendApplication : Application() {
                     call.argument<List<List<String>>>("extra") ?: emptyList(),
                 ) ?: false,
             )
+
+            // The palette's accent, for the shared About and update dialogs, which
+            // read it when they open. Process-wide like the engine: the update
+            // dialog can come up before Dart has drawn anything, and is then in
+            // the module's own blue-grey. Dart's ARGB arrives as a Long once it is
+            // past Int.MAX_VALUE, so it is taken as a Number.
+            "dialogAccent" -> {
+                About.accent = call.argument<Number>("accent")?.toLong()?.toInt()
+                result.success(true)
+            }
 
             // The installed package itself, so a phone that has no EasySend can
             // be handed one over HTTP. Readable by its own app, whatever the

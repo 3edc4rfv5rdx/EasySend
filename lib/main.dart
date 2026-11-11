@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -90,6 +91,8 @@ class _EasySendAppState extends State<EasySendApp> with WidgetsBindingObserver {
           WidgetsBinding.instance.platformDispatcher.platformBrightness,
         );
         applyTheme(themeName);
+        // The native About and update dialogs follow the palette too.
+        unawaited(setDialogAccent(clAccent));
         // Taken from the palette's own background, so a dark palette under any
         // name gets dark stock widgets too.
         final bool dark = xvDarkNow;

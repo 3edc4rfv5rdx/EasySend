@@ -150,6 +150,27 @@ Future<String?> installedApkPath({bool? android}) async {
   }
 }
 
+// The accent last handed to the native side, so a rebuild that changes nothing
+// sends nothing.
+int? _sentDialogAccent;
+
+/// Hands the palette's accent to the shared About and update dialogs, which
+/// are drawn natively and read it when they open. Called on every theme
+/// rebuild; only a change goes over the channel.
+Future<void> setDialogAccent(Color accent, {bool? android}) async {
+  if (!(android ?? Platform.isAndroid)) return;
+  final int argb = accent.toARGB32();
+  if (argb == _sentDialogAccent) return;
+  _sentDialogAccent = argb;
+  try {
+    await _serviceChannel.invokeMethod<bool>('dialogAccent', {'accent': argb});
+  } on PlatformException catch (e) {
+    // Sent again on the next rebuild rather than given up on.
+    _sentDialogAccent = null;
+    myPrint('the dialog accent was not taken: ${e.message}');
+  }
+}
+
 /// Puts up the About screen, the one the shared module draws for every project
 /// here — version, build date, GitHub page, mailbox, and the update check.
 ///

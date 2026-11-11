@@ -10,6 +10,7 @@ import android.webkit.MimeTypeMap
 import androidx.core.content.FileProvider
 import dev.about.About
 import dev.about.AboutConfig
+import dev.updater.AboutUpdater
 import dev.updater.Updater
 import dev.updater.UpdaterConfig
 import io.flutter.embedding.android.FlutterActivity
@@ -55,16 +56,17 @@ class MainActivity : FlutterActivity() {
      * The About screen, drawn by the shared module — the same dialog every
      * project here shows, with the update check on it.
      *
-     * The name, the version and the GitHub address the module works out for
-     * itself; what it cannot know is the build date and whatever else this app
-     * wants on screen, and those come from Dart with their labels already
-     * translated.
+     * The name and the version the module reads off the package, and the
+     * repository and the update button come from the updater config; what it
+     * cannot know is the build date and whatever else this app wants on screen,
+     * and those come from Dart with their labels already translated.
      */
     internal fun showAbout(buildDate: String, extra: List<List<String>>): Boolean {
         About.show(
             this,
             AboutConfig(
-                updater = updaterConfig,
+                repo = updaterConfig.repoName,
+                updates = AboutUpdater(updaterConfig),
                 buildDate = buildDate,
                 extra = extra.mapNotNull { row ->
                     if (row.size == 2) row[0] to row[1] else null
