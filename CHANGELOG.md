@@ -3,6 +3,8 @@
 > N=new feature, E=error fix, F=fine-tune, R=refactor, I=infrastructure
 
 ## Unreleased
+- I: 23-ToUpdate.sh is no longer executable: updates come from the home server again, not GitHub releases
+- I: 19-LinkOut.sh links the universal APK into OUT too, the one build the home update server publishes
 - F: The About and update dialogs take the colour theme's accent instead of a fixed colour
 
 ## v0.11.164 (2026-10-16)

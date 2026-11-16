@@ -6,6 +6,7 @@
 #   OUT/easysend-<version>-x86_64.AppImage
 #   OUT/easysend-<version>-arm64-v8a.apk
 #   OUT/easysend-<version>-armeabi-v7a.apk
+#   OUT/easysend-<version>-universal.apk
 #
 # One place to copy the build from, instead of paths deep inside build/.
 # The links are hard ones: the entry here is the file itself, so copying it
@@ -51,6 +52,8 @@ link_latest build/linux/*-x86_64.AppImage
 link_latest build/app/outputs/flutter-apk/*arm64-v8a*.apk
 # The 32-bit ARM split, for the TV box.
 link_latest build/app/outputs/flutter-apk/*armeabi-v7a*.apk
+# The fat APK, the one the update server publishes.
+link_latest build/app/outputs/flutter-apk/*-universal.apk
 
 # Everything else goes: the previous build's names, an ABI no longer built, a
 # copy left behind. Only files and links — a directory somebody made here is
